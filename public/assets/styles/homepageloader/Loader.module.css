@@ -1,0 +1,304 @@
+/* ── Base ── */
+.wrapper {
+  min-height: 100vh;
+  width: 100%;
+  background: #fafaf8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  font-family: 'Nunito', sans-serif;
+}
+
+/* ── Dot grid bg ── */
+.bgDots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ── Paw trail ── */
+.pawTrail {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.paw {
+  position: absolute;
+  opacity: 0;
+  animation: pawAppear 5.4s ease forwards;
+}
+
+/* ── Center ── */
+.center {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── Orbit wrap ── */
+.orbitWrap {
+  position: relative;
+  width: 324px;
+  height: 324px;
+  margin-bottom: 36px;
+}
+
+/* Pulse rings */
+.pulseA, .pulseB {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 0, 0, 0.07);
+  animation: pulseOut 2.8s ease-out infinite;
+}
+.pulseB {
+  border-color: rgba(0, 0, 0, 0.04);
+  animation-delay: 1.4s;
+}
+
+/* Hex outer ring */
+.hexRing {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px dashed rgba(0, 0, 0, 0.07);
+  animation: spinSlow 12s linear infinite;
+}
+
+/* Tick marks on hex ring */
+.tick, .tick2, .tick3, .tick4 {
+  position: absolute;
+  border-radius: 50%;
+  background: #dddbd5;
+}
+.tick  { width: 7px; height: 7px; top: -3.5px; left: 50%; transform: translateX(-50%); }
+.tick2 { width: 5px; height: 5px; bottom: -2.5px; left: 50%; transform: translateX(-50%); }
+.tick3 { width: 5px; height: 5px; top: 50%; right: -2.5px; transform: translateY(-50%); }
+.tick4 { width: 5px; height: 5px; top: 50%; left: -2.5px; transform: translateY(-50%); }
+
+/* Mid ring */
+.midRing {
+  position: absolute;
+  inset: 20px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 0, 0, 0.06);
+  animation: spinSlow 8s linear infinite reverse;
+}
+.mtick {
+  position: absolute;
+  width: 6px; height: 6px;
+  background: #1a1a1a;
+  border-radius: 50%;
+  top: -3px; left: 50%; transform: translateX(-50%);
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.08);
+}
+
+/* Inner dashed ring */
+.innerRing {
+  position: absolute;
+  inset: 40px;
+  border-radius: 50%;
+  border: 1px dashed rgba(0, 0, 0, 0.07);
+  animation: spinSlow 5s linear infinite;
+}
+
+/* Logo shell */
+.logoShell {
+  position: absolute;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+}
+.logoImg {
+  width: 326px;
+  height: 326px;
+  object-fit: contain;
+}
+
+/* ── Brand ── */
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.brand {
+  font-size: 40px;
+  font-weight: 900;
+  color: #1a1a1a;
+  letter-spacing: -1px;
+}
+.brandTag {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+  background: #1a1a1a;
+  border-radius: 5px;
+  padding: 3px 8px;
+  letter-spacing: 1.5px;
+  position: relative;
+  top: -2px;
+}
+
+.taglineMain {
+  font-size: 16px;
+  font-weight: 700;
+  color: #666;
+  letter-spacing: 0.2px;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+
+/* ── Progress bar ── */
+.barShell { width: 240px; margin-bottom: 16px; }
+
+.barTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.barStatus {
+  font-size: 10px;
+  font-weight: 800;
+  color: #bbb;
+  letter-spacing: 1.5px;
+}
+.barNum {
+  font-size: 14px;
+  font-weight: 900;
+  color: #1a1a1a;
+}
+
+.barOuter {
+  width: 100%;
+  height: 8px;
+  background: #eeede9;
+  border-radius: 99px;
+  position: relative;
+  overflow: visible;
+}
+.barInner {
+  height: 100%;
+  background: #1a1a1a;
+  border-radius: 99px;
+  transition: width 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+.barShine {
+  position: absolute;
+  top: 0;
+  width: 50px;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  animation: shine 1.4s ease infinite;
+}
+.barCat {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-60%);
+  font-size: 16px;
+  transition: left 0.2s ease;
+  pointer-events: none;
+}
+
+/* ── Step dots ── */
+.stepRow {
+  display: flex;
+  align-items: center;
+}
+.stepDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e0deda;
+  transition: all 0.4s ease;
+  flex-shrink: 0;
+}
+.stepActive {
+  background: #1a1a1a;
+  transform: scale(1.3);
+}
+.stepDone { background: #999; }
+
+.stepLine {
+  width: 22px;
+  height: 2px;
+  background: #e0deda;
+  border-radius: 99px;
+  transition: background 0.4s ease;
+}
+.stepLineDone { background: #999; }
+
+/* ── Fun text ── */
+.funText {
+  font-size: 11px;
+  font-weight: 700;
+  color: #bbb;
+  margin-top: 24px;
+  letter-spacing: 0.5px;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.funTextShow { opacity: 1; }
+
+/* ── Keyframes ── */
+@keyframes spinSlow { to { transform: rotate(360deg); } }
+
+@keyframes pulseOut {
+  0%   { transform: scale(1);    opacity: 0.8; }
+  100% { transform: scale(1.6);  opacity: 0; }
+}
+
+@keyframes pawAppear {
+  0%   { opacity: 0; transform: scale(0.5) rotate(-10deg); }
+  60%  { opacity: 1; transform: scale(1.1) rotate(5deg); }
+  100% { opacity: 0.22; transform: scale(1) rotate(0deg); }
+}
+
+@keyframes shine {
+  0%   { transform: translateX(-50px); }
+  100% { transform: translateX(120px); }
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .orbitWrap { width: 180px; height: 180px; margin-bottom: 28px; }
+  .logoShell { inset: 50px; }
+  .logoImg { width: 48px; height: 48px; }
+  .brand { font-size: 24px; }
+  .barShell { width: 210px; }
+  .paw svg { width: 22px; height: 28px; }
+}
+
+@media (max-width: 480px) {
+  .orbitWrap { width: 155px; height: 155px; margin-bottom: 24px; }
+  .logoShell { inset: 44px; }
+  .logoImg { width: 40px; height: 40px; }
+  .brand { font-size: 20px; }
+  .taglineMain { font-size: 12px; }
+  .barShell { width: 190px; }
+  .barOuter { height: 6px; }
+  .barCat { font-size: 14px; }
+  .paw svg { width: 18px; height: 22px; }
+}
+
+@media (max-width: 360px) {
+  .orbitWrap { width: 136px; height: 136px; }
+  .logoShell { inset: 38px; }
+  .logoImg { width: 34px; height: 34px; }
+  .brand { font-size: 18px; }
+  .barShell { width: 170px; }
+}
