@@ -4,9 +4,9 @@ import React, { useMemo, useState } from 'react';
 import { Task, DeliveryState } from '../../../types/employee/task';
 import { MOCK_TASKS } from '../../../data/employee/mockTasks';
 import { computeDashboardStats, groupTasksByDueDate } from '../../../data/employee/taskStats';
-import StatsBar from '../../../components/employee/StatsBar';
-import TaskCard from '../../../components/employee/Taskcard';
-import TaskModal from '../../../components/employee/Taskmodal';
+import StatsBar from '../../../components/dashboard/employeedashboard/StatsBar';
+import TaskCard from '../../../components/dashboard/employeedashboard/Taskcard';
+import TaskModal from '../../../components/dashboard/employeedashboard/Taskmodal';
 import styles from '../../../assets/styles/employeedashboard/EmployeeDashboard.module.css';
 
 type FilterValue = 'all' | Task['status'];

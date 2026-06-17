@@ -1,7 +1,7 @@
 import React from 'react';
-import { Task } from '../../types/employee/task';
+import { Task } from '../../../types/employee/task';
 import StatusBadge from './StatusBadge';
-import styles from '../../assets/styles/employeedashboard/TaskCard.module.css';
+import styles from '../../../assets/styles/employeedashboard/TaskCard.module.css';
 
 interface TaskCardProps {
   task: Task;

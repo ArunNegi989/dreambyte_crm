@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Task, TaskChangeRequest, DeliveryState } from '../../types/employee/task';
+import { Task, TaskChangeRequest, DeliveryState } from '../../../types/employee/task';
 import StatusBadge from './StatusBadge';
 import DeliveryToggle from './DeliveryToggle';
-import styles from '../../assets/styles/employeedashboard/TaskModal.module.css';
+import styles from '../../../assets/styles/employeedashboard/TaskModal.module.css';
 
 interface TaskModalProps {
   task: Task;

@@ -1,7 +1,7 @@
 import React from 'react';
-import { TaskStatus } from '../../types/employee/task';
-import { STATUS_LABELS } from '../../data/employee/taskStats';
-import styles from '../../assets/styles/employeedashboard/StatusBadge.module.css';
+import { TaskStatus } from '../../../types/employee/task';
+import { STATUS_LABELS } from '../../../data/employee/taskStats';
+import styles from '../../../assets/styles/employeedashboard/StatusBadge.module.css';
 
 interface StatusBadgeProps {
   status: TaskStatus;

@@ -1,6 +1,6 @@
 import React from 'react';
-import { DeliveryState } from '../../types/employee/task';
-import styles from '../../assets/styles/employeedashboard/DeliveryToggle.module.css';
+import { DeliveryState } from '../../../types/employee/task';
+import styles from '../../../assets/styles/employeedashboard/DeliveryToggle.module.css';
 
 interface DeliveryToggleProps {
   value: DeliveryState;

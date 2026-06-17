@@ -1,6 +1,6 @@
 import React from 'react';
-import { DashboardStats } from '../../types/employee/task';
-import styles from '../../assets/styles/employeedashboard/StatsBar.module.css';
+import { DashboardStats } from '../../../types/employee/task';
+import styles from '../../../assets/styles/employeedashboard/StatsBar.module.css';
 
 interface StatsBarProps {
   stats: DashboardStats;
