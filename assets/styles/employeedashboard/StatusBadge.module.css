@@ -1,0 +1,25 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 999px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.pending {
+  background-color: #e6f1fb;
+  color: #0c447c;
+}
+
+.changes {
+  background-color: #fcebeb;
+  color: #791f1f;
+}
+
+.completed {
+  background-color: #1a1a18;
+  color: #ffffff;
+}

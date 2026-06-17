@@ -1,0 +1,58 @@
+.toggleGroup {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #6b6b66;
+    background-color: #ffffff;
+    border: 1px solid #e0e0db;
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+  
+  .option:hover {
+    border-color: #c8c8c2;
+  }
+  
+  .option:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #c8c8c2;
+    flex-shrink: 0;
+  }
+  
+  .optionActiveNotDelivered {
+    background-color: #f1efe8;
+    border-color: #d3d1c7;
+    color: #444441;
+  }
+  
+  .dotNotDelivered {
+    background-color: #888780;
+  }
+  
+  .optionActiveDelivered {
+    background-color: #eaf3de;
+    border-color: #c0dd97;
+    color: #27500a;
+  }
+  
+  .dotDelivered {
+    background-color: #639922;
+  }

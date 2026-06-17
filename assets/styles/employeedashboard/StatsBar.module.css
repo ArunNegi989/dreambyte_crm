@@ -1,0 +1,121 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.statCard {
+  background-color: #f4f4f2;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 13px;
+  color: #6b6b66;
+  margin: 0;
+}
+
+.value {
+  font-size: 26px;
+  font-weight: 600;
+  margin: 0;
+  color: #1a1a18;
+}
+
+.pending {
+  color: #185fa5;
+}
+
+.changes {
+  color: #a32d2d;
+}
+
+.completed {
+  color: #3b6d11;
+}
+
+.notDelivered {
+  color: #854f0b;
+}
+
+.periodBar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.periodCard {
+  background-color: #ffffff;
+  border: 1px solid #e8e8e4;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.periodLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1a18;
+  margin: 0;
+}
+
+.periodNumbers {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.periodStat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.periodValue {
+  font-size: 20px;
+  font-weight: 600;
+  color: #5a5a55;
+}
+
+.submittedValue {
+  color: #3b6d11;
+}
+
+.periodTag {
+  font-size: 11px;
+  color: #a3a39c;
+}
+
+.periodDivider {
+  width: 1px;
+  height: 20px;
+  background-color: #ececea;
+}
+
+@media (max-width: 920px) {
+  .bar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .periodBar {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,0 +1,119 @@
+.card {
+  background-color: #ffffff;
+  border: 1px solid #e8e8e4;
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card:hover {
+  border-color: #d0d0ca;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+
+.card:focus-visible {
+  outline: 2px solid #1a1a18;
+  outline-offset: 2px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.brandClient {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.brand {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a18;
+}
+
+.client {
+  font-size: 12px;
+  color: #8a8a84;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a18;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.description {
+  font-size: 13px;
+  color: #6b6b66;
+  margin: 0;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dueDate {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #8a8a84;
+}
+
+.dueIcon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.tagGroup {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.deliveryTag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.notDelivered {
+  background-color: #f1efe8;
+  color: #444441;
+}
+
+.delivered {
+  background-color: #eaf3de;
+  color: #27500a;
+}
+
+.changesTag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #a32d2d;
+  background-color: #fcebeb;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
