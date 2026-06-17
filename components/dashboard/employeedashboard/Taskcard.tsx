@@ -1,5 +1,6 @@
 import React from 'react';
 import { Task } from '../../../types/employee/task';
+import { getTimeTaken, getTotalChangeCount } from '../../../data/employee/taskTimeHelpers';
 import StatusBadge from './StatusBadge';
 import styles from '../../../assets/styles/employeedashboard/TaskCard.module.css';
 
@@ -9,8 +10,9 @@ interface TaskCardProps {
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, onOpen }) => {
-  const unresolvedChanges = task.changeRequests.filter((c) => !c.resolved).length;
+  const totalChanges = getTotalChangeCount(task);
   const isDelivered = task.deliveryState === 'delivered';
+  const timeTaken = getTimeTaken(task);
 
   return (
     <div className={styles.card} onClick={() => onOpen(task)} role="button" tabIndex={0}>
@@ -34,12 +36,21 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onOpen }) => {
           Due {formatDate(task.dueDate)}
         </span>
         <div className={styles.tagGroup}>
+          {timeTaken && (
+            <span className={styles.timeTag}>
+              <svg className={styles.timeIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 3" />
+              </svg>
+              {timeTaken}
+            </span>
+          )}
           <span className={`${styles.deliveryTag} ${isDelivered ? styles.delivered : styles.notDelivered}`}>
             {isDelivered ? 'Delivered' : 'Not delivered'}
           </span>
-          {unresolvedChanges > 0 && (
+          {totalChanges > 0 && (
             <span className={styles.changesTag}>
-              {unresolvedChanges} change{unresolvedChanges > 1 ? 's' : ''}
+              {totalChanges} change{totalChanges > 1 ? 's' : ''}
             </span>
           )}
         </div>

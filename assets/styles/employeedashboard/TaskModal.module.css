@@ -289,3 +289,88 @@
   padding: 13px 16px;
   margin-top: 4px;
 }
+
+/* --- Additions for per-change "+ Add remark" UI --- */
+
+.remarkBoxRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.remarkBoxRow .changeInput {
+  flex: 1;
+}
+
+.removeRemarkBtn {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  border: 1px solid #e0d0d0;
+  border-radius: 8px;
+  color: #a32d2d;
+  cursor: pointer;
+}
+
+.removeRemarkBtn:hover {
+  background-color: #fbf6f6;
+}
+
+.addRemarkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #a32d2d;
+  background-color: #ffffff;
+  border: 1px dashed #d9a3a3;
+  border-radius: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+.addRemarkBtn:hover {
+  background-color: #fbf6f6;
+  border-style: solid;
+}
+
+/* --- Additions: started-on date input, approved note row --- */
+
+.dateInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1a1a18;
+  background-color: #ffffff;
+  border: 1px solid #e0e0db;
+  border-radius: 8px;
+  outline: none;
+}
+
+.dateInput:focus {
+  border-color: #1a1a18;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
+}
+
+.noteRowGreen {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #27500a;
+  background-color: #eaf3de;
+  border-radius: 10px;
+  padding: 13px 16px;
+  margin-top: 4px;
+}

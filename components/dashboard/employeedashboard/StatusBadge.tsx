@@ -11,6 +11,7 @@ const STATUS_CLASS: Record<TaskStatus, string> = {
   pending: 'pending',
   changes_requested: 'changes',
   completed: 'completed',
+  approved: 'approved',
 };
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {

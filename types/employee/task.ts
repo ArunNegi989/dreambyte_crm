@@ -1,4 +1,4 @@
-export type TaskStatus = 'pending' | 'changes_requested' | 'completed';
+export type TaskStatus = 'pending' | 'changes_requested' | 'completed' | 'approved';
 
 export type DeliveryState = 'not_delivered' | 'delivered';
 
@@ -22,6 +22,13 @@ export interface Task {
   dueDate: string;
   assignedAt: string;
   submittedAt: string | null;
+  // Employee-entered: when they say they actually started working on the task.
+  // Filled in by the employee at submit time (not auto-captured).
+  startedAt: string | null;
+  // Set once the employee marks the task completed (their side of the work is done).
+  completedAt: string | null;
+  // Set separately once the admin/client signs off. Independent of completedAt.
+  approvedAt: string | null;
   changeRequests: TaskChangeRequest[];
 }
 
@@ -31,6 +38,7 @@ export interface EmployeeTaskStats {
   pending: number;
   changesRequested: number;
   notDelivered: number;
+  approved: number;
 }
 
 export interface PeriodStats {
