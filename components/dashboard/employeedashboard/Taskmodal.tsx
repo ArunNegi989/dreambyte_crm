@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Task, TaskChangeRequest, DeliveryState } from '../../../types/employee/task';
+import { getTimeTaken, getTotalChangeCount } from '../../../data/employee/taskTimeHelpers';
 import StatusBadge from './StatusBadge';
 import DeliveryToggle from './DeliveryToggle';
 import styles from '../../../assets/styles/employeedashboard/TaskModal.module.css';
@@ -7,7 +8,7 @@ import styles from '../../../assets/styles/employeedashboard/TaskModal.module.cs
 interface TaskModalProps {
   task: Task;
   onClose: () => void;
-  onSubmitTask: (taskId: string, deliveryState: DeliveryState, remarks: string) => void;
+  onSubmitTask: (taskId: string, deliveryState: DeliveryState, remarks: string, startedAt: string) => void;
   onSubmitChangeResponses: (
     taskId: string,
     deliveryState: DeliveryState,
@@ -24,35 +25,59 @@ const TaskModal: React.FC<TaskModalProps> = ({
 }) => {
   const [deliveryState, setDeliveryState] = useState<DeliveryState>(task.deliveryState);
   const [remarks, setRemarks] = useState(task.remarks);
-  const [changeResponses, setChangeResponses] = useState<Record<string, string>>(
-    Object.fromEntries(task.changeRequests.map((c) => [c.id, c.employeeResponse || '']))
+  const [startedAtInput, setStartedAtInput] = useState(task.startedAt || '');
+
+  const [changeRemarks, setChangeRemarks] = useState<Record<string, string[]>>(
+    Object.fromEntries(task.changeRequests.map((c) => [c.id, c.employeeResponse ? [c.employeeResponse] : []]))
   );
 
   const unresolvedChanges = task.changeRequests.filter((c) => !c.resolved);
+  const totalChanges = getTotalChangeCount(task);
+  const timeTaken = getTimeTaken(task);
   const isEditable = task.status === 'pending' || task.status === 'changes_requested';
 
-  const handleChangeResponseEdit = (id: string, value: string) => {
-    setChangeResponses((prev) => ({ ...prev, [id]: value }));
+  const handleAddRemarkBox = (changeId: string) => {
+    setChangeRemarks((prev) => ({
+      ...prev,
+      [changeId]: [...(prev[changeId] || []), ''],
+    }));
   };
 
-  const allResponsesFilled = unresolvedChanges.every(
-    (c) => (changeResponses[c.id] || '').trim().length > 0
+  const handleRemarkChange = (changeId: string, index: number, value: string) => {
+    setChangeRemarks((prev) => {
+      const updated = [...(prev[changeId] || [])];
+      updated[index] = value;
+      return { ...prev, [changeId]: updated };
+    });
+  };
+
+  const handleRemoveRemarkBox = (changeId: string, index: number) => {
+    setChangeRemarks((prev) => {
+      const updated = [...(prev[changeId] || [])];
+      updated.splice(index, 1);
+      return { ...prev, [changeId]: updated };
+    });
+  };
+
+  const allChangesHaveRemarks = unresolvedChanges.every(
+    (c) => (changeRemarks[c.id] || []).filter((r) => r.trim().length > 0).length > 0
   );
-  const canSubmit = deliveryState === 'delivered' && remarks.trim().length > 0;
+  const canSubmit = deliveryState === 'delivered' && remarks.trim().length > 0 && startedAtInput.trim().length > 0;
 
   const handleSubmit = () => {
     if (task.status === 'changes_requested') {
       const payload = unresolvedChanges.map((c) => ({
         id: c.id,
-        response: changeResponses[c.id] || '',
+        response: (changeRemarks[c.id] || []).filter((r) => r.trim().length > 0).join('\n'),
       }));
       onSubmitChangeResponses(task.id, deliveryState, remarks, payload);
     } else {
-      onSubmitTask(task.id, deliveryState, remarks);
+      onSubmitTask(task.id, deliveryState, remarks, startedAtInput);
     }
   };
 
-  const submitDisabled = !canSubmit || (task.status === 'changes_requested' && !allResponsesFilled);
+  const submitDisabled =
+    !canSubmit || (task.status === 'changes_requested' && !allChangesHaveRemarks);
 
   return (
     <div className={styles.overlay} onClick={onClose}>
@@ -89,6 +114,18 @@ const TaskModal: React.FC<TaskModalProps> = ({
               <span className={styles.metaValue}>{formatDate(task.submittedAt)}</span>
             </div>
           )}
+          {totalChanges > 0 && (
+            <div className={styles.metaItem}>
+              <span className={styles.metaLabel}>Total changes</span>
+              <span className={styles.metaValue}>{totalChanges}</span>
+            </div>
+          )}
+          {timeTaken && (
+            <div className={styles.metaItem}>
+              <span className={styles.metaLabel}>Time taken</span>
+              <span className={styles.metaValue}>{timeTaken}</span>
+            </div>
+          )}
         </div>
 
         {task.status === 'changes_requested' && unresolvedChanges.length > 0 && (
@@ -98,7 +135,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
               <span className={styles.sectionCount}>{unresolvedChanges.length}</span>
             </h3>
             <p className={styles.sectionHint}>
-              Address each point below before resubmitting.
+              Add a remark for each point using the + button before resubmitting.
             </p>
 
             {unresolvedChanges.map((change, idx) => (
@@ -106,8 +143,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 key={change.id}
                 index={idx + 1}
                 change={change}
-                value={changeResponses[change.id] || ''}
-                onChange={(val) => handleChangeResponseEdit(change.id, val)}
+                remarkValues={changeRemarks[change.id] || []}
+                onAddRemark={() => handleAddRemarkBox(change.id)}
+                onRemarkChange={(i, val) => handleRemarkChange(change.id, i, val)}
+                onRemoveRemark={(i) => handleRemoveRemarkBox(change.id, i)}
               />
             ))}
           </div>
@@ -115,7 +154,17 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
         {isEditable && (
           <div className={styles.deliverySection}>
-            <h3 className={styles.sectionHeading}>Delivery status</h3>
+            <h3 className={styles.sectionHeading}>When did you start this task?</h3>
+            <input
+              type="date"
+              className={styles.dateInput}
+              value={startedAtInput}
+              onChange={(e) => setStartedAtInput(e.target.value)}
+            />
+
+            <h3 className={styles.sectionHeading} style={{ marginTop: 16 }}>
+              Delivery status
+            </h3>
             <DeliveryToggle value={deliveryState} onChange={setDeliveryState} />
 
             <h3 className={styles.sectionHeading} style={{ marginTop: 16 }}>
@@ -134,7 +183,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
             </button>
             {!canSubmit && (
               <p className={styles.submitHint}>
-                Mark as delivered and add remarks to submit.
+                Add a start date, mark as delivered, and add remarks to submit.
               </p>
             )}
           </div>
@@ -152,7 +201,16 @@ const TaskModal: React.FC<TaskModalProps> = ({
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
               <path d="M5 13l4 4L19 7" />
             </svg>
-            Approved and completed
+            Marked completed — waiting on client approval
+          </div>
+        )}
+
+        {task.status === 'approved' && (
+          <div className={styles.noteRowGreen}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              <path d="M5 13l4 4L19 7" />
+            </svg>
+            Approved by client
           </div>
         )}
       </div>
@@ -163,24 +221,55 @@ const TaskModal: React.FC<TaskModalProps> = ({
 interface ChangeRequestRowProps {
   index: number;
   change: TaskChangeRequest;
-  value: string;
-  onChange: (value: string) => void;
+  remarkValues: string[];
+  onAddRemark: () => void;
+  onRemarkChange: (index: number, value: string) => void;
+  onRemoveRemark: (index: number) => void;
 }
 
-const ChangeRequestRow: React.FC<ChangeRequestRowProps> = ({ index, change, value, onChange }) => {
+const ChangeRequestRow: React.FC<ChangeRequestRowProps> = ({
+  index,
+  change,
+  remarkValues,
+  onAddRemark,
+  onRemarkChange,
+  onRemoveRemark,
+}) => {
   return (
     <div className={styles.changeRow}>
       <div className={styles.changeNote}>
         <span className={styles.changeIndex}>{index}</span>
         <p className={styles.changeText}>{change.adminNote}</p>
       </div>
-      <textarea
-        className={styles.changeInput}
-        placeholder="Describe what you changed to address this..."
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={2}
-      />
+
+      {remarkValues.map((value, i) => (
+        <div key={i} className={styles.remarkBoxRow}>
+          <textarea
+            className={styles.changeInput}
+            placeholder="Describe what you changed to address this..."
+            value={value}
+            onChange={(e) => onRemarkChange(i, e.target.value)}
+            rows={2}
+          />
+          <button
+            type="button"
+            className={styles.removeRemarkBtn}
+            onClick={() => onRemoveRemark(i)}
+            aria-label="Remove remark"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="14" height="14">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+      ))}
+
+      <button type="button" className={styles.addRemarkBtn} onClick={onAddRemark}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        Add remark
+      </button>
     </div>
   );
 };

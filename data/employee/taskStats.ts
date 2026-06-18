@@ -4,6 +4,7 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   pending: 'Pending',
   changes_requested: 'Changes requested',
   completed: 'Completed',
+  approved: 'Approved',
 };
 
 function startOfDay(d: Date): Date {
@@ -41,7 +42,8 @@ export function computeEmployeeStats(tasks: Task[]): EmployeeTaskStats {
     completed: tasks.filter((t) => t.status === 'completed').length,
     pending: tasks.filter((t) => t.status === 'pending').length,
     changesRequested: tasks.filter((t) => t.status === 'changes_requested').length,
-    notDelivered: tasks.filter((t) => t.deliveryState === 'not_delivered' && t.status !== 'completed').length,
+    notDelivered: tasks.filter((t) => t.deliveryState === 'not_delivered' && t.status !== 'completed' && t.status !== 'approved').length,
+    approved: tasks.filter((t) => t.status === 'approved').length,
   };
 }
 

@@ -23,3 +23,10 @@
   background-color: #1a1a18;
   color: #ffffff;
 }
+
+/* --- Addition: approved status badge --- */
+
+.approved {
+  background-color: #eaf3de;
+  color: #27500a;
+}

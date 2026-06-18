@@ -121,3 +121,21 @@
       grid-template-columns: 1fr;
     }
   }
+
+  /* --- Additions for Sidebar layout + DateFilter slot --- */
+
+.shell {
+    display: flex;
+    min-height: 100vh;
+  }
+  
+  .dateFilterSlot {
+    margin-left: auto;
+  }
+  
+  @media (max-width: 640px) {
+    .dateFilterSlot {
+      margin-left: 0;
+      width: 100%;
+    }
+  }

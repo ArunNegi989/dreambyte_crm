@@ -12,6 +12,7 @@ const StatsBar: React.FC<StatsBarProps> = ({ stats }) => {
     { label: 'Pending', value: stats.overall.pending, variant: 'pending' as const },
     { label: 'Changes requested', value: stats.overall.changesRequested, variant: 'changes' as const },
     { label: 'Completed', value: stats.overall.completed, variant: 'completed' as const },
+    { label: 'Approved', value: stats.overall.approved, variant: 'approved' as const },
     { label: 'Not delivered', value: stats.overall.notDelivered, variant: 'notDelivered' as const },
   ];
 
