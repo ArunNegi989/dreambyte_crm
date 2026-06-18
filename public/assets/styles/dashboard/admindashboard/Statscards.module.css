@@ -1,0 +1,97 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #e8eaed;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: box-shadow 0.2s, transform 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.card:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.blue::before { background: #2563eb; }
+.purple::before { background: #7c3aed; }
+.yellow::before { background: #d97706; }
+.green::before { background: #059669; }
+.red::before { background: #dc2626; }
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.iconWrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.blue .iconWrap { background: #eff6ff; color: #2563eb; }
+.purple .iconWrap { background: #f5f3ff; color: #7c3aed; }
+.yellow .iconWrap { background: #fffbeb; color: #d97706; }
+.green .iconWrap { background: #ecfdf5; color: #059669; }
+.red .iconWrap { background: #fef2f2; color: #dc2626; }
+
+.value {
+  font-size: 32px;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1;
+}
+
+.subtext {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+@media (max-width: 1200px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

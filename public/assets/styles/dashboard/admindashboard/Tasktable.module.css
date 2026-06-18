@@ -1,0 +1,383 @@
+.container {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e8eaed;
+  overflow: hidden;
+}
+
+.tableHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.count {
+  font-size: 12px;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead tr {
+  background: #f9fafb;
+}
+
+.table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 14px 16px;
+  border-top: 1px solid #f0f2f5;
+  vertical-align: middle;
+}
+
+.taskRow:hover > td {
+  background: #fafbff;
+}
+
+/* Task Cell */
+.taskCell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 200px;
+}
+
+.taskName {
+  font-weight: 600;
+  color: #111827;
+}
+
+.taskDesc {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Employee */
+.empMini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.empAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.empName {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.unassigned {
+  color: #9ca3af;
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* Frequency Badge */
+.freqBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.weekly { background: #eff6ff; color: #1d4ed8; }
+.monthly { background: #f5f3ff; color: #6d28d9; }
+
+/* Due Date */
+.dueDate {
+  font-size: 12px;
+  color: #374151;
+  white-space: nowrap;
+}
+
+/* Delivery Badge */
+.deliveryBadge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.delivered { background: #dcfce7; color: #166534; }
+.notDelivered { background: #fee2e2; color: #991b1b; }
+
+/* Change Toggle */
+.changeToggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px solid #e8eaed;
+  border-radius: 7px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  position: relative;
+  white-space: nowrap;
+}
+
+.changeToggle:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.changeToggle.hasChanges {
+  border-color: #f59e0b;
+  color: #d97706;
+}
+
+.changeBubble {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  background: #f59e0b;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Review Radio Group */
+.reviewCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.radioLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #e8eaed;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.radioLabel:hover { background: #f3f4f6; color: #111827; }
+
+.radioInput {
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.activeApprove {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.activeReject {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.activePending {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #854d0e;
+}
+
+/* Change Dropdown Row */
+.changeRow td {
+  background: #fafbff;
+  border-top: none;
+  padding: 0;
+}
+
+.changeDropdown {
+  padding: 16px 20px;
+  border-top: 2px solid #eff6ff;
+  border-bottom: 1px solid #e8eaed;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.changeHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 12px;
+}
+
+.noChanges {
+  color: #9ca3af;
+  font-size: 12px;
+  margin: 0 0 12px 0;
+}
+
+.changeList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.changeItem {
+  background: #fff;
+  border: 1px solid #e8eaed;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.changeTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.changBy {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.changeDate {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.changeNote {
+  font-size: 13px;
+  color: #374151;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Add Change */
+.addChange {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.changeInput {
+  flex: 1;
+  border: 1px solid #e8eaed;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #111827;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+
+.changeInput:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.addChangeBtn {
+  padding: 10px 16px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.addChangeBtn:hover {
+  background: #1d4ed8;
+}
+
+@media (max-width: 900px) {
+  .table th:nth-child(4),
+  .table td:nth-child(4) {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    display: none;
+  }
+  .addChange {
+    flex-direction: column;
+  }
+  .addChangeBtn {
+    width: 100%;
+  }
+}
