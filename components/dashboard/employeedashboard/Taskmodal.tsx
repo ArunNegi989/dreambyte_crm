@@ -17,6 +17,15 @@ interface TaskModalProps {
   ) => void;
 }
 
+function splitIsoToDateAndTime(iso: string | null): { date: string; time: string } {
+  if (!iso) return { date: '', time: '' };
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return { date: '', time: '' };
+  const date = d.toISOString().slice(0, 10);
+  const time = d.toTimeString().slice(0, 5);
+  return { date, time };
+}
+
 const TaskModal: React.FC<TaskModalProps> = ({
   task,
   onClose,
@@ -25,7 +34,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
 }) => {
   const [deliveryState, setDeliveryState] = useState<DeliveryState>(task.deliveryState);
   const [remarks, setRemarks] = useState(task.remarks);
-  const [startedAtInput, setStartedAtInput] = useState(task.startedAt || '');
+
+  const initialStarted = splitIsoToDateAndTime(task.startedAt);
+  const [startedDate, setStartedDate] = useState(initialStarted.date);
+  const [startedTime, setStartedTime] = useState(initialStarted.time);
 
   const [changeRemarks, setChangeRemarks] = useState<Record<string, string[]>>(
     Object.fromEntries(task.changeRequests.map((c) => [c.id, c.employeeResponse ? [c.employeeResponse] : []]))
@@ -62,7 +74,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const allChangesHaveRemarks = unresolvedChanges.every(
     (c) => (changeRemarks[c.id] || []).filter((r) => r.trim().length > 0).length > 0
   );
-  const canSubmit = deliveryState === 'delivered' && remarks.trim().length > 0 && startedAtInput.trim().length > 0;
+  const canSubmit =
+    deliveryState === 'delivered' &&
+    remarks.trim().length > 0 &&
+    startedDate.trim().length > 0 &&
+    startedTime.trim().length > 0;
 
   const handleSubmit = () => {
     if (task.status === 'changes_requested') {
@@ -72,7 +88,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
       }));
       onSubmitChangeResponses(task.id, deliveryState, remarks, payload);
     } else {
-      onSubmitTask(task.id, deliveryState, remarks, startedAtInput);
+      // Combine the separate date + time inputs into a single ISO-ish timestamp.
+      const startedAt = `${startedDate}T${startedTime}:00`;
+      onSubmitTask(task.id, deliveryState, remarks, startedAt);
     }
   };
 
@@ -155,12 +173,22 @@ const TaskModal: React.FC<TaskModalProps> = ({
         {isEditable && (
           <div className={styles.deliverySection}>
             <h3 className={styles.sectionHeading}>When did you start this task?</h3>
-            <input
-              type="date"
-              className={styles.dateInput}
-              value={startedAtInput}
-              onChange={(e) => setStartedAtInput(e.target.value)}
-            />
+            <div className={styles.dateTimeRow}>
+              <input
+                type="date"
+                className={styles.dateInput}
+                value={startedDate}
+                onChange={(e) => setStartedDate(e.target.value)}
+                aria-label="Start date"
+              />
+              <input
+                type="time"
+                className={styles.dateInput}
+                value={startedTime}
+                onChange={(e) => setStartedTime(e.target.value)}
+                aria-label="Start time"
+              />
+            </div>
 
             <h3 className={styles.sectionHeading} style={{ marginTop: 16 }}>
               Delivery status
@@ -183,7 +211,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
             </button>
             {!canSubmit && (
               <p className={styles.submitHint}>
-                Add a start date, mark as delivered, and add remarks to submit.
+                Add a start date and time, mark as delivered, and add remarks to submit.
               </p>
             )}
           </div>

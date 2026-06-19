@@ -1,4 +1,7 @@
+'use client';
+
 import React from 'react';
+import { usePathname } from 'next/navigation';
 import styles from '../../../assets/styles/employeedashboard/Sidebar.module.css';
 
 interface NavItem {
@@ -62,6 +65,8 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const Sidebar: React.FC = () => {
+  const pathname = usePathname();
+
   return (
     <aside className={styles.sidebar}>
       <div className={styles.brand}>
@@ -73,8 +78,12 @@ const Sidebar: React.FC = () => {
       </div>
 
       <nav className={styles.nav}>
-        {NAV_ITEMS.map((item, idx) => (
-          <a key={item.label} href={item.href} className={`${styles.navLink} ${idx === 0 ? styles.navLinkActive : ''}`}>
+        {NAV_ITEMS.map((item) => (
+          <a 
+            key={item.label} 
+            href={item.href} 
+            className={`${styles.navLink} ${pathname === item.href ? styles.navLinkActive : ''}`}
+          >
             <span className={styles.navIcon}>{item.icon}</span>
             {item.label}
           </a>

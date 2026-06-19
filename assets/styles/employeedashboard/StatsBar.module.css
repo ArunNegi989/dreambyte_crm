@@ -1,143 +1,150 @@
 .wrap {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   margin-bottom: 28px;
 }
 
-.bar {
+.heroRow {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: 1.3fr 1fr;
   gap: 12px;
 }
 
-.statCard {
-  background-color: #f4f4f2;
-  border-radius: 10px;
-  padding: 16px;
+.progressCard {
+  background-color: #1a1a18;
+  border-radius: 14px;
+  padding: 20px 24px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 24px;
 }
 
-.label {
-  font-size: 13px;
-  color: #6b6b66;
-  margin: 0;
+.ringWrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
 }
 
-.value {
-  font-size: 26px;
+.ringSvg {
+  width: 72px;
+  height: 72px;
+  transform: rotate(-90deg);
+}
+
+.ringTrack {
+  stroke: #444441;
+}
+
+.ringProgress {
+  stroke: #ffffff;
+  transition: stroke-dashoffset 0.4s ease;
+}
+
+.ringLabel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
   font-weight: 600;
+  color: #ffffff;
+}
+
+.progressLabel {
+  font-size: 13px;
+  color: #b4b2a9;
+  margin: 0 0 6px;
+}
+
+.progressDetail {
+  font-size: 14px;
+  color: #ffffff;
   margin: 0;
-  color: #1a1a18;
+  line-height: 1.5;
 }
 
-.pending {
-  color: #185fa5;
-}
-
-.changes {
-  color: #a32d2d;
-}
-
-.completed {
-  color: #3b6d11;
-}
-
-.notDelivered {
-  color: #854f0b;
-}
-
-.periodBar {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.periodCard {
+.quickCard {
   background-color: #ffffff;
   border: 1px solid #e8e8e4;
-  border-radius: 10px;
-  padding: 14px 16px;
+  border-radius: 14px;
+  padding: 18px 22px;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 10px;
 }
 
-.periodLabel {
-  font-size: 12px;
-  font-weight: 600;
-  color: #1a1a18;
-  margin: 0;
-}
-
-.periodNumbers {
+.quickRow {
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: space-between;
 }
 
-.periodStat {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
+.quickLabel {
+  font-size: 13px;
+  color: #6b6b66;
 }
 
-.periodValue {
-  font-size: 20px;
+.quickValue {
+  font-size: 17px;
   font-weight: 600;
-  color: #5a5a55;
+  color: #1a1a18;
 }
 
-.submittedValue {
-  color: #3b6d11;
-}
-
-.periodTag {
-  font-size: 11px;
-  color: #a3a39c;
-}
-
-.periodDivider {
-  width: 1px;
-  height: 20px;
-  background-color: #ececea;
-}
-
-@media (max-width: 920px) {
-  .bar {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .periodBar {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 560px) {
-  .bar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-/* --- Additions: approved stat color, 6-column grid for the overall bar --- */
-
-.approved {
+.quickValueGreen {
   color: #27500a;
 }
 
-.bar {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+.quickValueAmber {
+  color: #854f0b;
 }
 
-@media (max-width: 920px) {
-  .bar {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+.periodLine {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 0 4px;
+}
+
+.periodItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #6b6b66;
+}
+
+.periodItem strong {
+  font-weight: 600;
+  color: #1a1a18;
+}
+
+.periodIcon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: #8a8a84;
+}
+
+@media (max-width: 760px) {
+  .heroRow {
+    grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 560px) {
-  .bar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 480px) {
+  .progressCard {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .periodLine {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 }

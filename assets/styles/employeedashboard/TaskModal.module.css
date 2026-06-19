@@ -374,3 +374,14 @@
   padding: 13px 16px;
   margin-top: 4px;
 }
+
+/* --- Addition: side-by-side date + time inputs for "started" --- */
+
+.dateTimeRow {
+  display: flex;
+  gap: 8px;
+}
+
+.dateTimeRow .dateInput {
+  flex: 1;
+}
