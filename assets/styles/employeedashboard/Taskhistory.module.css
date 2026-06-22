@@ -1,0 +1,223 @@
+.shell {
+    display: flex;
+    min-height: 100vh;
+    background: #ffffff;
+  }
+  
+  .page {
+    flex: 1;
+    padding: 2rem 2.5rem;
+    max-width: 100%;
+    overflow-x: hidden;
+    background: #ffffff;
+  }
+  
+  .pageHeader {
+    margin-bottom: 1.5rem;
+  }
+  
+  .pageTitle {
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: #000;
+    margin: 0;
+  }
+  
+  .pageSubtitle {
+    font-size: 0.9rem;
+    color: rgba(0, 0, 0, 0.55);
+    margin: 0.35rem 0 0;
+  }
+  
+  .resultCount {
+    font-size: 0.82rem;
+    color: rgba(0, 0, 0, 0.5);
+    margin: 0 0 0.75rem 0.25rem;
+  }
+  
+  .tableWrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    background: #fff;
+  }
+  
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 920px;
+  }
+  
+  .th {
+    text-align: left;
+    font-size: 0.74rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(0, 0, 0, 0.55);
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+    white-space: nowrap;
+    background: #fafafa;
+  }
+  
+  .row {
+    transition: background 0.12s ease;
+  }
+  
+  .row:hover {
+    background: rgba(0, 0, 0, 0.035);
+  }
+  
+  .row:not(:last-child) .td {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .td {
+    padding: 0.9rem 1rem;
+    vertical-align: top;
+    font-size: 0.85rem;
+    color: rgba(0, 0, 0, 0.85);
+  }
+  
+  .title {
+    font-weight: 500;
+    color: #000;
+    margin: 0 0 0.2rem;
+  }
+  
+  .description {
+    font-size: 0.78rem;
+    color: rgba(0, 0, 0, 0.5);
+    margin: 0;
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  
+  .brand {
+    font-weight: 500;
+    color: #000;
+    margin: 0 0 0.15rem;
+  }
+  
+  .client {
+    font-size: 0.78rem;
+    color: rgba(0, 0, 0, 0.5);
+    margin: 0;
+  }
+  
+  .deliveryTag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 500;
+    white-space: nowrap;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+  }
+  
+  .delivered {
+    background: #000;
+    color: #fff;
+    border-color: #000;
+  }
+  
+  .notDelivered {
+    background: #fff;
+    color: rgba(0, 0, 0, 0.55);
+  }
+  
+  .dueDate {
+    color: rgba(0, 0, 0, 0.8);
+    white-space: nowrap;
+  }
+  
+  .changesTag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    background: #000;
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  
+  .timeTag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: rgba(0, 0, 0, 0.7);
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+  
+  .timeIcon {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .dash {
+    color: rgba(0, 0, 0, 0.3);
+  }
+  
+  .emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 1rem;
+    text-align: center;
+    border: 1px dashed rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+  }
+  
+  .emptyIcon {
+    width: 40px;
+    height: 40px;
+    color: rgba(0, 0, 0, 0.3);
+    margin-bottom: 1rem;
+  }
+  
+  .emptyTitle {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #000;
+    margin: 0;
+  }
+  
+  .emptySubtitle {
+    font-size: 0.85rem;
+    color: rgba(0, 0, 0, 0.5);
+    margin: 0.35rem 0 1rem;
+  }
+  
+  .emptyClearBtn {
+    padding: 0.5rem 1rem;
+    background: #000;
+    border: 1px solid #000;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+  
+  .emptyClearBtn:hover {
+    opacity: 0.8;
+  }
+  
+  @media (max-width: 768px) {
+    .page {
+      padding: 1.25rem;
+    }
+  }

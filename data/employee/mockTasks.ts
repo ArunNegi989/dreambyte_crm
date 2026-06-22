@@ -1,6 +1,21 @@
 import { Task } from '../../types/employee/task';
 
-// "Today" for this mock dataset is 2026-06-17.
+function isoDate(daysFromToday: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromToday);
+  return d.toISOString().slice(0, 10);
+}
+
+function isoDateTime(daysFromToday: number, hours: number, minutes: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromToday);
+  d.setHours(hours, minutes, 0, 0);
+  return d.toISOString();
+}
+
+// All dates below are relative to "today" (whenever this is loaded), so the
+// dashboard always has tasks due today, this week, and earlier — instead of
+// hardcoded dates that drift out of range as time passes.
 export const MOCK_TASKS: Task[] = [
   {
     id: 'task-001',
@@ -11,8 +26,8 @@ export const MOCK_TASKS: Task[] = [
     status: 'pending',
     deliveryState: 'not_delivered',
     remarks: '',
-    dueDate: '2026-06-17',
-    assignedAt: '2026-06-14',
+    dueDate: isoDate(0),
+    assignedAt: isoDate(-3),
     submittedAt: null,
     startedAt: null,
     completedAt: null,
@@ -25,14 +40,14 @@ export const MOCK_TASKS: Task[] = [
     description: 'Draft SEO-friendly product descriptions for 8 new SKUs in the skincare line.',
     brandName: 'Lumora',
     clientName: 'Lumora Cosmetics',
-    status: 'pending',
+    status: 'completed',
     deliveryState: 'delivered',
     remarks: 'All 8 descriptions drafted and proofread, ready for review.',
-    dueDate: '2026-06-17',
-    assignedAt: '2026-06-12',
-    submittedAt: '2026-06-17',
-    startedAt: '2026-06-15',
-    completedAt: null,
+    dueDate: isoDate(0),
+    assignedAt: isoDate(-5),
+    submittedAt: isoDate(0),
+    startedAt: isoDateTime(0, 9, 30),
+    completedAt: isoDateTime(0, 13, 45),
     approvedAt: null,
     changeRequests: [],
   },
@@ -45,10 +60,10 @@ export const MOCK_TASKS: Task[] = [
     status: 'changes_requested',
     deliveryState: 'not_delivered',
     remarks: '',
-    dueDate: '2026-06-17',
-    assignedAt: '2026-06-10',
-    submittedAt: '2026-06-15',
-    startedAt: '2026-06-11',
+    dueDate: isoDate(0),
+    assignedAt: isoDate(-7),
+    submittedAt: isoDate(-2),
+    startedAt: isoDateTime(-6, 10, 0),
     completedAt: null,
     approvedAt: null,
     changeRequests: [
@@ -56,14 +71,14 @@ export const MOCK_TASKS: Task[] = [
         id: 'cr-001',
         adminNote: 'Intro is too long, trim to 5s. Also swap background music — current track feels off-brand.',
         employeeResponse: '',
-        requestedAt: '2026-06-16',
+        requestedAt: isoDate(-1),
         resolved: false,
       },
       {
         id: 'cr-002',
         adminNote: 'Caption font size is too small on mobile preview, please increase.',
         employeeResponse: '',
-        requestedAt: '2026-06-16',
+        requestedAt: isoDate(-1),
         resolved: false,
       },
     ],
@@ -77,12 +92,12 @@ export const MOCK_TASKS: Task[] = [
     status: 'approved',
     deliveryState: 'delivered',
     remarks: 'All 12 posts scheduled, confirmed against the content calendar.',
-    dueDate: '2026-06-16',
-    assignedAt: '2026-06-09',
-    submittedAt: '2026-06-16',
-    startedAt: '2026-06-14',
-    completedAt: '2026-06-16',
-    approvedAt: '2026-06-17',
+    dueDate: isoDate(-1),
+    assignedAt: isoDate(-8),
+    submittedAt: isoDate(-1),
+    startedAt: isoDateTime(-3, 14, 0),
+    completedAt: isoDateTime(-1, 11, 20),
+    approvedAt: isoDate(0),
     changeRequests: [],
   },
   {
@@ -94,11 +109,11 @@ export const MOCK_TASKS: Task[] = [
     status: 'completed',
     deliveryState: 'delivered',
     remarks: 'Report compiled with screenshots and a takeaways section.',
-    dueDate: '2026-06-10',
-    assignedAt: '2026-06-05',
-    submittedAt: '2026-06-10',
-    startedAt: '2026-06-08',
-    completedAt: '2026-06-10',
+    dueDate: isoDate(-7),
+    assignedAt: isoDate(-12),
+    submittedAt: isoDate(-7),
+    startedAt: isoDateTime(-9, 9, 0),
+    completedAt: isoDateTime(-7, 16, 30),
     approvedAt: null,
     changeRequests: [],
   },
@@ -111,10 +126,10 @@ export const MOCK_TASKS: Task[] = [
     status: 'changes_requested',
     deliveryState: 'not_delivered',
     remarks: '',
-    dueDate: '2026-06-19',
-    assignedAt: '2026-06-13',
-    submittedAt: '2026-06-14',
-    startedAt: '2026-06-13',
+    dueDate: isoDate(2),
+    assignedAt: isoDate(-4),
+    submittedAt: isoDate(-3),
+    startedAt: isoDateTime(-4, 11, 15),
     completedAt: null,
     approvedAt: null,
     changeRequests: [
@@ -122,14 +137,14 @@ export const MOCK_TASKS: Task[] = [
         id: 'cr-003',
         adminNote: 'Logo feels too heavy on the dark variant, reduce stroke weight.',
         employeeResponse: 'Reduced stroke weight on dark variant by ~30%.',
-        requestedAt: '2026-06-15',
+        requestedAt: isoDate(-2),
         resolved: true,
       },
       {
         id: 'cr-004',
         adminNote: 'The light variant now looks too thin in comparison, balance both versions.',
         employeeResponse: '',
-        requestedAt: '2026-06-16',
+        requestedAt: isoDate(-1),
         resolved: false,
       },
     ],
@@ -143,8 +158,8 @@ export const MOCK_TASKS: Task[] = [
     status: 'pending',
     deliveryState: 'not_delivered',
     remarks: '',
-    dueDate: '2026-06-20',
-    assignedAt: '2026-06-16',
+    dueDate: isoDate(3),
+    assignedAt: isoDate(-1),
     submittedAt: null,
     startedAt: null,
     completedAt: null,
@@ -160,8 +175,8 @@ export const MOCK_TASKS: Task[] = [
     status: 'pending',
     deliveryState: 'not_delivered',
     remarks: '',
-    dueDate: '2026-06-12',
-    assignedAt: '2026-06-08',
+    dueDate: isoDate(-5),
+    assignedAt: isoDate(-9),
     submittedAt: null,
     startedAt: null,
     completedAt: null,

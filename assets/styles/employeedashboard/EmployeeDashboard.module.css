@@ -1,141 +1,167 @@
-.page {
-    background-color: #fafaf8;
-    min-height: 100vh;
-    padding: 32px 40px;
-  }
-  
-  .pageHeader {
-    margin-bottom: 28px;
-  }
-  
-  .pageTitle {
-    font-size: 26px;
-    font-weight: 600;
-    color: #1a1a18;
-    margin: 0 0 6px;
-  }
-  
-  .pageSubtitle {
-    font-size: 14px;
-    color: #8a8a84;
-    margin: 0;
-  }
-  
-  .filterRow {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 28px;
-  }
-  
-  .filterBtn {
-    font-size: 13px;
-    font-weight: 500;
-    color: #5a5a55;
-    background-color: #ffffff;
-    border: 1px solid #e8e8e4;
-    border-radius: 999px;
-    padding: 8px 16px;
-    cursor: pointer;
-    transition: border-color 0.15s ease, color 0.15s ease;
-  }
-  
-  .filterBtn:hover {
-    border-color: #c8c8c2;
-    color: #1a1a18;
-  }
-  
-  .filterBtnActive {
-    background-color: #1a1a18;
-    border-color: #1a1a18;
-    color: #ffffff;
-  }
-  
-  .filterBtnActive:hover {
-    border-color: #1a1a18;
-    color: #ffffff;
-  }
-  
-  .dateGroup {
-    margin-bottom: 28px;
-  }
-  
-  .dateGroupHeader {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-  }
-  
-  .dateGroupLabel {
-    font-size: 14px;
-    font-weight: 600;
-    color: #1a1a18;
-    margin: 0;
-  }
-  
-  .dateGroupCount {
-    font-size: 12px;
-    font-weight: 600;
-    color: #8a8a84;
-    background-color: #f1efe8;
-    padding: 2px 9px;
-    border-radius: 999px;
-  }
-  
-  .taskGrid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-  }
-  
-  .emptyState {
-    text-align: center;
-    padding: 64px 0;
-  }
-  
-  .emptyTitle {
-    font-size: 15px;
-    font-weight: 600;
-    color: #1a1a18;
-    margin: 0 0 4px;
-  }
-  
-  .emptySubtitle {
-    font-size: 13px;
-    color: #8a8a84;
-    margin: 0;
-  }
-  
-  @media (max-width: 960px) {
-    .taskGrid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-  
-  @media (max-width: 640px) {
-    .page {
-      padding: 24px 20px;
-    }
-    .taskGrid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  /* --- Additions for Sidebar layout + DateFilter slot --- */
-
 .shell {
-    display: flex;
-    min-height: 100vh;
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.page {
+  background-color: #fafaf8;
+  min-height: 100vh;
+  padding: 32px 40px;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.pageHeader {
+  margin-bottom: 28px;
+}
+
+.pageTitle {
+  font-size: 26px;
+  font-weight: 600;
+  color: #1a1a18;
+  margin: 0 0 6px;
+}
+
+.pageSubtitle {
+  font-size: 14px;
+  color: #8a8a84;
+  margin: 0;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+
+.filterBtn {
+  font-size: 13px;
+  font-weight: 500;
+  color: #5a5a55;
+  background-color: #ffffff;
+  border: 1px solid #e8e8e4;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.filterBtn:hover {
+  border-color: #c8c8c2;
+  color: #1a1a18;
+}
+
+.filterBtnActive {
+  background-color: #1a1a18;
+  border-color: #1a1a18;
+  color: #ffffff;
+}
+
+.filterBtnActive:hover {
+  border-color: #1a1a18;
+  color: #ffffff;
+}
+
+.dateFilterSlot {
+  margin-left: auto;
+}
+
+.dateGroup {
+  margin-bottom: 28px;
+}
+
+.dateGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.dateGroupLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a18;
+  margin: 0;
+}
+
+.dateGroupCount {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8a8a84;
+  background-color: #f1efe8;
+  padding: 2px 9px;
+  border-radius: 999px;
+}
+
+.taskGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 64px 24px;
+  background-color: #ffffff;
+  border: 1px solid #e8e8e4;
+  border-radius: 12px;
+}
+
+.emptyIcon {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 14px;
+  color: #c8c8c2;
+}
+
+.emptyTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a18;
+  margin: 0 0 4px;
+}
+
+.emptySubtitle {
+  font-size: 13px;
+  color: #8a8a84;
+  margin: 0 0 16px;
+}
+
+.emptyClearBtn {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a18;
+  background-color: #ffffff;
+  border: 1px solid #1a1a18;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.emptyClearBtn:hover {
+  background-color: #1a1a18;
+  color: #ffffff;
+}
+
+@media (max-width: 960px) {
+  .taskGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 24px 20px;
+  }
+  .taskGrid {
+    grid-template-columns: 1fr;
+  }
   .dateFilterSlot {
-    margin-left: auto;
+    margin-left: 0;
+    width: 100%;
   }
-  
-  @media (max-width: 640px) {
-    .dateFilterSlot {
-      margin-left: 0;
-      width: 100%;
-    }
-  }
+}
