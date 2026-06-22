@@ -1,0 +1,255 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+  background: #f4f6fb;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 240px;
+  min-height: 100vh;
+  background: #0f172a;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 200;
+  transition: width 0.25s ease;
+  overflow: hidden;
+}
+
+.sidebar.collapsed { width: 68px; }
+
+/* Logo */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 20px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  min-height: 70px;
+}
+
+.logoMark {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.logoText { display: flex; flex-direction: column; }
+
+.logoMain {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.logoSub {
+  font-size: 10px;
+  color: #6366f1;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+/* Collapse button */
+.collapseBtn {
+  position: absolute;
+  right: -11px;
+  top: 46px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid #334155;
+  background: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #94a3b8;
+  z-index: 10;
+  transition: all 0.18s;
+}
+
+.collapseBtn:hover { background: #334155; color: #fff; }
+
+/* Nav */
+.nav {
+  flex: 1;
+  padding: 20px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navGroup {
+  font-size: 10px;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.1em;
+  padding: 0 10px 8px;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: all 0.18s;
+  width: 100%;
+  text-align: left;
+  position: relative;
+  white-space: nowrap;
+}
+
+.navItem:hover { background: rgba(255,255,255,0.06); color: #e2e8f0; }
+
+.navActive {
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: #818cf8 !important;
+  font-weight: 700;
+}
+
+.navIcon { display: flex; align-items: center; flex-shrink: 0; }
+.navLabel { overflow: hidden; }
+
+.activeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6366f1;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Sidebar footer */
+.sideFooter {
+  padding: 14px 14px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.saAvatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.saInfo { display: flex; flex-direction: column; overflow: hidden; }
+.saName { font-size: 13px; font-weight: 700; color: #e2e8f0; white-space: nowrap; }
+.saRole { font-size: 11px; color: #6366f1; white-space: nowrap; font-weight: 600; }
+
+/* ── Main area ── */
+.mainWrap {
+  flex: 1;
+  margin-left: 240px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  transition: margin-left 0.25s ease;
+}
+
+.mainCollapsed { margin-left: 68px; }
+
+/* Top bar */
+.topBar {
+  background: #fff;
+  border-bottom: 1px solid #e8eaed;
+  padding: 16px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.pageTitle {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 2px;
+}
+
+.pageSub {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.topRight { display: flex; align-items: center; gap: 12px; }
+
+.saTag {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  background: #f5f3ff;
+  border: 1px solid #c4b5fd;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6d28d9;
+}
+
+.saOnline {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+}
+
+/* Page content */
+.pageContent {
+  padding: 26px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  flex: 1;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .sidebar { width: 68px; }
+  .mainWrap { margin-left: 68px; }
+  .mainCollapsed { margin-left: 68px; }
+  .logoText, .navLabel, .navGroup, .saInfo, .activeDot { display: none; }
+}
+
+@media (max-width: 600px) {
+  .topBar { padding: 14px 16px; }
+  .pageContent { padding: 16px; gap: 16px; }
+  .pageTitle { font-size: 17px; }
+  .saTag { display: none; }
+}

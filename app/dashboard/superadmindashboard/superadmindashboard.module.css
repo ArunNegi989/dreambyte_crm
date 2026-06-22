@@ -1,0 +1,148 @@
+/* ── Dashboard grid layout ── */
+.dashGrid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.dashLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.dashRight {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 90px;
+}
+
+/* ── Quick Stats Card ── */
+.quickCard {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.quickTitle {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.quickRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.quickRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.quickLabel {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.quickVal {
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* ── Recent Employees ── */
+.recentEmpRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.recentEmpRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.recentAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.recentName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.recentDept {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.recentRole {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+  margin-left: auto;
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.rSA {
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.rAdmin {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.rEmp {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1100px) {
+  .dashGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashRight {
+    position: static;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashRight {
+    grid-template-columns: 1fr;
+  }
+}
