@@ -34,8 +34,8 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
-    label: 'Clients',
-    href: '/dashboard/employeedashboard/clients',
+    label: 'My Profile',
+    href: '/dashboard/employeedashboard/profile',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
         <circle cx="12" cy="8" r="3.5" />
@@ -43,25 +43,25 @@ const NAV_ITEMS: NavItem[] = [
       </svg>
     ),
   },
-  {
-    label: 'Messages',
-    href: '/dashboard/employeedashboard/messages',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M21 11.5a8.5 8.5 0 1 1-3.8-7.1L21 3l-1.2 4.3c.8 1.2 1.2 2.6 1.2 4.2Z" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Settings',
-    href: '/dashboard/employeedashboard/settings',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.5-2-3.4-2.3.9a7.6 7.6 0 0 0-1.7-1L15 3h-4l-.4 2.3a7.6 7.6 0 0 0-1.7 1l-2.3-.9-2 3.4L6.6 11a7.7 7.7 0 0 0 0 2l-2 1.5 2 3.4 2.3-.9c.5.4 1.1.8 1.7 1L11 21h4l.4-2.3c.6-.2 1.2-.6 1.7-1l2.3.9 2-3.4-2-1.5Z" />
-      </svg>
-    ),
-  },
+  // {
+  //   label: 'Messages',
+  //   href: '/dashboard/employeedashboard/messages',
+  //   icon: (
+  //     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+  //       <path d="M21 11.5a8.5 8.5 0 1 1-3.8-7.1L21 3l-1.2 4.3c.8 1.2 1.2 2.6 1.2 4.2Z" />
+  //     </svg>
+  //   ),
+  // },
+  // {
+  //   label: 'Settings',
+  //   href: '/dashboard/employeedashboard/settings',
+  //   icon: (
+  //     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+  //       <circle cx="12" cy="12" r="3" />
+  //       <path d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.5-2-3.4-2.3.9a7.6 7.6 0 0 0-1.7-1L15 3h-4l-.4 2.3a7.6 7.6 0 0 0-1.7 1l-2.3-.9-2 3.4L6.6 11a7.7 7.7 0 0 0 0 2l-2 1.5 2 3.4 2.3-.9c.5.4 1.1.8 1.7 1L11 21h4l.4-2.3c.6-.2 1.2-.6 1.7-1l2.3.9 2-3.4-2-1.5Z" />
+  //     </svg>
+  //   ),
+  // },
 ];
 
 const Sidebar: React.FC = () => {
