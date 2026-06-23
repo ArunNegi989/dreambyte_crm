@@ -35,6 +35,7 @@ export const MOCK_TASKS: Task[] = [
     changeRequests: [],
   },
   {
+    
     id: 'task-002',
     title: 'Write product description copy',
     description: 'Draft SEO-friendly product descriptions for 8 new SKUs in the skincare line.',
