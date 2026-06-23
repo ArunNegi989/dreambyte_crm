@@ -115,6 +115,13 @@ export default function EmployeeDashboardPage() {
       <Sidebar />
 
       <div className={styles.page}>
+
+        <div className={styles.topBar}>
+          <a href="/dashboard/employeedashboard/profile" className={styles.profileBtn} title="View profile">
+            <span className={styles.profileInitials}>N</span>
+          </a>
+        </div>
+
         <header className={styles.pageHeader}>
           <h1 className={styles.pageTitle}>My tasks</h1>
           <p className={styles.pageSubtitle}>Track, submit, and resolve feedback on your assigned tasks</p>

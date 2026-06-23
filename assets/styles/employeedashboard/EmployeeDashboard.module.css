@@ -165,3 +165,35 @@
     width: 100%;
   }
 }
+
+/* --- Additions: top bar with profile icon --- */
+
+.topBar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+
+.profileBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: #1a1a18;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+
+.profileBtn:hover {
+  opacity: 0.8;
+}
+
+.profileInitials {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1;
+  user-select: none;
+}
