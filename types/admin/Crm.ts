@@ -1,36 +1,47 @@
-export type TaskStatus = "pending" | "approved" | "rejected";
-export type TaskFrequency = "weekly" | "monthly";
+export type EmployeeRole = "employee" | "admin" | "super_admin";
+export type TaskStatus = "pending" | "approved" | "rejected" | "completed";
+export type TaskFrequency = "weekly" | "monthly" | "one_time";
 export type DeliveryStatus = "delivered" | "not_delivered";
 
+export interface Employee {
+  _id: string;
+  employeeId: string;
+  name: string;
+  email: string;
+  phone: string;
+  dob: string;
+  department: string;
+  role: EmployeeRole;
+  joinDate: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TaskChange {
-  id: string;
+  _id: string;
   changedAt: string;
   changedBy: string;
   note: string;
 }
 
 export interface Task {
-  id: string;
+  _id: string;
   title: string;
   description: string;
-  assignedTo: string; // employee id
+  assignedTo: string | { _id: string; name: string; employeeId: string; department: string; role: string };
+  assignedBy: "admin" | "super_admin";
+  brandId?: string | { _id: string; name: string } | null;
   frequency: TaskFrequency;
   dueDate: string;
   status: TaskStatus;
   deliveryStatus: DeliveryStatus;
+  deliveryNote?: string;
+  deliveredAt?: string;
+  rejectRemark?: string;
   changes: TaskChange[];
   createdAt: string;
-}
-
-export interface Employee {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  department: string;
-  role: string;
-  joinDate: string;
-  avatar?: string;
+  updatedAt: string;
 }
 
 export interface EmployeeWithStats extends Employee {

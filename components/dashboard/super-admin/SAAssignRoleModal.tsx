@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import api from "@/lib/api";
 import { Employee } from "@/types/superadmin/superAdmin";
 import styles from "@/public/assets/styles/dashboard/super-admin-dashboard/Saassignrolemodal.module.css";
 
@@ -10,7 +11,12 @@ interface SAAssignRoleModalProps {
   onAssign: (id: string, role: Employee["role"]) => void;
 }
 
-const roleOptions: { value: Employee["role"]; label: string; desc: string; color: string }[] = [
+const roleOptions: {
+  value: Employee["role"];
+  label: string;
+  desc: string;
+  color: string;
+}[] = [
   {
     value: "employee",
     label: "Employee",
@@ -36,7 +42,11 @@ export default function SAAssignRoleModal({
   onClose,
   onAssign,
 }: SAAssignRoleModalProps) {
-  const [selectedRole, setSelectedRole] = useState<Employee["role"]>(employee.role);
+  const [selectedRole, setSelectedRole] = useState<Employee["role"]>(
+    employee.role
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -46,9 +56,23 @@ export default function SAAssignRoleModal({
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const handleSave = () => {
-    onAssign(employee.id, selectedRole);
-    onClose();
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      await api.put(`/employees/${employee._id}`, { role: selectedRole });
+      onAssign(employee._id, selectedRole);
+      onClose();
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg =
+        axiosErr?.response?.data?.message ??
+        axiosErr?.message ??
+        "Failed to update role";
+      setError(msg);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -79,7 +103,7 @@ export default function SAAssignRoleModal({
           </div>
         </div>
 
-        {/* Current Role Banner */}
+        {/* Current Role */}
         <div className={styles.currentBanner}>
           <span className={styles.currentLabel}>Current Role:</span>
           <span className={`${styles.currentRole} ${styles[`role_${employee.role}`]}`}>
@@ -91,18 +115,28 @@ export default function SAAssignRoleModal({
           </span>
         </div>
 
+        {error && <p className={styles.formError}>⚠️ {error}</p>}
+
         {/* Role Options */}
         <div className={styles.roleList}>
           <p className={styles.selectLabel}>Select New Role</p>
           {roleOptions.map((opt) => (
             <button
               key={opt.value}
-              className={`${styles.roleOption} ${selectedRole === opt.value ? styles.roleSelected : ""} ${styles[`roleColor_${opt.color}`]}`}
+              className={`${styles.roleOption} ${
+                selectedRole === opt.value ? styles.roleSelected : ""
+              } ${styles[`roleColor_${opt.color}`]}`}
               onClick={() => setSelectedRole(opt.value)}
             >
               <div className={styles.roleOptionLeft}>
-                <div className={`${styles.roleRadio} ${selectedRole === opt.value ? styles.radioChecked : ""}`}>
-                  {selectedRole === opt.value && <div className={styles.radioDot} />}
+                <div
+                  className={`${styles.roleRadio} ${
+                    selectedRole === opt.value ? styles.radioChecked : ""
+                  }`}
+                >
+                  {selectedRole === opt.value && (
+                    <div className={styles.radioDot} />
+                  )}
                 </div>
                 <div>
                   <div className={styles.roleOptionLabel}>{opt.label}</div>
@@ -124,12 +158,12 @@ export default function SAAssignRoleModal({
           <button
             className={styles.saveBtn}
             onClick={handleSave}
-            disabled={selectedRole === employee.role}
+            disabled={selectedRole === employee.role || saving}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <polyline points="20 6 9 17 4 12" />
             </svg>
-            Assign Role
+            {saving ? "Saving..." : "Assign Role"}
           </button>
         </div>
       </div>

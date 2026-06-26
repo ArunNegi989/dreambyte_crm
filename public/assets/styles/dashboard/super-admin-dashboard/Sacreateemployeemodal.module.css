@@ -220,3 +220,49 @@
   .fullSpan { grid-column: 1; }
   .modal { padding: 22px; }
 }
+
+/* ── Paste these classes into your Sacreateemployeemodal.module.css ── */
+
+/* Password field wrapper */
+.passwordWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.passwordInput {
+  width: 100%;
+  padding-right: 2.5rem; /* space for eye btn */
+}
+
+/* Eye toggle button */
+.eyeBtn {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  color: #888;
+  transition: color 0.2s;
+}
+
+.eyeBtn:hover {
+  color: #333;
+}
+
+/* Input error border */
+.inputError {
+  border-color: #e53e3e !important;
+  box-shadow: 0 0 0 2px rgba(229, 62, 62, 0.15);
+}
+
+/* Inline field error text */
+.fieldError {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: #e53e3e;
+}

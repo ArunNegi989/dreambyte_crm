@@ -13,8 +13,16 @@ interface EmployeeListProps {
 export default function EmployeeList({ employees, tasks }: EmployeeListProps) {
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeWithStats | null>(null);
 
+  // Resolve assignedTo — could be populated object or plain string _id
+  const getAssignedId = (assignedTo: Task["assignedTo"]): string => {
+    if (typeof assignedTo === "object" && assignedTo !== null) {
+      return assignedTo._id;
+    }
+    return assignedTo;
+  };
+
   const getEmployeeWithStats = (emp: Employee): EmployeeWithStats => {
-    const empTasks = tasks.filter((t) => t.assignedTo === emp.id);
+    const empTasks = tasks.filter((t) => getAssignedId(t.assignedTo) === emp._id);
     return {
       ...emp,
       totalTasks: empTasks.length,
@@ -47,12 +55,14 @@ export default function EmployeeList({ employees, tasks }: EmployeeListProps) {
             </thead>
             <tbody>
               {employees.map((emp) => {
-                const empTasks = tasks.filter((t) => t.assignedTo === emp.id);
+                const empTasks = tasks.filter(
+                  (t) => getAssignedId(t.assignedTo) === emp._id
+                );
                 const approved = empTasks.filter((t) => t.status === "approved").length;
                 const pending = empTasks.filter((t) => t.status === "pending").length;
 
                 return (
-                  <tr key={emp.id}>
+                  <tr key={emp._id}>
                     <td>
                       <div className={styles.empCell}>
                         <div className={styles.empAvatar}>{emp.name.charAt(0)}</div>
@@ -98,6 +108,12 @@ export default function EmployeeList({ employees, tasks }: EmployeeListProps) {
                   </tr>
                 );
               })}
+
+              {employees.length === 0 && (
+                <tr>
+                  <td colSpan={6} className={styles.empty}>No employees found.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
