@@ -2,11 +2,12 @@
   "name": "dreamcrmproject",
   "version": "0.1.0",
   "private": true,
- "scripts": {
-  "dev": "next dev --hostname 0.0.0.0",
-  "build": "next build",
-  "start": "next start"
-},
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
   "dependencies": {
     "axios": "^1.18.1",
     "next": "16.2.9",
