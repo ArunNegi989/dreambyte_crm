@@ -73,10 +73,11 @@ export default function SATasks({
       ? visibleTasks
       : visibleTasks.filter((t) => t.status === filter);
 
-  const getEmpName = (assignedTo: string | { _id: string; name: string }) => {
-    if (typeof assignedTo === "object") return assignedTo.name;
-    return employees.find((e) => e._id === assignedTo)?.name ?? "—";
-  };
+  const getEmpName = (assignedTo: string | { _id: string; name: string } | null | undefined) => {
+  if (!assignedTo) return "Unassigned";
+  if (typeof assignedTo === "object") return assignedTo.name ?? "Unassigned";
+  return employees.find((e) => e._id === assignedTo)?.name ?? "—";
+};
 
   const getBrandName = (brandId?: string | { _id: string; name: string } | null) => {
     if (!brandId) return "—";
@@ -301,7 +302,7 @@ export default function SATasks({
                   {/* Assigned To */}
                   <td>
                     <div className={styles.empMini}>
-                      <div className={styles.empAvatar}>{getEmpName(task.assignedTo)[0]}</div>
+                      <div className={styles.empAvatar}>{getEmpName(task.assignedTo)[0] ?? "?"}</div>
                       <span>{getEmpName(task.assignedTo)}</span>
                     </div>
                   </td>
