@@ -4,13 +4,20 @@ import { Task } from '../../types/employee/task';
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
-export async function superAdminLogin(payload: { employeeId: string; password: string }) {
-  return apiFetch<{ success: boolean; token: string; redirectTo: string; user: any }>(
-    '/superadmin/auth/login',
-    { method: 'POST', body: payload }
-  );
+// Route: POST /api/superadmin/auth/login
+export async function superAdminLogin(payload: {
+  employeeId: string;
+  password: string;
+}) {
+  return apiFetch<{
+    success: boolean;
+    token: string;
+    redirectTo: string;
+    user: any;
+  }>('/superadmin/auth/login', { method: 'POST', body: payload });
 }
 
+// Route: POST /api/superadmin/auth/register
 export async function superAdminRegister(payload: {
   employeeId: string;
   name: string;
@@ -27,6 +34,7 @@ export async function superAdminRegister(payload: {
   );
 }
 
+// Route: POST /api/superadmin/auth/logout
 export async function superAdminLogout() {
   return apiFetch('/superadmin/auth/logout', { method: 'POST' });
 }
@@ -46,16 +54,23 @@ export interface EmployeeData {
   isActive: boolean;
 }
 
+// Route: GET /api/superadmin/employees
 export async function getEmployees(): Promise<EmployeeData[]> {
-  const data = await apiFetch<{ success: boolean; data: EmployeeData[] }>('/superadmin/employees');
+  const data = await apiFetch<{ success: boolean; count: number; data: EmployeeData[] }>(
+    '/superadmin/employees'
+  );
   return data.data;
 }
 
+// Route: GET /api/superadmin/employees/:id
 export async function getEmployee(id: string): Promise<EmployeeData> {
-  const data = await apiFetch<{ success: boolean; data: EmployeeData }>(`/superadmin/employees/${id}`);
+  const data = await apiFetch<{ success: boolean; data: EmployeeData }>(
+    `/superadmin/employees/${id}`
+  );
   return data.data;
 }
 
+// Route: POST /api/superadmin/employees
 export async function createEmployee(payload: {
   name: string;
   email: string;
@@ -65,21 +80,26 @@ export async function createEmployee(payload: {
   role?: string;
   password: string;
 }): Promise<{ employee: EmployeeData; plainPassword: string }> {
-  const data = await apiFetch<{ success: boolean; data: EmployeeData; plainPassword: string }>(
-    '/superadmin/employees',
-    { method: 'POST', body: payload }
-  );
+  const data = await apiFetch<{
+    success: boolean;
+    data: EmployeeData;
+    plainPassword: string;
+  }>('/superadmin/employees', { method: 'POST', body: payload });
   return { employee: data.data, plainPassword: data.plainPassword };
 }
 
-export async function updateEmployee(id: string, payload: Partial<{
-  name: string;
-  email: string;
-  phone: string;
-  department: string;
-  role: string;
-  isActive: boolean;
-}>): Promise<EmployeeData> {
+// Route: PUT /api/superadmin/employees/:id
+export async function updateEmployee(
+  id: string,
+  payload: Partial<{
+    name: string;
+    email: string;
+    phone: string;
+    department: string;
+    role: string;
+    isActive: boolean;
+  }>
+): Promise<EmployeeData> {
   const data = await apiFetch<{ success: boolean; data: EmployeeData }>(
     `/superadmin/employees/${id}`,
     { method: 'PUT', body: payload }
@@ -87,6 +107,7 @@ export async function updateEmployee(id: string, payload: Partial<{
   return data.data;
 }
 
+// Route: DELETE /api/superadmin/employees/:id
 export async function deleteEmployee(id: string): Promise<void> {
   await apiFetch(`/superadmin/employees/${id}`, { method: 'DELETE' });
 }
@@ -100,17 +121,28 @@ export interface BrandData {
   status: string;
 }
 
+// Route: GET /api/superadmin/brands
 export async function getBrands(): Promise<BrandData[]> {
-  const data = await apiFetch<{ success: boolean; data: BrandData[] }>('/superadmin/brands');
+  const data = await apiFetch<{ success: boolean; count: number; data: BrandData[] }>(
+    '/superadmin/brands'
+  );
   return data.data;
 }
 
+// Route: GET /api/superadmin/brands/:id
 export async function getBrand(id: string): Promise<BrandData> {
-  const data = await apiFetch<{ success: boolean; data: BrandData }>(`/superadmin/brands/${id}`);
+  const data = await apiFetch<{ success: boolean; data: BrandData }>(
+    `/superadmin/brands/${id}`
+  );
   return data.data;
 }
 
-export async function createBrand(payload: { name: string; industry: string; status?: string }): Promise<BrandData> {
+// Route: POST /api/superadmin/brands
+export async function createBrand(payload: {
+  name: string;
+  industry: string;
+  status?: string;
+}): Promise<BrandData> {
   const data = await apiFetch<{ success: boolean; data: BrandData }>(
     '/superadmin/brands',
     { method: 'POST', body: payload }
@@ -118,7 +150,11 @@ export async function createBrand(payload: { name: string; industry: string; sta
   return data.data;
 }
 
-export async function updateBrand(id: string, payload: Partial<{ name: string; industry: string; status: string }>): Promise<BrandData> {
+// Route: PUT /api/superadmin/brands/:id
+export async function updateBrand(
+  id: string,
+  payload: Partial<{ name: string; industry: string; status: string }>
+): Promise<BrandData> {
   const data = await apiFetch<{ success: boolean; data: BrandData }>(
     `/superadmin/brands/${id}`,
     { method: 'PUT', body: payload }
@@ -126,23 +162,31 @@ export async function updateBrand(id: string, payload: Partial<{ name: string; i
   return data.data;
 }
 
+// Route: DELETE /api/superadmin/brands/:id
 export async function deleteBrand(id: string): Promise<void> {
   await apiFetch(`/superadmin/brands/${id}`, { method: 'DELETE' });
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
+// Route: GET /api/superadmin/tasks
 export async function getAllTasks(params?: { assignedTo?: string }): Promise<Task[]> {
-  const query = params?.assignedTo ? `?assignedTo=${params.assignedTo}` : '';
-  const data = await apiFetch<{ success: boolean; data: BackendTask[] }>(`/superadmin/tasks${query}`);
+  const qs = params?.assignedTo ? `?assignedTo=${params.assignedTo}` : '';
+  const data = await apiFetch<{ success: boolean; count: number; data: BackendTask[] }>(
+    `/superadmin/tasks${qs}`
+  );
   return normalizeTasks(data.data);
 }
 
+// Route: GET /api/superadmin/tasks/:id
 export async function getTaskById(id: string): Promise<Task> {
-  const data = await apiFetch<{ success: boolean; data: BackendTask }>(`/superadmin/tasks/${id}`);
+  const data = await apiFetch<{ success: boolean; data: BackendTask }>(
+    `/superadmin/tasks/${id}`
+  );
   return normalizeTask(data.data);
 }
 
+// Route: POST /api/superadmin/tasks
 export async function createTask(payload: {
   title: string;
   description?: string;
@@ -159,16 +203,20 @@ export async function createTask(payload: {
   return normalizeTask(data.data);
 }
 
-export async function updateTask(id: string, payload: {
-  title?: string;
-  description?: string;
-  assignedTo?: string;
-  brandId?: string;
-  frequency?: string;
-  dueDate?: string;
-  status?: string;
-  rejectRemark?: string;
-}): Promise<Task> {
+// Route: PUT /api/superadmin/tasks/:id
+export async function updateTask(
+  id: string,
+  payload: {
+    title?: string;
+    description?: string;
+    assignedTo?: string;
+    brandId?: string;
+    frequency?: string;
+    dueDate?: string;
+    status?: string;
+    rejectRemark?: string;
+  }
+): Promise<Task> {
   const data = await apiFetch<{ success: boolean; data: BackendTask }>(
     `/superadmin/tasks/${id}`,
     { method: 'PUT', body: payload }
@@ -176,7 +224,11 @@ export async function updateTask(id: string, payload: {
   return normalizeTask(data.data);
 }
 
-export async function addChangeToTask(id: string, payload: { note: string; changedBy?: string }): Promise<Task> {
+// Route: POST /api/superadmin/tasks/:id/changes
+export async function addChangeToTask(
+  id: string,
+  payload: { note: string; changedBy?: string }
+): Promise<Task> {
   const data = await apiFetch<{ success: boolean; data: BackendTask }>(
     `/superadmin/tasks/${id}/changes`,
     { method: 'POST', body: payload }
@@ -184,6 +236,7 @@ export async function addChangeToTask(id: string, payload: { note: string; chang
   return normalizeTask(data.data);
 }
 
+// Route: DELETE /api/superadmin/tasks/:id
 export async function deleteTask(id: string): Promise<void> {
   await apiFetch(`/superadmin/tasks/${id}`, { method: 'DELETE' });
 }

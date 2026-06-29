@@ -5,16 +5,20 @@ export interface BackendTask {
   _id: string;
   title: string;
   description: string;
-  assignedTo: { _id: string; name: string; employeeId: string; department: string; role: string } | string;
+  assignedTo:
+    | { _id: string; name: string; employeeId: string; department: string; role: string }
+    | string;
   assignedBy: string;
   brandId: { _id: string; name: string } | string | null;
   frequency: string;
   dueDate: string;
   status: TaskStatus;
+  // Backend field is deliveryStatus, NOT deliveryState
   deliveryStatus: 'not_delivered' | 'delivered';
   deliveryNote: string;
   deliveredAt: string | null;
   rejectRemark: string;
+  // Backend field is changes[], NOT changeRequests[]
   changes: {
     _id: string;
     changedBy: string;
@@ -27,7 +31,7 @@ export interface BackendTask {
   updatedAt: string;
 }
 
-// ── Normalize a single backend task to frontend Task shape ────────────────────
+// ── Normalize backend → frontend ──────────────────────────────────────────────
 export function normalizeTask(raw: BackendTask): Task {
   const brandName =
     raw.brandId && typeof raw.brandId === 'object'
@@ -39,7 +43,7 @@ export function normalizeTask(raw: BackendTask): Task {
       ? raw.assignedTo.name
       : '';
 
-  // Map backend changes[] -> frontend changeRequests[]
+  // Map backend changes[] → frontend changeRequests[]
   const changeRequests: TaskChangeRequest[] = (raw.changes || []).map((c) => ({
     id: c._id,
     adminNote: c.note,
@@ -50,19 +54,22 @@ export function normalizeTask(raw: BackendTask): Task {
 
   return {
     id: raw._id,
-    title: raw.title,
+    title: raw.title || '',
     description: raw.description || '',
     brandName,
-    clientName: assignedToName, // backend has no clientName — using assignedTo name as fallback
+    clientName: assignedToName,
     status: raw.status,
     deliveryState: raw.deliveryStatus as DeliveryState,
     remarks: raw.deliveryNote || '',
     dueDate: raw.dueDate ? raw.dueDate.slice(0, 10) : '',
     assignedAt: raw.createdAt ? raw.createdAt.slice(0, 10) : '',
     submittedAt: raw.deliveredAt || null,
-    startedAt: null,    // not stored in backend — kept for UI compat
+    startedAt: null,
     completedAt: raw.deliveredAt || null,
-    approvedAt: raw.status === 'approved' ? raw.updatedAt?.slice(0, 10) ?? null : null,
+    approvedAt:
+      raw.status === 'approved'
+        ? raw.updatedAt?.slice(0, 10) ?? null
+        : null,
     changeRequests,
   };
 }
