@@ -11,9 +11,12 @@ import styles from "@/public/assets/styles/dashboard/super-admin-dashboard/Saemp
 interface SAEmployeesProps {
   tasks: Task[];
   brands: Brand[];
+  onCreated?: (e: Employee) => void;
+  onDeleted?: (id: string) => void;
+  onRoleAssigned?: (id: string, role: Employee["role"]) => void;
 }
 
-export default function SAEmployees({ tasks, brands }: SAEmployeesProps) {
+export default function SAEmployees({ tasks, brands, onCreated, onDeleted, onRoleAssigned }: SAEmployeesProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,12 +51,14 @@ export default function SAEmployees({ tasks, brands }: SAEmployeesProps) {
   const handleCreated = (emp: Employee) => {
     setEmployees((prev) => [emp, ...prev]);
     setShowCreate(false);
+    onCreated?.(emp);
   };
 
   const handleRoleAssigned = (id: string, role: Employee["role"]) => {
     setEmployees((prev) =>
       prev.map((e) => (e._id === id ? { ...e, role } : e))
     );
+    onRoleAssigned?.(id, role);
   };
 
   const handleDelete = async (id: string) => {
@@ -61,6 +66,7 @@ export default function SAEmployees({ tasks, brands }: SAEmployeesProps) {
       setDeleting(id);
       await api.delete(`/employees/${id}`);
       setEmployees((prev) => prev.filter((e) => e._id !== id));
+      onDeleted?.(id);
       setDeleteConfirm(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to delete employee";
@@ -195,9 +201,7 @@ export default function SAEmployees({ tasks, brands }: SAEmployeesProps) {
 
                     {/* Role */}
                     <td>
-                      <span
-                        className={`${styles.roleBadge} ${roleColorMap[emp.role] ?? ""}`}
-                      >
+                      <span className={`${styles.roleBadge} ${roleColorMap[emp.role] ?? ""}`}>
                         {emp.role === "super_admin"
                           ? "Super Admin"
                           : emp.role === "admin"
