@@ -20,8 +20,17 @@ export default function TaskTable({
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [changeNote, setChangeNote] = useState<Record<string, string>>({});
 
-  const getEmployee = (id: string) =>
-    employees.find((e) => e.id === id);
+  // Handles both populated object and plain string _id
+  const getEmployeeName = (assignedTo: Task["assignedTo"]): string => {
+    if (typeof assignedTo === "object" && assignedTo !== null) {
+      return assignedTo.name;
+    }
+    return employees.find((e) => e._id === assignedTo)?.name ?? "Unassigned";
+  };
+
+  const getEmployeeInitial = (assignedTo: Task["assignedTo"]): string => {
+    return getEmployeeName(assignedTo)?.[0] ?? "?";
+  };
 
   const toggleExpand = (taskId: string) => {
     setExpandedTask(expandedTask === taskId ? null : taskId);
@@ -32,12 +41,6 @@ export default function TaskTable({
     if (!note) return;
     onAddChange(taskId, note);
     setChangeNote((prev) => ({ ...prev, [taskId]: "" }));
-  };
-
-  const statusColors: Record<TaskStatus, string> = {
-    approved: styles.approved,
-    pending: styles.pending,
-    rejected: styles.rejected,
   };
 
   return (
@@ -62,13 +65,12 @@ export default function TaskTable({
           </thead>
           <tbody>
             {tasks.map((task) => {
-              const emp = getEmployee(task.assignedTo);
-              const isExpanded = expandedTask === task.id;
+              const isExpanded = expandedTask === task._id;
               const hasChanges = task.changes.length > 0;
 
               return (
                 <>
-                  <tr key={task.id} className={styles.taskRow}>
+                  <tr key={task._id} className={styles.taskRow}>
                     {/* Task Name */}
                     <td>
                       <div className={styles.taskCell}>
@@ -79,14 +81,14 @@ export default function TaskTable({
 
                     {/* Employee */}
                     <td>
-                      {emp ? (
-                        <div className={styles.empMini}>
-                          <div className={styles.empAvatar}>{emp.name.charAt(0)}</div>
-                          <span className={styles.empName}>{emp.name}</span>
+                      <div className={styles.empMini}>
+                        <div className={styles.empAvatar}>
+                          {getEmployeeInitial(task.assignedTo)}
                         </div>
-                      ) : (
-                        <span className={styles.unassigned}>Unassigned</span>
-                      )}
+                        <span className={styles.empName}>
+                          {getEmployeeName(task.assignedTo)}
+                        </span>
+                      </div>
                     </td>
 
                     {/* Frequency */}
@@ -98,36 +100,42 @@ export default function TaskTable({
 
                     {/* Due Date */}
                     <td>
-                      <span className={styles.dueDate}>{task.dueDate}</span>
+                      <span className={styles.dueDate}>{task.dueDate || "—"}</span>
                     </td>
 
-                    {/* Delivery Status - Employee sets this */}
+                    {/* Delivery Status */}
                     <td>
-                      <span className={`${styles.deliveryBadge} ${task.deliveryStatus === "delivered" ? styles.delivered : styles.notDelivered}`}>
-                        {task.deliveryStatus === "delivered" ? (
-                          <>
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                            Delivered
-                          </>
-                        ) : (
-                          <>
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                            Not Delivered
-                          </>
+                      <div>
+                        <span className={`${styles.deliveryBadge} ${task.deliveryStatus === "delivered" ? styles.delivered : styles.notDelivered}`}>
+                          {task.deliveryStatus === "delivered" ? (
+                            <>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                              Delivered
+                            </>
+                          ) : (
+                            <>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                              Not Delivered
+                            </>
+                          )}
+                        </span>
+                        {/* Delivery note if present */}
+                        {task.deliveryNote && (
+                          <div className={styles.deliveryNote}>{task.deliveryNote}</div>
                         )}
-                      </span>
+                      </div>
                     </td>
 
                     {/* Changes toggle */}
                     <td>
                       <button
                         className={`${styles.changeToggle} ${hasChanges ? styles.hasChanges : ""}`}
-                        onClick={() => toggleExpand(task.id)}
+                        onClick={() => toggleExpand(task._id)}
                         title="View / Add Changes"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -141,49 +149,40 @@ export default function TaskTable({
                       </button>
                     </td>
 
-                    {/* Review: Approve / Reject / Pending */}
+                    {/* Review */}
                     <td>
                       <div className={styles.reviewCell}>
-                        <label className={`${styles.radioLabel} ${task.status === "approved" ? styles.activeApprove : ""}`}>
-                          <input
-                            type="radio"
-                            name={`status-${task.id}`}
-                            value="approved"
-                            checked={task.status === "approved"}
-                            onChange={() => onStatusChange(task.id, "approved")}
-                            className={styles.radioInput}
-                          />
-                          <span>Approve</span>
-                        </label>
-                        <label className={`${styles.radioLabel} ${task.status === "rejected" ? styles.activeReject : ""}`}>
-                          <input
-                            type="radio"
-                            name={`status-${task.id}`}
-                            value="rejected"
-                            checked={task.status === "rejected"}
-                            onChange={() => onStatusChange(task.id, "rejected")}
-                            className={styles.radioInput}
-                          />
-                          <span>Reject</span>
-                        </label>
-                        <label className={`${styles.radioLabel} ${task.status === "pending" ? styles.activePending : ""}`}>
-                          <input
-                            type="radio"
-                            name={`status-${task.id}`}
-                            value="pending"
-                            checked={task.status === "pending"}
-                            onChange={() => onStatusChange(task.id, "pending")}
-                            className={styles.radioInput}
-                          />
-                          <span>Pending</span>
-                        </label>
+                        {(["approved", "rejected", "pending"] as TaskStatus[]).map((s) => (
+                          <label
+                            key={s}
+                            className={`${styles.radioLabel} ${
+                              task.status === s
+                                ? s === "approved"
+                                  ? styles.activeApprove
+                                  : s === "rejected"
+                                  ? styles.activeReject
+                                  : styles.activePending
+                                : ""
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name={`status-${task._id}`}
+                              value={s}
+                              checked={task.status === s}
+                              onChange={() => onStatusChange(task._id, s)}
+                              className={styles.radioInput}
+                            />
+                            <span>{s.charAt(0).toUpperCase() + s.slice(1)}</span>
+                          </label>
+                        ))}
                       </div>
                     </td>
                   </tr>
 
-                  {/* Dropdown for Changes */}
+                  {/* Change log dropdown */}
                   {isExpanded && (
-                    <tr key={`${task.id}-changes`} className={styles.changeRow}>
+                    <tr key={`${task._id}-changes`} className={styles.changeRow}>
                       <td colSpan={7}>
                         <div className={styles.changeDropdown}>
                           <div className={styles.changeHeader}>
@@ -200,7 +199,7 @@ export default function TaskTable({
                           ) : (
                             <div className={styles.changeList}>
                               {task.changes.map((ch) => (
-                                <div key={ch.id} className={styles.changeItem}>
+                                <div key={ch._id} className={styles.changeItem}>
                                   <div className={styles.changeTop}>
                                     <span className={styles.changBy}>{ch.changedBy}</span>
                                     <span className={styles.changeDate}>{ch.changedAt}</span>
@@ -211,23 +210,22 @@ export default function TaskTable({
                             </div>
                           )}
 
-                          {/* Add new change */}
                           <div className={styles.addChange}>
                             <textarea
                               className={styles.changeInput}
                               placeholder="Describe what changed in this task..."
-                              value={changeNote[task.id] || ""}
+                              value={changeNote[task._id] || ""}
                               onChange={(e) =>
                                 setChangeNote((prev) => ({
                                   ...prev,
-                                  [task.id]: e.target.value,
+                                  [task._id]: e.target.value,
                                 }))
                               }
                               rows={2}
                             />
                             <button
                               className={styles.addChangeBtn}
-                              onClick={() => handleAddChange(task.id)}
+                              onClick={() => handleAddChange(task._id)}
                             >
                               Add Change Note
                             </button>
@@ -239,6 +237,12 @@ export default function TaskTable({
                 </>
               );
             })}
+
+            {tasks.length === 0 && (
+              <tr>
+                <td colSpan={7} className={styles.empty}>No tasks yet.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

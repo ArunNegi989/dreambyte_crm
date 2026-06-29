@@ -80,7 +80,8 @@ export default function AssignTask({ employees, onAssign }: AssignTaskProps) {
             >
               <option value="">Select Employee</option>
               {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
+                // ← _id use ho raha hai
+                <option key={emp._id} value={emp._id}>
                   {emp.name} — {emp.role}
                 </option>
               ))}

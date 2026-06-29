@@ -24,6 +24,15 @@ export default function EmployeeModal({ employee, onClose }: EmployeeModalProps)
     approved: styles.approved,
     pending: styles.pending,
     rejected: styles.rejected,
+    completed: styles.approved,
+  };
+
+  // Resolve task title display
+  const getTaskAssigneeName = (task: EmployeeWithStats["tasks"][0]) => {
+    if (typeof task.assignedTo === "object" && task.assignedTo !== null) {
+      return task.assignedTo.name;
+    }
+    return employee.name;
   };
 
   return (
@@ -36,17 +45,17 @@ export default function EmployeeModal({ employee, onClose }: EmployeeModalProps)
           </svg>
         </button>
 
-        {/* Employee Header */}
+        {/* Header */}
         <div className={styles.header}>
           <div className={styles.avatar}>{employee.name.charAt(0)}</div>
           <div className={styles.headerInfo}>
             <h2 className={styles.name}>{employee.name}</h2>
             <p className={styles.role}>{employee.role} · {employee.department}</p>
-            <p className={styles.contact}>{employee.email} | {employee.phone}</p>
+            <p className={styles.contact}>{employee.email} | {employee.phone || "—"}</p>
           </div>
         </div>
 
-        {/* Stats Row */}
+        {/* Stats */}
         <div className={styles.statsRow}>
           <div className={styles.statBox}>
             <span className={styles.statNum}>{employee.totalTasks}</span>
@@ -74,16 +83,22 @@ export default function EmployeeModal({ employee, onClose }: EmployeeModalProps)
           ) : (
             <div className={styles.taskList}>
               {employee.tasks.map((task) => (
-                <div key={task.id} className={styles.taskRow}>
+                <div key={task._id} className={styles.taskRow}>
                   <div className={styles.taskInfo}>
                     <span className={styles.taskName}>{task.title}</span>
                     <div className={styles.taskMeta}>
                       <span className={styles.freq}>{task.frequency}</span>
-                      <span className={styles.due}>Due: {task.dueDate}</span>
+                      <span className={styles.due}>Due: {task.dueDate || "—"}</span>
                     </div>
+                    {/* Delivery note if present */}
+                    {task.deliveryNote && (
+                      <div className={styles.deliveryNote}>
+                        📝 {task.deliveryNote}
+                      </div>
+                    )}
                   </div>
                   <div className={styles.taskBadges}>
-                    <span className={`${styles.badge} ${statusColor[task.status]}`}>
+                    <span className={`${styles.badge} ${statusColor[task.status] ?? ""}`}>
                       {task.status}
                     </span>
                     <span className={`${styles.deliveryBadge} ${task.deliveryStatus === "delivered" ? styles.delivered : styles.notDelivered}`}>

@@ -25,9 +25,9 @@ export default function SAEmployeeDetailModal({
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const empTasks = tasks.filter((t) => t.assignedTo === employee.id);
+  const empTasks = tasks.filter((t) => t.assignedTo === employee._id);
   const getBrandName = (id?: string) =>
-    brands.find((b) => b.id === id)?.name ?? "—";
+    brands.find((b) => b._id === id)?.name ?? "—";
 
   const stats = [
     { label: "Total Tasks", val: empTasks.length, color: "#6366f1", bg: "#f5f3ff" },
@@ -69,7 +69,11 @@ export default function SAEmployeeDetailModal({
             <h2 className={styles.name}>{employee.name}</h2>
             <p className={styles.roleText}>
               <span className={`${styles.rolePill} ${styles[`role_${employee.role}`]}`}>
-                {employee.role === "super_admin" ? "Super Admin" : employee.role === "admin" ? "Admin" : "Employee"}
+                {employee.role === "super_admin"
+                  ? "Super Admin"
+                  : employee.role === "admin"
+                  ? "Admin"
+                  : "Employee"}
               </span>
               <span className={styles.dot}>·</span>
               {employee.department}
@@ -119,7 +123,7 @@ export default function SAEmployeeDetailModal({
           ) : (
             <div className={styles.taskList}>
               {empTasks.map((task) => (
-                <div key={task.id} className={styles.taskItem}>
+                <div key={task._id} className={styles.taskItem}>
                   <div className={styles.taskLeft}>
                     <div className={styles.taskTitle}>{task.title}</div>
                     <div className={styles.taskMeta}>

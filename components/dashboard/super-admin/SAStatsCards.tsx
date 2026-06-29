@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Employee, Task, Brand } from "@/types/superadmin/superAdmin";
+import { Employee, Task, Brand, TaskStatus } from "@/types/superadmin/superAdmin";
 import styles from "@/public/assets/styles/dashboard/super-admin-dashboard/Sastatscards.module.css";
 
 interface SAStatsCardsProps {
@@ -24,8 +24,17 @@ export default function SAStatsCards({ employees, tasks, brands }: SAStatsCardsP
     totalBrands: brands.length,
   };
 
-  const getEmpName = (id: string) => employees.find((e) => e.id === id)?.name ?? "—";
-  const getBrandName = (id?: string) => brands.find((b) => b.id === id)?.name ?? "—";
+  // Handles both populated object and plain string id
+  const getEmpName = (assignedTo: string | { _id: string; name: string }) => {
+    if (typeof assignedTo === "object") return assignedTo.name;
+    return employees.find((e) => e._id === assignedTo)?.name ?? "—";
+  };
+
+  const getBrandName = (brandId?: string | { _id: string; name: string } | null) => {
+    if (!brandId) return "—";
+    if (typeof brandId === "object") return brandId.name;
+    return brands.find((b) => b._id === brandId)?.name ?? "—";
+  };
 
   const cards = [
     { key: "employees" as DetailPanel, label: "All Employees", value: stats.totalEmployees, color: "indigo", icon: "👥" },
@@ -40,7 +49,7 @@ export default function SAStatsCards({ employees, tasks, brands }: SAStatsCardsP
     setActivePanel(activePanel === key ? null : key);
   };
 
-  const filteredTasks = (status?: string) =>
+  const filteredTasks = (status?: TaskStatus) =>
     status ? tasks.filter((t) => t.status === status) : tasks;
 
   return (
@@ -78,13 +87,21 @@ export default function SAStatsCards({ employees, tasks, brands }: SAStatsCardsP
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
-                  <tr><th>Emp ID</th><th>Name</th><th>Department</th><th>Role</th><th>Tasks</th><th>Status</th></tr>
+                  <tr>
+                    <th>Emp ID</th><th>Name</th><th>Department</th>
+                    <th>Role</th><th>Tasks</th><th>Status</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {employees.map((emp) => {
-                    const empTasks = tasks.filter((t) => t.assignedTo === emp.id);
+                    const empTasks = tasks.filter((t) => {
+                      const id = typeof t.assignedTo === "object"
+                        ? (t.assignedTo as { _id: string })._id
+                        : t.assignedTo;
+                      return id === emp._id;
+                    });
                     return (
-                      <tr key={emp.id}>
+                      <tr key={emp._id}>
                         <td><span className={styles.empIdPill}>{emp.employeeId}</span></td>
                         <td>
                           <div className={styles.empCell}>
@@ -96,9 +113,17 @@ export default function SAStatsCards({ employees, tasks, brands }: SAStatsCardsP
                           </div>
                         </td>
                         <td>{emp.department}</td>
-                        <td><span className={`${styles.rolePill} ${styles[`role_${emp.role}`]}`}>{emp.role}</span></td>
+                        <td>
+                          <span className={`${styles.rolePill} ${styles[`role_${emp.role}`]}`}>
+                            {emp.role}
+                          </span>
+                        </td>
                         <td>{empTasks.length} tasks</td>
-                        <td><span className={`${styles.statusPill} ${emp.isActive ? styles.active : styles.inactive}`}>{emp.isActive ? "Active" : "Inactive"}</span></td>
+                        <td>
+                          <span className={`${styles.statusPill} ${emp.isActive ? styles.active : styles.inactive}`}>
+                            {emp.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </td>
                       </tr>
                     );
                   })}
@@ -112,17 +137,28 @@ export default function SAStatsCards({ employees, tasks, brands }: SAStatsCardsP
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
-                  <tr><th>Task</th><th>Assigned To</th><th>Brand</th><th>By</th><th>Due</th><th>Status</th></tr>
+                  <tr>
+                    <th>Task</th><th>Assigned To</th><th>Brand</th>
+                    <th>By</th><th>Due</th><th>Status</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {filteredTasks().map((t) => (
-                    <tr key={t.id}>
+                    <tr key={t._id}>
                       <td><span className={styles.taskName}>{t.title}</span></td>
                       <td>{getEmpName(t.assignedTo)}</td>
-                      <td>{getBrandName(t.brandId)}</td>
-                      <td><span className={`${styles.byPill} ${t.assignedBy === "super_admin" ? styles.bySA : styles.byAdmin}`}>{t.assignedBy === "super_admin" ? "Super Admin" : "Admin"}</span></td>
-                      <td>{t.dueDate}</td>
-                      <td><span className={`${styles.sPill} ${styles[`s_${t.status}`]}`}>{t.status}</span></td>
+                      <td>{getBrandName(t.brandId ?? undefined)}</td>
+                      <td>
+                        <span className={`${styles.byPill} ${t.assignedBy === "super_admin" ? styles.bySA : styles.byAdmin}`}>
+                          {t.assignedBy === "super_admin" ? "Super Admin" : "Admin"}
+                        </span>
+                      </td>
+                      <td>{t.dueDate || "—"}</td>
+                      <td>
+                        <span className={`${styles.sPill} ${styles[`s_${t.status}`]}`}>
+                          {t.status}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -139,11 +175,11 @@ export default function SAStatsCards({ employees, tasks, brands }: SAStatsCardsP
                 </thead>
                 <tbody>
                   {filteredTasks("completed").map((t) => (
-                    <tr key={t.id}>
+                    <tr key={t._id}>
                       <td><span className={styles.taskName}>{t.title}</span></td>
                       <td>{getEmpName(t.assignedTo)}</td>
-                      <td>{getBrandName(t.brandId)}</td>
-                      <td>{t.dueDate}</td>
+                      <td>{getBrandName(t.brandId ?? undefined)}</td>
+                      <td>{t.dueDate || "—"}</td>
                     </tr>
                   ))}
                   {filteredTasks("completed").length === 0 && (
@@ -163,10 +199,10 @@ export default function SAStatsCards({ employees, tasks, brands }: SAStatsCardsP
                 </thead>
                 <tbody>
                   {filteredTasks("rejected").map((t) => (
-                    <tr key={t.id}>
+                    <tr key={t._id}>
                       <td><span className={styles.taskName}>{t.title}</span></td>
                       <td>{getEmpName(t.assignedTo)}</td>
-                      <td>{getBrandName(t.brandId)}</td>
+                      <td>{getBrandName(t.brandId ?? undefined)}</td>
                       <td><span className={styles.remark}>{t.rejectRemark || "No remark provided."}</span></td>
                     </tr>
                   ))}
@@ -183,16 +219,23 @@ export default function SAStatsCards({ employees, tasks, brands }: SAStatsCardsP
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
-                  <tr><th>Task</th><th>Employee</th><th>Brand</th><th>Due Date</th><th>Delivery</th></tr>
+                  <tr>
+                    <th>Task</th><th>Employee</th><th>Brand</th>
+                    <th>Due Date</th><th>Delivery</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {filteredTasks("pending").map((t) => (
-                    <tr key={t.id}>
+                    <tr key={t._id}>
                       <td><span className={styles.taskName}>{t.title}</span></td>
                       <td>{getEmpName(t.assignedTo)}</td>
-                      <td>{getBrandName(t.brandId)}</td>
-                      <td>{t.dueDate}</td>
-                      <td><span className={`${styles.delivPill} ${t.deliveryStatus === "delivered" ? styles.delivered : styles.notDelivered}`}>{t.deliveryStatus === "delivered" ? "✓ Delivered" : "✗ Not Delivered"}</span></td>
+                      <td>{getBrandName(t.brandId ?? undefined)}</td>
+                      <td>{t.dueDate || "—"}</td>
+                      <td>
+                        <span className={`${styles.delivPill} ${t.deliveryStatus === "delivered" ? styles.delivered : styles.notDelivered}`}>
+                          {t.deliveryStatus === "delivered" ? "✓ Delivered" : "✗ Not Delivered"}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                   {filteredTasks("pending").length === 0 && (
@@ -208,17 +251,28 @@ export default function SAStatsCards({ employees, tasks, brands }: SAStatsCardsP
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
-                  <tr><th>Brand</th><th>Industry</th><th>Email</th><th>Phone</th><th>Status</th><th>Tasks</th></tr>
+                  <tr>
+                    <th>Brand</th><th>Industry</th><th>Status</th><th>Tasks</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {brands.map((b) => (
-                    <tr key={b.id}>
+                    <tr key={b._id}>
                       <td><span className={styles.brandName}>{b.name}</span></td>
                       <td>{b.industry}</td>
-                      <td>{b.contactEmail}</td>
-                      <td>{b.contactPhone}</td>
-                      <td><span className={`${styles.statusPill} ${b.status === "active" ? styles.active : styles.inactive}`}>{b.status}</span></td>
-                      <td>{tasks.filter((t) => t.brandId === b.id).length}</td>
+                      <td>
+                        <span className={`${styles.statusPill} ${b.status === "active" ? styles.active : styles.inactive}`}>
+                          {b.status}
+                        </span>
+                      </td>
+                      <td>
+                        {tasks.filter((t) => {
+                          const bid = typeof t.brandId === "object" && t.brandId
+                            ? (t.brandId as { _id: string })._id
+                            : t.brandId;
+                          return bid === b._id;
+                        }).length}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

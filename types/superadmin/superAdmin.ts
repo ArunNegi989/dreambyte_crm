@@ -4,53 +4,53 @@ export type TaskFrequency = "weekly" | "monthly" | "one_time";
 export type DeliveryStatus = "delivered" | "not_delivered";
 
 export interface Brand {
-  id: string;
+  _id: string;
   name: string;
   industry: string;
-  contactEmail: string;
-  contactPhone: string;
-  website?: string;
   status: "active" | "inactive";
   createdAt: string;
-  logo?: string;
+  updatedAt: string;
 }
 
 export interface Employee {
-  id: string;
-  employeeId: string; // DBS-2021-YYYY
+  _id: string;
+  employeeId: string;
   name: string;
   email: string;
   phone: string;
   dob: string;
   department: string;
   role: EmployeeRole;
-  password: string;
   joinDate: string;
-  avatar?: string;
   isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TaskChange {
-  id: string;
+  _id: string;
   changedAt: string;
   changedBy: string;
   note: string;
 }
 
 export interface Task {
-  id: string;
+  _id: string;
   title: string;
   description: string;
-  assignedTo: string; // employee id
+  assignedTo: string | { _id: string; name: string; employeeId: string; department: string; role: string };
   assignedBy: "admin" | "super_admin";
-  brandId?: string; // which brand this task is for
+  brandId?: string | { _id: string; name: string } | null;
   frequency: TaskFrequency;
   dueDate: string;
   status: TaskStatus;
   deliveryStatus: DeliveryStatus;
+  deliveryNote?: string;
+  deliveredAt?: string;
   rejectRemark?: string;
   changes: TaskChange[];
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface SADashboardStats {

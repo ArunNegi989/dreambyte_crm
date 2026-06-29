@@ -1,76 +1,98 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import api from "@/lib/api";
 import Sidebar from "@/components/dashboard/admindahboardcomponents/Sidebar";
 import StatsCards from "@/components/dashboard/admindahboardcomponents/Statscards";
 import TaskTable from "@/components/dashboard/admindahboardcomponents/Tasktable";
 import EmployeeList from "@/components/dashboard/admindahboardcomponents/Employeelist";
 import AssignTask from "@/components/dashboard/admindahboardcomponents/Assigntask";
-import {
-  employees as initialEmployees,
-  tasks as initialTasks,
-  getDashboardStats,
-} from "@/lib/Mockdata";
-import { Task, TaskStatus, TaskFrequency } from "@/types/admin/Crm";
+import { Employee, Task, TaskStatus, TaskFrequency, DashboardStats } from "@/types/admin/Crm";
 import styles from "@/public/assets/styles/dashboard/admindashboard/admindashboard.module.css";
 
 type ActiveSection = "dashboard" | "employees" | "tasks" | "assign";
 
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
 
-  const stats = {
-    totalEmployees: initialEmployees.length,
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // ── Load Data ─────────────────────────────────────────────────────────────
+  const loadAll = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [empRes, taskRes] = await Promise.all([
+        api.get("/employees"),
+        api.get("/tasks"),
+      ]);
+      setEmployees(empRes.data.data);
+      setTasks(taskRes.data.data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load data";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  const stats: DashboardStats = {
+    totalEmployees: employees.length,
     totalTasks: tasks.length,
     pendingTasks: tasks.filter((t) => t.status === "pending").length,
     approvedTasks: tasks.filter((t) => t.status === "approved").length,
     rejectedTasks: tasks.filter((t) => t.status === "rejected").length,
   };
 
-  const handleStatusChange = (taskId: string, status: TaskStatus) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status } : t))
-    );
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleStatusChange = async (taskId: string, status: TaskStatus) => {
+    try {
+      const res = await api.put(`/tasks/${taskId}`, { status });
+      setTasks((prev) => prev.map((t) => (t._id === taskId ? res.data.data : t)));
+    } catch (err) {
+      console.error("Status change failed", err);
+    }
   };
 
-  const handleAddChange = (taskId: string, note: string) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              changes: [
-                ...t.changes,
-                {
-                  id: `ch-${Date.now()}`,
-                  changedAt: new Date().toISOString().split("T")[0],
-                  changedBy: "Admin",
-                  note,
-                },
-              ],
-            }
-          : t
-      )
-    );
+  const handleAddChange = async (taskId: string, note: string) => {
+    try {
+      const res = await api.post(`/tasks/${taskId}/changes`, {
+        note,
+        changedBy: "Admin",
+      });
+      setTasks((prev) => prev.map((t) => (t._id === taskId ? res.data.data : t)));
+    } catch (err) {
+      console.error("Add change failed", err);
+    }
   };
 
-  const handleAssignTask = (data: {
+  const handleAssignTask = async (data: {
     title: string;
     description: string;
     assignedTo: string;
     frequency: TaskFrequency;
     dueDate: string;
   }) => {
-    const newTask: Task = {
-      id: `task-${Date.now()}`,
-      ...data,
-      status: "pending",
-      deliveryStatus: "not_delivered",
-      changes: [],
-      createdAt: new Date().toISOString().split("T")[0],
-    };
-    setTasks((prev) => [newTask, ...prev]);
+    try {
+      const res = await api.post("/tasks", {
+        ...data,
+        assignedBy: "admin",
+        status: "pending",
+        deliveryStatus: "not_delivered",
+        changes: [],
+      });
+      setTasks((prev) => [res.data.data, ...prev]);
+    } catch (err) {
+      console.error("Assign task failed", err);
+    }
   };
 
   const sectionTitles: Record<ActiveSection, string> = {
@@ -78,6 +100,64 @@ export default function AdminDashboard() {
     employees: "Employees",
     tasks: "Task Management",
     assign: "Assign Task",
+  };
+
+  // ── Loading / Error ───────────────────────────────────────────────────────
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className={styles.loadingState}>
+          <div className={styles.spinner} />
+          <p>Loading dashboard...</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className={styles.errorState}>
+          <span>⚠️ {error}</span>
+          <button onClick={loadAll}>Retry</button>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {(activeSection === "dashboard" || activeSection === "tasks") && (
+          <StatsCards stats={stats} />
+        )}
+
+        {activeSection === "dashboard" && (
+          <>
+            <TaskTable
+              tasks={tasks}
+              employees={employees}
+              onStatusChange={handleStatusChange}
+              onAddChange={handleAddChange}
+            />
+            <EmployeeList employees={employees} tasks={tasks} />
+          </>
+        )}
+
+        {activeSection === "employees" && (
+          <EmployeeList employees={employees} tasks={tasks} />
+        )}
+
+        {activeSection === "tasks" && (
+          <TaskTable
+            tasks={tasks}
+            employees={employees}
+            onStatusChange={handleStatusChange}
+            onAddChange={handleAddChange}
+          />
+        )}
+
+        {activeSection === "assign" && (
+          <AssignTask employees={employees} onAssign={handleAssignTask} />
+        )}
+      </>
+    );
   };
 
   return (
@@ -119,44 +199,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Content */}
-        <div className={styles.content}>
-          {/* Stats always visible on dashboard */}
-          {(activeSection === "dashboard" || activeSection === "tasks") && (
-            <StatsCards stats={stats} />
-          )}
-
-          {activeSection === "dashboard" && (
-            <>
-              <TaskTable
-                tasks={tasks}
-                employees={initialEmployees}
-                onStatusChange={handleStatusChange}
-                onAddChange={handleAddChange}
-              />
-              <EmployeeList employees={initialEmployees} tasks={tasks} />
-            </>
-          )}
-
-          {activeSection === "employees" && (
-            <EmployeeList employees={initialEmployees} tasks={tasks} />
-          )}
-
-          {activeSection === "tasks" && (
-            <TaskTable
-              tasks={tasks}
-              employees={initialEmployees}
-              onStatusChange={handleStatusChange}
-              onAddChange={handleAddChange}
-            />
-          )}
-
-          {activeSection === "assign" && (
-            <AssignTask
-              employees={initialEmployees}
-              onAssign={handleAssignTask}
-            />
-          )}
-        </div>
+        <div className={styles.content}>{renderContent()}</div>
       </main>
     </div>
   );

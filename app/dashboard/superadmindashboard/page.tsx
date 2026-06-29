@@ -1,24 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import api from "@/lib/api";
 import SALayout, { SASection } from "@/components/dashboard/super-admin/SALayout";
 import SAStatsCards from "@/components/dashboard/super-admin/SAStatsCards";
 import SABrands from "@/components/dashboard/super-admin/SABrands";
 import SAEmployees from "@/components/dashboard/super-admin/SAEmployees";
 import SATasks from "@/components/dashboard/super-admin/SATasks";
 import { Brand, Employee, Task, TaskStatus } from "@/types/superadmin/superAdmin";
-import {
-  brands as initBrands,
-  employees as initEmployees,
-  tasks as initTasks,
-} from "@/lib/saMockData";
 import styles from "@/app/dashboard/superadmindashboard/superadmindashboard.module.css";
 
 export default function SuperAdminPage() {
   const [section, setSection] = useState<SASection>("dashboard");
-  const [brands, setBrands] = useState<Brand[]>(initBrands);
-  const [employees, setEmployees] = useState<Employee[]>(initEmployees);
-  const [tasks, setTasks] = useState<Task[]>(initTasks);
+
+  // ── Global Data ───────────────────────────────────────────────────────────
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // ── Load All ──────────────────────────────────────────────────────────────
+  const loadAll = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [brandsRes, employeesRes, tasksRes] = await Promise.all([
+        api.get("/brands"),
+        api.get("/employees"),
+        api.get("/tasks"),
+      ]);
+      setBrands(brandsRes.data.data);
+      setEmployees(employeesRes.data.data);
+      setTasks(tasksRes.data.data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load dashboard";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
   const sectionTitles: Record<SASection, { title: string; sub: string }> = {
     dashboard: { title: "Super Admin Dashboard", sub: "Full platform overview" },
@@ -27,73 +52,121 @@ export default function SuperAdminPage() {
     tasks: { title: "Tasks", sub: "View, assign, and manage all tasks" },
   };
 
-  /* ── Brand handlers ── */
-  const handleAddBrand = (b: Omit<Brand, "id" | "createdAt">) => {
-    setBrands((prev) => [
-      ...prev,
-      { ...b, id: `brand-${Date.now()}`, createdAt: new Date().toISOString().split("T")[0] },
-    ]);
-  };
-  const handleEditBrand = (updated: Brand) => {
-    setBrands((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
-  };
-  const handleDeleteBrand = (id: string) => {
-    setBrands((prev) => prev.filter((b) => b.id !== id));
+  // ── Brand callbacks (SABrands is self-contained, these sync dashboard state)
+  const handleBrandCreated = (b: Brand) => setBrands((p) => [b, ...p]);
+  const handleBrandUpdated = (b: Brand) =>
+    setBrands((p) => p.map((x) => (x._id === b._id ? b : x)));
+  const handleBrandDeleted = (id: string) =>
+    setBrands((p) => p.filter((x) => x._id !== id));
+
+  // ── Employee callbacks (SAEmployees is self-contained)
+  const handleEmployeeCreated = (e: Employee) => setEmployees((p) => [e, ...p]);
+  const handleEmployeeDeleted = (id: string) =>
+    setEmployees((p) => p.filter((x) => x._id !== id));
+  const handleRoleAssigned = (id: string, role: Employee["role"]) =>
+    setEmployees((p) => p.map((x) => (x._id === id ? { ...x, role } : x)));
+
+  // ── Task handlers ─────────────────────────────────────────────────────────
+  const handleStatusChange = async (
+    id: string,
+    status: TaskStatus,
+    remark?: string
+  ) => {
+    try {
+      const res = await api.put(`/tasks/${id}`, {
+        status,
+        ...(remark !== undefined ? { rejectRemark: remark } : {}),
+      });
+      setTasks((p) => p.map((t) => (t._id === id ? res.data.data : t)));
+    } catch (err) {
+      console.error("Status update failed", err);
+    }
   };
 
-  /* ── Employee handlers ── */
-  const handleCreateEmployee = (emp: Omit<Employee, "id">) => {
-    setEmployees((prev) => [...prev, { ...emp, id: `emp-${Date.now()}` }]);
-  };
-  const handleDeleteEmployee = (id: string) => {
-    setEmployees((prev) => prev.filter((e) => e.id !== id));
-  };
-  const handleAssignRole = (id: string, role: Employee["role"]) => {
-    setEmployees((prev) => prev.map((e) => (e.id === id ? { ...e, role } : e)));
+  const handleDeleteTask = async (id: string) => {
+    try {
+      await api.delete(`/tasks/${id}`);
+      setTasks((p) => p.filter((t) => t._id !== id));
+    } catch (err) {
+      console.error("Delete task failed", err);
+    }
   };
 
-  /* ── Task handlers ── */
-  const handleStatusChange = (id: string, status: TaskStatus, remark?: string) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? { ...t, status, ...(remark !== undefined ? { rejectRemark: remark } : {}) }
-          : t
-      )
+  const handleAddTask = async (
+    t: Omit<Task, "_id" | "createdAt" | "updatedAt">
+  ) => {
+    try {
+      const res = await api.post("/tasks", t);
+      setTasks((p) => [res.data.data, ...p]);
+    } catch (err) {
+      console.error("Add task failed", err);
+    }
+  };
+
+  const handleEditTask = async (updated: Task) => {
+    try {
+      const res = await api.put(`/tasks/${updated._id}`, updated);
+      setTasks((p) =>
+        p.map((t) => (t._id === updated._id ? res.data.data : t))
+      );
+    } catch (err) {
+      console.error("Edit task failed", err);
+    }
+  };
+
+  const handleAddChange = async (taskId: string, note: string) => {
+    try {
+      const res = await api.post(`/tasks/${taskId}/changes`, {
+        note,
+        changedBy: "Super Admin",
+      });
+      setTasks((p) => p.map((t) => (t._id === taskId ? res.data.data : t)));
+    } catch (err) {
+      console.error("Add change failed", err);
+    }
+  };
+
+  const handleDeliverTask = async (taskId: string, note: string) => {
+    try {
+      const res = await api.post(`/tasks/${taskId}/deliver`, { deliveryNote: note });
+      setTasks((p) => p.map((t) => (t._id === taskId ? res.data.data : t)));
+    } catch (err) {
+      console.error("Deliver task failed", err);
+    }
+  };
+
+  // ── Loading / Error screens ───────────────────────────────────────────────
+  if (loading) {
+    return (
+      <SALayout
+        activeSection={section}
+        onSectionChange={setSection}
+        pageTitle={sectionTitles[section].title}
+        pageSub={sectionTitles[section].sub}
+      >
+        <div className={styles.pageLoader}>
+          <div className={styles.pageSpinner} />
+          <p>Loading dashboard...</p>
+        </div>
+      </SALayout>
     );
-  };
-  const handleDeleteTask = (id: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-  };
-  const handleAddTask = (t: Omit<Task, "id" | "createdAt">) => {
-    setTasks((prev) => [
-      { ...t, id: `task-${Date.now()}`, createdAt: new Date().toISOString().split("T")[0] },
-      ...prev,
-    ]);
-  };
-  const handleEditTask = (updated: Task) => {
-    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-  };
-  const handleAddChange = (taskId: string, note: string) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              changes: [
-                ...t.changes,
-                {
-                  id: `ch-${Date.now()}`,
-                  changedAt: new Date().toISOString().split("T")[0],
-                  changedBy: "Super Admin",
-                  note,
-                },
-              ],
-            }
-          : t
-      )
+  }
+
+  if (error) {
+    return (
+      <SALayout
+        activeSection={section}
+        onSectionChange={setSection}
+        pageTitle={sectionTitles[section].title}
+        pageSub={sectionTitles[section].sub}
+      >
+        <div className={styles.pageError}>
+          <span>⚠️ {error}</span>
+          <button onClick={loadAll}>Retry</button>
+        </div>
+      </SALayout>
     );
-  };
+  }
 
   return (
     <SALayout
@@ -102,6 +175,7 @@ export default function SuperAdminPage() {
       pageTitle={sectionTitles[section].title}
       pageSub={sectionTitles[section].sub}
     >
+      {/* ── Dashboard ── */}
       {section === "dashboard" && (
         <>
           <SAStatsCards employees={employees} tasks={tasks} brands={brands} />
@@ -111,14 +185,17 @@ export default function SuperAdminPage() {
                 tasks={tasks.slice(0, 5)}
                 employees={employees}
                 brands={brands}
+                viewerRole="super_admin"
                 onStatusChange={handleStatusChange}
                 onDeleteTask={handleDeleteTask}
                 onAddTask={handleAddTask}
                 onEditTask={handleEditTask}
                 onAddChange={handleAddChange}
+                onDeliverTask={handleDeliverTask}
               />
             </div>
             <div className={styles.dashRight}>
+              {/* Quick Stats */}
               <div className={styles.quickCard}>
                 <h3 className={styles.quickTitle}>Quick Stats</h3>
                 {[
@@ -140,7 +217,7 @@ export default function SuperAdminPage() {
                   {
                     label: "This Month Tasks",
                     val: tasks.filter((t) =>
-                      t.createdAt.startsWith(new Date().toISOString().slice(0, 7))
+                      t.createdAt?.startsWith(new Date().toISOString().slice(0, 7))
                     ).length,
                     color: "#3b82f6",
                   },
@@ -154,10 +231,11 @@ export default function SuperAdminPage() {
                 ))}
               </div>
 
+              {/* Recent Employees */}
               <div className={styles.quickCard}>
                 <h3 className={styles.quickTitle}>Recent Employees</h3>
                 {employees.slice(0, 4).map((emp) => (
-                  <div key={emp.id} className={styles.recentEmpRow}>
+                  <div key={emp._id} className={styles.recentEmpRow}>
                     <div className={styles.recentAvatar}>{emp.name[0]}</div>
                     <div>
                       <div className={styles.recentName}>{emp.name}</div>
@@ -180,42 +258,48 @@ export default function SuperAdminPage() {
                     </span>
                   </div>
                 ))}
+                {employees.length === 0 && (
+                  <p className={styles.noData}>No employees yet.</p>
+                )}
               </div>
             </div>
           </div>
         </>
       )}
 
+      {/* ── Brands ── */}
       {section === "brands" && (
         <SABrands
-          brands={brands}
-          onAdd={handleAddBrand}
-          onEdit={handleEditBrand}
-          onDelete={handleDeleteBrand}
+          onCreated={handleBrandCreated}
+          onUpdated={handleBrandUpdated}
+          onDeleted={handleBrandDeleted}
         />
       )}
 
+      {/* ── Employees ── */}
       {section === "employees" && (
         <SAEmployees
-          employees={employees}
           tasks={tasks}
           brands={brands}
-          onCreateEmployee={handleCreateEmployee}
-          onDeleteEmployee={handleDeleteEmployee}
-          onAssignRole={handleAssignRole}
+          onCreated={handleEmployeeCreated}
+          onDeleted={handleEmployeeDeleted}
+          onRoleAssigned={handleRoleAssigned}
         />
       )}
 
+      {/* ── Tasks ── */}
       {section === "tasks" && (
         <SATasks
           tasks={tasks}
           employees={employees}
           brands={brands}
+          viewerRole="super_admin"
           onStatusChange={handleStatusChange}
           onDeleteTask={handleDeleteTask}
           onAddTask={handleAddTask}
           onEditTask={handleEditTask}
           onAddChange={handleAddChange}
+          onDeliverTask={handleDeliverTask}
         />
       )}
     </SALayout>
