@@ -23,6 +23,8 @@ export interface TaskChange {
   changedAt: string;
   changedBy: string;
   note: string;
+  employeeResponse: string;
+  resolved: boolean;
 }
 
 export interface Task {

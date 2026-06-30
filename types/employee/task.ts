@@ -8,6 +8,7 @@ export interface TaskChangeRequest {
   employeeResponse: string;
   requestedAt: string;
   resolved: boolean;
+  
 }
 
 export interface Task {

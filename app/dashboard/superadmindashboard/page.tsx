@@ -70,12 +70,14 @@ export default function SuperAdminPage() {
   const handleStatusChange = async (
     id: string,
     status: TaskStatus,
-    remark?: string
+    remark?: string,
+    changedBy?: string
   ) => {
     try {
       const res = await api.put(`/tasks/${id}`, {
         status,
         ...(remark !== undefined ? { rejectRemark: remark } : {}),
+        ...(changedBy !== undefined ? { changedBy } : {}),
       });
       setTasks((p) => p.map((t) => (t._id === id ? res.data.data : t)));
     } catch (err) {
@@ -114,15 +116,19 @@ export default function SuperAdminPage() {
     }
   };
 
-  const handleAddChange = async (taskId: string, note: string) => {
+  // ── Employee replies to a rejection / change-log entry ──────────────────
+  const handleRespondChange = async (
+    taskId: string,
+    changeId: string,
+    response: string
+  ) => {
     try {
-      const res = await api.post(`/tasks/${taskId}/changes`, {
-        note,
-        changedBy: "Super Admin",
+      const res = await api.post(`/tasks/${taskId}/respond`, {
+        responses: [{ id: changeId, response }],
       });
       setTasks((p) => p.map((t) => (t._id === taskId ? res.data.data : t)));
     } catch (err) {
-      console.error("Add change failed", err);
+      console.error("Respond to change failed", err);
     }
   };
 
@@ -190,7 +196,7 @@ export default function SuperAdminPage() {
                 onDeleteTask={handleDeleteTask}
                 onAddTask={handleAddTask}
                 onEditTask={handleEditTask}
-                onAddChange={handleAddChange}
+                onRespondChange={handleRespondChange}
                 onDeliverTask={handleDeliverTask}
               />
             </div>
@@ -298,7 +304,7 @@ export default function SuperAdminPage() {
           onDeleteTask={handleDeleteTask}
           onAddTask={handleAddTask}
           onEditTask={handleEditTask}
-          onAddChange={handleAddChange}
+          onRespondChange={handleRespondChange}
           onDeliverTask={handleDeliverTask}
         />
       )}

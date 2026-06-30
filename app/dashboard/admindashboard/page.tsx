@@ -53,24 +53,23 @@ export default function AdminDashboard() {
   };
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleStatusChange = async (taskId: string, status: TaskStatus) => {
+  // Forwards rejectRemark + changedBy so a rejection note lands in the
+  // task's changes[] (Change Log) — same flow as the Super Admin dashboard.
+  const handleStatusChange = async (
+    taskId: string,
+    status: TaskStatus,
+    remark?: string,
+    changedBy?: string
+  ) => {
     try {
-      const res = await api.put(`/tasks/${taskId}`, { status });
-      setTasks((prev) => prev.map((t) => (t._id === taskId ? res.data.data : t)));
-    } catch (err) {
-      console.error("Status change failed", err);
-    }
-  };
-
-  const handleAddChange = async (taskId: string, note: string) => {
-    try {
-      const res = await api.post(`/tasks/${taskId}/changes`, {
-        note,
-        changedBy: "Admin",
+      const res = await api.put(`/tasks/${taskId}`, {
+        status,
+        ...(remark !== undefined ? { rejectRemark: remark } : {}),
+        ...(changedBy !== undefined ? { changedBy } : {}),
       });
       setTasks((prev) => prev.map((t) => (t._id === taskId ? res.data.data : t)));
     } catch (err) {
-      console.error("Add change failed", err);
+      console.error("Status change failed", err);
     }
   };
 
@@ -134,7 +133,6 @@ export default function AdminDashboard() {
               tasks={tasks}
               employees={employees}
               onStatusChange={handleStatusChange}
-              onAddChange={handleAddChange}
             />
             <EmployeeList employees={employees} tasks={tasks} />
           </>
@@ -149,7 +147,6 @@ export default function AdminDashboard() {
             tasks={tasks}
             employees={employees}
             onStatusChange={handleStatusChange}
-            onAddChange={handleAddChange}
           />
         )}
 
