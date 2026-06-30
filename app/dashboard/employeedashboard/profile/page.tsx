@@ -12,16 +12,45 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const role = localStorage.getItem('userRole') || 'employee';
-    Promise.all([getProfile(role), getDashboardStats()])
-      .then(([prof, st]) => {
-        setProfile(prof);
-        setStats(st);
-      })
-      .catch(() => router.push('/auth/login'))
-      .finally(() => setLoading(false));
+
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+
+      let prof: any = null;
+      let st: any = null;
+
+      try {
+        prof = await getProfile(role);
+      } catch (err: any) {
+        const msg = err?.message || '';
+        if (msg.toLowerCase().includes('token') || msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
+          router.push('/auth/login');
+          return;
+        }
+        setError(`Failed to load profile: ${msg}`);
+        setLoading(false);
+        return;
+      }
+
+      if (role !== 'super_admin') {
+        try {
+          st = await getDashboardStats();
+        } catch (err: any) {
+          console.error('Failed to load stats:', err.message);
+        }
+      }
+
+      setProfile(prof);
+      setStats(st);
+      setLoading(false);
+    };
+
+    load();
   }, [router]);
 
   const handleLogout = async () => {
@@ -61,6 +90,29 @@ export default function ProfilePage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className={styles.shell}>
+        <Sidebar />
+        <div className={styles.page}>
+          <div style={{ padding: '32px' }}>
+            <p style={{ color: '#a32d2d', fontWeight: 600, marginBottom: 8 }}>{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                fontSize: '13px', fontWeight: 600, color: '#1a1a18',
+                background: '#fff', border: '1px solid #1a1a18',
+                borderRadius: 8, padding: '8px 16px', cursor: 'pointer',
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!profile) return null;
 
   const overall = stats?.overall ?? {};
@@ -69,13 +121,17 @@ export default function ProfilePage() {
     <div className={styles.shell}>
       <Sidebar />
       <div className={styles.page}>
-        <div className={styles.topBarRow}>
+
+        <div className={styles.topBar}>
           <button className={styles.logoutBtn} onClick={handleLogout} title="Logout">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="16" height="16">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
             </svg>
             Logout
           </button>
+          <span className={styles.profileBtn} title={profile.name}>
+            <span className={styles.profileInitials}>{initials}</span>
+          </span>
         </div>
 
         <header className={styles.pageHeader}>
@@ -113,47 +169,53 @@ export default function ProfilePage() {
           <div className={styles.rightCol}>
             <div className={styles.sectionCard}>
               <h3 className={styles.sectionTitle}>Task summary</h3>
-              <div className={styles.statGrid}>
-                <StatTile label="Total assigned" value={overall.totalAssigned ?? 0} variant="neutral" />
-                <StatTile label="Completed" value={overall.completed ?? 0} variant="completed" />
-                <StatTile label="Approved" value={overall.approved ?? 0} variant="approved" />
-                <StatTile label="Pending" value={overall.pending ?? 0} variant="pending" />
-                <StatTile label="Changes requested" value={overall.changesRequested ?? 0} variant="changes" />
-                <StatTile label="Not delivered" value={overall.notDelivered ?? 0} variant="notDelivered" />
-              </div>
+              {stats ? (
+                <div className={styles.statGrid}>
+                  <StatTile label="Total assigned" value={overall.totalAssigned ?? 0} variant="neutral" />
+                  <StatTile label="Completed" value={overall.completed ?? 0} variant="completed" />
+                  <StatTile label="Approved" value={overall.approved ?? 0} variant="approved" />
+                  <StatTile label="Pending" value={overall.pending ?? 0} variant="pending" />
+                  <StatTile label="Changes requested" value={overall.changesRequested ?? 0} variant="changes" />
+                  <StatTile label="Not delivered" value={overall.notDelivered ?? 0} variant="notDelivered" />
+                </div>
+              ) : (
+                <p style={{ fontSize: 13, color: '#8a8a84' }}>No task stats available for this account.</p>
+              )}
             </div>
 
-            <div className={styles.sectionCard}>
-              <h3 className={styles.sectionTitle}>Performance</h3>
-              <div className={styles.performanceRow}>
-                <div className={styles.perfItem}>
-                  <p className={styles.perfLabel}>Completion rate</p>
-                  <p className={styles.perfValue}>
-                    {overall.totalAssigned > 0
-                      ? `${Math.round(((overall.completed + overall.approved) / overall.totalAssigned) * 100)}%`
-                      : '—'}
-                  </p>
-                </div>
-                <div className={styles.perfDivider} />
-                <div className={styles.perfItem}>
-                  <p className={styles.perfLabel}>Delivery rate</p>
-                  <p className={styles.perfValue}>
-                    {overall.totalAssigned > 0
-                      ? `${Math.round(((overall.totalAssigned - overall.notDelivered) / overall.totalAssigned) * 100)}%`
-                      : '—'}
-                  </p>
-                </div>
-                <div className={styles.perfDivider} />
-                <div className={styles.perfItem}>
-                  <p className={styles.perfLabel}>Change-back rate</p>
-                  <p className={styles.perfValue}>
-                    {overall.totalAssigned > 0
-                      ? `${Math.round((overall.changesRequested / overall.totalAssigned) * 100)}%`
-                      : '—'}
-                  </p>
+            {stats && (
+              <div className={styles.sectionCard}>
+                <h3 className={styles.sectionTitle}>Performance</h3>
+                <div className={styles.performanceRow}>
+                  <div className={styles.perfItem}>
+                    <p className={styles.perfLabel}>Completion rate</p>
+                    <p className={styles.perfValue}>
+                      {overall.totalAssigned > 0
+                        ? `${Math.round(((overall.completed + overall.approved) / overall.totalAssigned) * 100)}%`
+                        : '—'}
+                    </p>
+                  </div>
+                  <div className={styles.perfDivider} />
+                  <div className={styles.perfItem}>
+                    <p className={styles.perfLabel}>Delivery rate</p>
+                    <p className={styles.perfValue}>
+                      {overall.totalAssigned > 0
+                        ? `${Math.round(((overall.totalAssigned - overall.notDelivered) / overall.totalAssigned) * 100)}%`
+                        : '—'}
+                    </p>
+                  </div>
+                  <div className={styles.perfDivider} />
+                  <div className={styles.perfItem}>
+                    <p className={styles.perfLabel}>Change-back rate</p>
+                    <p className={styles.perfValue}>
+                      {overall.totalAssigned > 0
+                        ? `${Math.round((overall.changesRequested / overall.totalAssigned) * 100)}%`
+                        : '—'}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

@@ -385,3 +385,49 @@
 .dateTimeRow .dateInput {
   flex: 1;
 }
+
+
+/* --- Additions: resolved change history rows --- */
+
+.changeRowResolved {
+  background-color: #f7f7f5;
+  border-color: #e8e8e4;
+  opacity: 0.9;
+}
+
+.changeIndexResolved {
+  background-color: #8a8a84;
+}
+
+.resolvedReply {
+  margin-top: 4px;
+  padding: 10px 12px;
+  background-color: #ffffff;
+  border: 1px solid #e8e8e4;
+  border-radius: 8px;
+}
+
+.resolvedReplyLabel {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  color: #8a8a84;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.resolvedReplyText {
+  font-size: 13px;
+  color: #1a1a18;
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.resolvedReplyEmpty {
+  font-size: 12px;
+  color: #a3a39c;
+  font-style: italic;
+  margin: 4px 0 0;
+}

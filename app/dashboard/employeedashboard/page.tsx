@@ -71,6 +71,14 @@ export default function EmployeeDashboardPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Keep the open modal's task in sync after a refetch, so a freshly
+  // rejected task's message shows up immediately if the modal is open.
+  useEffect(() => {
+    if (!selectedTask) return;
+    const fresh = tasks.find((t) => t.id === selectedTask.id);
+    if (fresh) setSelectedTask(fresh);
+  }, [tasks]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const groupedTasks = useMemo(() => groupTasksByDueDate(tasks, now), [tasks, now]);
   const hasActiveFilters = activeFilter !== 'all' || selectedDate !== '';
 
@@ -92,7 +100,7 @@ export default function EmployeeDashboardPage() {
       const updated = await submitTask(taskId, { deliveryState, remarks, startedAt });
       setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
       setSelectedTask(null);
-      fetchData(); // refresh stats
+      fetchData();
     } catch (err: any) {
       setError(err.message || 'Failed to submit task');
     }

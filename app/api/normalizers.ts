@@ -13,12 +13,10 @@ export interface BackendTask {
   frequency: string;
   dueDate: string;
   status: TaskStatus;
-  // Backend field is deliveryStatus, NOT deliveryState
   deliveryStatus: 'not_delivered' | 'delivered';
   deliveryNote: string;
   deliveredAt: string | null;
   rejectRemark: string;
-  // Backend field is changes[], NOT changeRequests[]
   changes: {
     _id: string;
     changedBy: string;
@@ -29,6 +27,13 @@ export interface BackendTask {
   }[];
   createdAt: string;
   updatedAt: string;
+}
+
+// An entry counts as "authored by the employee" (a log/reply, never replyable
+// again) if changedBy is exactly "Employee". Everything else — any admin or
+// super_admin name — is a real request the employee can reply to.
+function isEmployeeAuthored(changedBy: string): boolean {
+  return (changedBy || '').trim().toLowerCase() === 'employee';
 }
 
 // ── Normalize backend → frontend ──────────────────────────────────────────────
@@ -43,14 +48,22 @@ export function normalizeTask(raw: BackendTask): Task {
       ? raw.assignedTo.name
       : '';
 
-  // Map backend changes[] → frontend changeRequests[]
-  const changeRequests: TaskChangeRequest[] = (raw.changes || []).map((c) => ({
-    id: c._id,
-    adminNote: c.note,
-    employeeResponse: c.employeeResponse || '',
-    requestedAt: c.changedAt,
-    resolved: c.resolved ?? false,
-  }));
+  const allChanges = Array.isArray(raw.changes) ? raw.changes : [];
+
+  // Full ordered history. We keep EVERY admin-authored entry (resolved or
+  // not) so past rejection cycles are never lost — this is the core fix.
+  // Employee-authored entries (delivery-log noise from deliverTask) are
+  // filtered out entirely; they were never "requests" and were never
+  // meant to be replied to.
+  const changeRequests: TaskChangeRequest[] = allChanges
+    .filter((c) => !isEmployeeAuthored(c.changedBy))
+    .map((c) => ({
+      id: c._id,
+      adminNote: c.note || '',
+      employeeResponse: c.employeeResponse || '',
+      requestedAt: c.changedAt,
+      resolved: c.resolved ?? false,
+    }));
 
   return {
     id: raw._id,
