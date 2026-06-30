@@ -1,34 +1,37 @@
 "use client";
 
 import { useState } from "react";
-import { Employee, TaskFrequency } from "@/types/admin/Crm";
+import { Employee, TaskFrequency ,Brand  } from "@/types/admin/Crm";
 import styles from "@/public/assets/styles/dashboard/admindashboard/Assigntask.module.css";
 
 interface AssignTaskProps {
   employees: Employee[];
+  brands: Brand[];
   onAssign: (data: {
     title: string;
     description: string;
+    brandId: string;
     assignedTo: string;
     frequency: TaskFrequency;
     dueDate: string;
   }) => void;
 }
 
-export default function AssignTask({ employees, onAssign }: AssignTaskProps) {
+export default function AssignTask({ employees, brands, onAssign }: AssignTaskProps) {
   const [form, setForm] = useState({
     title: "",
     description: "",
     assignedTo: "",
+     brandId: "",
     frequency: "weekly" as TaskFrequency,
     dueDate: "",
   });
   const [success, setSuccess] = useState(false);
 
   const handleSubmit = () => {
-    if (!form.title || !form.assignedTo || !form.dueDate) return;
+    if (!form.title || !form.assignedTo ||!form.brandId || !form.dueDate) return;
     onAssign(form);
-    setForm({ title: "", description: "", assignedTo: "", frequency: "weekly", dueDate: "" });
+    setForm({ title: "", description: "", assignedTo: "", brandId: "", frequency: "weekly", dueDate: "" });
     setSuccess(true);
     setTimeout(() => setSuccess(false), 3000);
   };
@@ -87,6 +90,24 @@ export default function AssignTask({ employees, onAssign }: AssignTaskProps) {
               ))}
             </select>
           </div>
+          <div className={styles.field}>
+  <label className={styles.label}>Brand *</label>
+  <select
+    className={styles.input}
+    value={form.brandId}
+    onChange={(e) =>
+      setForm({ ...form, brandId: e.target.value })
+    }
+  >
+    <option value="">Select Brand</option>
+
+    {brands.map((brand) => (
+      <option key={brand._id} value={brand._id}>
+        {brand.name}
+      </option>
+    ))}
+  </select>
+</div>
         </div>
 
         <div className={styles.field}>

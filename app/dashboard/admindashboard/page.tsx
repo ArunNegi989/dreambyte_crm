@@ -9,7 +9,7 @@ import StatsCards from "@/components/dashboard/admindahboardcomponents/Statscard
 import TaskTable from "@/components/dashboard/admindahboardcomponents/Tasktable";
 import EmployeeList from "@/components/dashboard/admindahboardcomponents/Employeelist";
 import AssignTask from "@/components/dashboard/admindahboardcomponents/Assigntask";
-import { Employee, Task, TaskStatus, TaskFrequency, DashboardStats } from "@/types/admin/Crm";
+import { Employee, Task, TaskStatus, TaskFrequency, DashboardStats, Brand, } from "@/types/admin/Crm";
 import styles from "@/public/assets/styles/dashboard/admindashboard/admindashboard.module.css";
 
 type ActiveSection = "dashboard" | "employees" | "tasks" | "assign";
@@ -17,7 +17,7 @@ type ActiveSection = "dashboard" | "employees" | "tasks" | "assign";
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
-
+const [brands, setBrands] = useState<Brand[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,12 +28,14 @@ export default function AdminDashboard() {
     try {
       setLoading(true);
       setError(null);
-      const [empRes, taskRes] = await Promise.all([
+      const [empRes, taskRes,brandRes] = await Promise.all([
         api.get("/employees"),
         api.get("/tasks"),
+         api.get("/brands"),
       ]);
       setEmployees(empRes.data.data);
       setTasks(taskRes.data.data);
+      setBrands(brandRes.data.data);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load data";
       setError(msg);
@@ -78,6 +80,7 @@ export default function AdminDashboard() {
     title: string;
     description: string;
     assignedTo: string;
+    brandId: string;
     frequency: TaskFrequency;
     dueDate: string;
   }) => {
@@ -163,7 +166,7 @@ export default function AdminDashboard() {
         )}
 
         {activeSection === "assign" && (
-          <AssignTask employees={employees} onAssign={handleAssignTask} />
+          <AssignTask employees={employees} brands={brands} onAssign={handleAssignTask} />
         )}
       </>
     );

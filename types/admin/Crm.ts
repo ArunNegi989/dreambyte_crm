@@ -61,3 +61,11 @@ export interface DashboardStats {
   approvedTasks: number;
   rejectedTasks: number;
 }
+export interface Brand {
+  _id: string;
+  name: string;
+  industry: string;
+  status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+}

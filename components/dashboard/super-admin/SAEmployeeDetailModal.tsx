@@ -26,9 +26,7 @@ export default function SAEmployeeDetailModal({
   }, [onClose]);
 
   const empTasks = tasks.filter((t) => t.assignedTo === employee._id);
-  const getBrandName = (id?: string) =>
-    brands.find((b) => b._id === id)?.name ?? "—";
-
+ 
   const stats = [
     { label: "Total Tasks", val: empTasks.length, color: "#6366f1", bg: "#f5f3ff" },
     { label: "Completed", val: empTasks.filter((t) => t.status === "completed").length, color: "#10b981", bg: "#f0fdf4" },
@@ -127,7 +125,15 @@ export default function SAEmployeeDetailModal({
                   <div className={styles.taskLeft}>
                     <div className={styles.taskTitle}>{task.title}</div>
                     <div className={styles.taskMeta}>
-                      <span className={styles.taskBrand}>{getBrandName(task.brandId)}</span>
+                     <span className={styles.taskBrand}>
+  <span className={styles.taskBrand}>
+  {task.brandId
+    ? typeof task.brandId === "object"
+      ? task.brandId.name
+      : brands.find((b) => b._id === task.brandId)?.name ?? "—"
+    : "—"}
+</span>
+</span>
                       <span className={styles.taskDue}>Due: {task.dueDate}</span>
                       <span className={`${styles.taskFreq} ${styles[`freq_${task.frequency}`]}`}>
                         {task.frequency}
