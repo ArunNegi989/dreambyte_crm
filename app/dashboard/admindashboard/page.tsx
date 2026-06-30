@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
+import { logout } from "../../api/authApi";
 import Sidebar from "@/components/dashboard/admindahboardcomponents/Sidebar";
 import StatsCards from "@/components/dashboard/admindahboardcomponents/Statscards";
 import TaskTable from "@/components/dashboard/admindahboardcomponents/Tasktable";
@@ -13,6 +15,7 @@ import styles from "@/public/assets/styles/dashboard/admindashboard/admindashboa
 type ActiveSection = "dashboard" | "employees" | "tasks" | "assign";
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
 
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -53,8 +56,6 @@ export default function AdminDashboard() {
   };
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  // Forwards rejectRemark + changedBy so a rejection note lands in the
-  // task's changes[] (Change Log) — same flow as the Super Admin dashboard.
   const handleStatusChange = async (
     taskId: string,
     status: TaskStatus,
@@ -91,6 +92,17 @@ export default function AdminDashboard() {
       setTasks((prev) => [res.data.data, ...prev]);
     } catch (err) {
       console.error("Assign task failed", err);
+    }
+  };
+
+  // Same flow as the employee dashboard: hit the logout endpoint, clear
+  // local storage regardless of outcome, then bounce to login.
+  const handleLogout = async () => {
+    try {
+      await logout("admin");
+    } finally {
+      localStorage.clear();
+      router.push("/auth/login");
     }
   };
 
@@ -179,6 +191,12 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className={styles.topBarRight}>
+            <button className={styles.logoutBtn} onClick={handleLogout} title="Logout">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="16" height="16">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+              </svg>
+              Logout
+            </button>
             <div className={styles.notifBtn}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />

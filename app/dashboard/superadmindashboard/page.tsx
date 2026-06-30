@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
+import { logout } from "../../api/authApi";
 import SALayout, { SASection } from "@/components/dashboard/super-admin/SALayout";
 import SAStatsCards from "@/components/dashboard/super-admin/SAStatsCards";
 import SABrands from "@/components/dashboard/super-admin/SABrands";
@@ -11,6 +13,7 @@ import { Brand, Employee, Task, TaskStatus } from "@/types/superadmin/superAdmin
 import styles from "@/app/dashboard/superadmindashboard/superadmindashboard.module.css";
 
 export default function SuperAdminPage() {
+  const router = useRouter();
   const [section, setSection] = useState<SASection>("dashboard");
 
   // ── Global Data ───────────────────────────────────────────────────────────
@@ -50,6 +53,18 @@ export default function SuperAdminPage() {
     brands: { title: "Brands", sub: "Manage all client brands" },
     employees: { title: "Employees", sub: "Manage team members and roles" },
     tasks: { title: "Tasks", sub: "View, assign, and manage all tasks" },
+  };
+
+  // ── Logout ────────────────────────────────────────────────────────────────
+  // Same flow as employee/admin dashboards: hit the logout endpoint, clear
+  // local storage regardless of outcome, then redirect to login.
+  const handleLogout = async () => {
+    try {
+      await logout("super_admin");
+    } finally {
+      localStorage.clear();
+      router.push("/auth/login");
+    }
   };
 
   // ── Brand callbacks (SABrands is self-contained, these sync dashboard state)
@@ -149,6 +164,7 @@ export default function SuperAdminPage() {
         onSectionChange={setSection}
         pageTitle={sectionTitles[section].title}
         pageSub={sectionTitles[section].sub}
+        onLogout={handleLogout}
       >
         <div className={styles.pageLoader}>
           <div className={styles.pageSpinner} />
@@ -165,6 +181,7 @@ export default function SuperAdminPage() {
         onSectionChange={setSection}
         pageTitle={sectionTitles[section].title}
         pageSub={sectionTitles[section].sub}
+        onLogout={handleLogout}
       >
         <div className={styles.pageError}>
           <span>⚠️ {error}</span>
@@ -180,6 +197,7 @@ export default function SuperAdminPage() {
       onSectionChange={setSection}
       pageTitle={sectionTitles[section].title}
       pageSub={sectionTitles[section].sub}
+      onLogout={handleLogout}
     >
       {/* ── Dashboard ── */}
       {section === "dashboard" && (

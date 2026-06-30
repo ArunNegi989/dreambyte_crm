@@ -134,3 +134,23 @@
     display: none;
   }
 }
+
+.logoutBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #5a5a55;
+  background-color: #ffffff;
+  border: 1px solid #e8e8e4;
+  border-radius: 8px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.logoutBtn:hover {
+  border-color: #1a1a18;
+  color: #1a1a18;
+}

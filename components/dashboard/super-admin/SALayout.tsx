@@ -15,6 +15,7 @@ interface SALayoutProps {
   children: React.ReactNode;
   pageTitle: string;
   pageSub?: string;
+  onLogout: () => void;
 }
 
 const navItems: { id: SASection; label: string; icon: React.ReactNode; badge?: string }[] = [
@@ -65,6 +66,7 @@ export default function SALayout({
   children,
   pageTitle,
   pageSub,
+  onLogout,
 }: SALayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -132,6 +134,12 @@ export default function SALayout({
             {pageSub && <p className={styles.pageSub}>{pageSub}</p>}
           </div>
           <div className={styles.topRight}>
+            <button className={styles.logoutBtn} onClick={onLogout} title="Logout">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="16" height="16">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+              </svg>
+              Logout
+            </button>
             <div className={styles.saTag}>
               <span className={styles.saOnline} />
               Super Admin
