@@ -5,6 +5,7 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   changes_requested: 'Changes requested',
   completed: 'Completed',
   approved: 'Approved',
+  rejected: "rejected",
 };
 
 function startOfDay(d: Date): Date {
