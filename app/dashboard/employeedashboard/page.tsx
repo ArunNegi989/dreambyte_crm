@@ -12,6 +12,7 @@ import StatsBar from '../../../components/dashboard/employeedashboard/StatsBar';
 import TaskTable from './TaskTable';
 import TaskModal from '../../../components/dashboard/employeedashboard/Taskmodal';
 import styles from '../../../assets/styles/employeedashboard/EmployeeDashboard.module.css';
+import { useAuthGuard } from '../../../hooks/useAuthGuard';
 
 type FilterValue = 'all' | Task['status'];
 
@@ -25,6 +26,7 @@ const FILTERS: { value: FilterValue; label: string }[] = [
 
 export default function EmployeeDashboardPage() {
   const router = useRouter();
+  useAuthGuard(['employee']); // guard this route the same way admin dashboard does
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +62,8 @@ export default function EmployeeDashboardPage() {
       setStats(fetchedStats);
     } catch (err: any) {
       if (err.message?.includes('401') || err.message?.toLowerCase().includes('token')) {
-        router.push('/auth/login');
+        localStorage.clear();
+        router.replace('/auth/login'); // replace: don't stack a login entry on top of dashboard
         return;
       }
       setError(err.message || 'Failed to load tasks');
@@ -91,7 +94,7 @@ export default function EmployeeDashboardPage() {
       await logout('employee');
     } finally {
       localStorage.clear();
-      router.push('/auth/login');
+      router.replace('/auth/login'); // replace: this is a deliberate exit, no dashboard entry should remain
     }
   };
 
