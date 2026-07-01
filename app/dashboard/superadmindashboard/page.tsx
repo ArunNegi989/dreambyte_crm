@@ -11,9 +11,11 @@ import SAEmployees from "@/components/dashboard/super-admin/SAEmployees";
 import SATasks from "@/components/dashboard/super-admin/SATasks";
 import { Brand, Employee, Task, TaskStatus } from "@/types/superadmin/superAdmin";
 import styles from "@/app/dashboard/superadmindashboard/superadmindashboard.module.css";
+import { useAuthGuard } from '../../../hooks/useAuthGuard';
 
 export default function SuperAdminPage() {
   const router = useRouter();
+  useAuthGuard(['super_admin']);
   const [section, setSection] = useState<SASection>("dashboard");
 
   // ── Global Data ───────────────────────────────────────────────────────────

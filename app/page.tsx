@@ -18,33 +18,60 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [labelIdx, setLabelIdx] = useState(0);
   const [done, setDone] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // Paw print spawner
+  // ── Auth check — runs first, before any animation/loader is shown ──
   useEffect(() => {
-    const trail = document.getElementById("pawTrail")!;
+    const token = localStorage.getItem("token");
+    const role = localStorage.getItem("userRole");
+
+    if (token) {
+      // Already logged in — skip the loader entirely and don't add
+      // this page to history, so back button can't land here.
+      if (role === "super_admin") {
+        router.replace("/dashboard/superadmindashboard");
+      } else if (role === "admin") {
+        router.replace("/dashboard/admindashboard");
+      } else {
+        router.replace("/dashboard/employeedashboard");
+      }
+      return; // don't fall through to the loader
+    }
+
+    setCheckingAuth(false); // no token found, safe to show loader → login
+  }, [router]);
+
+  // ── Paw print spawner ──
+  useEffect(() => {
+    if (checkingAuth) return; // wait until we know we're actually showing the loader
+
+    const trail = document.getElementById("pawTrail");
+    if (!trail) return;
+
     const W = window.innerWidth;
     const H = window.innerHeight;
 
-const pawData = [
-  // Left side
-  { x: W * 0.07,  y: H * 0.92, r: 160 },
-  { x: W * 0.055, y: H * 0.80, r: 170 },
-  { x: W * 0.08,  y: H * 0.68, r: 155 },
-  { x: W * 0.06,  y: H * 0.56, r: 165 },
-  { x: W * 0.09,  y: H * 0.44, r: 160 },
-  { x: W * 0.055, y: H * 0.32, r: 170 },
-  { x: W * 0.08,  y: H * 0.20, r: 155 },
-  { x: W * 0.06,  y: H * 0.10, r: 165 },
-  // Right side
-  { x: W * 0.89,  y: H * 0.92, r: -160 },
-  { x: W * 0.91,  y: H * 0.80, r: -170 },
-  { x: W * 0.87,  y: H * 0.68, r: -155 },
-  { x: W * 0.92,  y: H * 0.56, r: -165 },
-  { x: W * 0.88,  y: H * 0.44, r: -160 },
-  { x: W * 0.91,  y: H * 0.32, r: -170 },
-  { x: W * 0.87,  y: H * 0.20, r: -155 },
-  { x: W * 0.90,  y: H * 0.10, r: -165 },
-];
+    const pawData = [
+      // Left side
+      { x: W * 0.07, y: H * 0.92, r: 160 },
+      { x: W * 0.055, y: H * 0.80, r: 170 },
+      { x: W * 0.08, y: H * 0.68, r: 155 },
+      { x: W * 0.06, y: H * 0.56, r: 165 },
+      { x: W * 0.09, y: H * 0.44, r: 160 },
+      { x: W * 0.055, y: H * 0.32, r: 170 },
+      { x: W * 0.08, y: H * 0.20, r: 155 },
+      { x: W * 0.06, y: H * 0.10, r: 165 },
+      // Right side
+      { x: W * 0.89, y: H * 0.92, r: -160 },
+      { x: W * 0.91, y: H * 0.80, r: -170 },
+      { x: W * 0.87, y: H * 0.68, r: -155 },
+      { x: W * 0.92, y: H * 0.56, r: -165 },
+      { x: W * 0.88, y: H * 0.44, r: -160 },
+      { x: W * 0.91, y: H * 0.32, r: -170 },
+      { x: W * 0.87, y: H * 0.20, r: -155 },
+      { x: W * 0.90, y: H * 0.10, r: -165 },
+    ];
+
     pawData.forEach((p, i) => {
       const el = document.createElement("div");
       el.className = styles.paw;
@@ -60,11 +87,15 @@ const pawData = [
       trail.appendChild(el);
     });
 
-    return () => { trail.innerHTML = ""; };
-  }, []);
+    return () => {
+      trail.innerHTML = "";
+    };
+  }, [checkingAuth]);
 
-  // Progress
+  // ── Progress ──
   useEffect(() => {
+    if (checkingAuth) return; // don't start progress until we know there's no token
+
     const interval = setInterval(() => {
       setProgress((prev) => {
         const next = Math.min(prev + Math.random() * 3 + 0.8, 100);
@@ -74,13 +105,17 @@ const pawData = [
         if (next >= 100) {
           clearInterval(interval);
           setDone(true);
-          setTimeout(() => router.push("/auth/login"), 1000);
+          setTimeout(() => router.replace("/auth/login"), 1000); // replace, not push
         }
         return next;
       });
     }, 80);
     return () => clearInterval(interval);
-  }, [router]);
+  }, [checkingAuth, router]);
+
+  // Still deciding whether to redirect or show the loader — render nothing
+  // to avoid a flash of the loader UI for already-logged-in users.
+  if (checkingAuth) return null;
 
   return (
     <main className={styles.wrapper}>
@@ -88,7 +123,6 @@ const pawData = [
       <div className={styles.pawTrail} id="pawTrail" />
 
       <div className={styles.center}>
-
         {/* ── Orbit + Logo ── */}
         <div className={styles.orbitWrap}>
           <div className={styles.pulseA} />
@@ -123,7 +157,6 @@ const pawData = [
           <span className={styles.brandTag}>CRM</span>
         </div>
         <p className={styles.taglineMain}>Your workspace is waking up</p>
-        
 
         {/* ── Progress bar ── */}
         <div className={styles.barShell}>

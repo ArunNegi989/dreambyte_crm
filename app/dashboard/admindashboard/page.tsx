@@ -11,11 +11,13 @@ import EmployeeList from "@/components/dashboard/admindahboardcomponents/Employe
 import AssignTask from "@/components/dashboard/admindahboardcomponents/Assigntask";
 import { Employee, Task, TaskStatus, TaskFrequency, DashboardStats, Brand, } from "@/types/admin/Crm";
 import styles from "@/public/assets/styles/dashboard/admindashboard/admindashboard.module.css";
-
+import { useAuthGuard } from '../../../hooks/useAuthGuard';
 type ActiveSection = "dashboard" | "employees" | "tasks" | "assign";
 
 export default function AdminDashboard() {
   const router = useRouter();
+  useAuthGuard(['admin', 'super_admin']);
+
   const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
 const [brands, setBrands] = useState<Brand[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
