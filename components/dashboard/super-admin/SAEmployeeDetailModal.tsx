@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { Employee, Task, Brand } from "@/types/superadmin/superAdmin";
+import { getTimeTakenFromDates } from "@/data/employee/taskTimeHelpers"; // adjust path if needed
 import styles from "@/public/assets/styles/dashboard/super-admin-dashboard/Saemployeedetailmodal.module.css";
 
 interface SAEmployeeDetailModalProps {
@@ -25,29 +26,36 @@ export default function SAEmployeeDetailModal({
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const empTasks = tasks.filter((t) => t.assignedTo === employee._id);
- 
+  // Fix: assignedTo can be a populated object OR a plain string id
+  const empTasks = tasks.filter((t) => {
+    const id =
+      typeof t.assignedTo === "object" && t.assignedTo !== null
+        ? (t.assignedTo as { _id: string })._id
+        : t.assignedTo;
+    return id === employee._id;
+  });
+
   const stats = [
-    { label: "Total Tasks", val: empTasks.length, color: "#6366f1", bg: "#f5f3ff" },
-    { label: "Completed", val: empTasks.filter((t) => t.status === "completed").length, color: "#10b981", bg: "#f0fdf4" },
-    { label: "Pending", val: empTasks.filter((t) => t.status === "pending").length, color: "#f59e0b", bg: "#fffbeb" },
-    { label: "Rejected", val: empTasks.filter((t) => t.status === "rejected").length, color: "#ef4444", bg: "#fef2f2" },
+    { label: "Total Tasks",  val: empTasks.length,                                                color: "#6366f1", bg: "#f5f3ff" },
+    { label: "Completed",    val: empTasks.filter((t) => t.status === "completed").length,         color: "#10b981", bg: "#f0fdf4" },
+    { label: "Pending",      val: empTasks.filter((t) => t.status === "pending").length,           color: "#f59e0b", bg: "#fffbeb" },
+    { label: "Rejected",     val: empTasks.filter((t) => t.status === "rejected").length,          color: "#ef4444", bg: "#fef2f2" },
   ];
 
   const infoRows = [
-    { label: "Employee ID", val: employee.employeeId },
-    { label: "Email", val: employee.email },
-    { label: "Phone", val: employee.phone || "—" },
-    { label: "Date of Birth", val: employee.dob },
-    { label: "Department", val: employee.department },
-    { label: "Joined On", val: employee.joinDate },
+    { label: "Employee ID",  val: employee.employeeId },
+    { label: "Email",        val: employee.email },
+    { label: "Phone",        val: employee.phone || "—" },
+    { label: "Date of Birth",val: employee.dob },
+    { label: "Department",   val: employee.department },
+    { label: "Joined On",    val: employee.joinDate },
   ];
 
   const statusStyles: Record<string, string> = {
     completed: styles.sCompleted,
-    pending: styles.sPending,
-    rejected: styles.sRejected,
-    approved: styles.sApproved,
+    pending:   styles.sPending,
+    rejected:  styles.sRejected,
+    approved:  styles.sApproved,
   };
 
   return (
@@ -120,46 +128,58 @@ export default function SAEmployeeDetailModal({
             </div>
           ) : (
             <div className={styles.taskList}>
-              {empTasks.map((task) => (
-                <div key={task._id} className={styles.taskItem}>
-                  <div className={styles.taskLeft}>
-                    <div className={styles.taskTitle}>{task.title}</div>
-                    <div className={styles.taskMeta}>
-                     <span className={styles.taskBrand}>
-  <span className={styles.taskBrand}>
-  {task.brandId
-    ? typeof task.brandId === "object"
-      ? task.brandId.name
-      : brands.find((b) => b._id === task.brandId)?.name ?? "—"
-    : "—"}
-</span>
-</span>
-                      <span className={styles.taskDue}>Due: {task.dueDate}</span>
-                      <span className={`${styles.taskFreq} ${styles[`freq_${task.frequency}`]}`}>
-                        {task.frequency}
+              {empTasks.map((task) => {
+                const brandName = task.brandId
+                  ? typeof task.brandId === "object"
+                    ? (task.brandId as { _id: string; name: string }).name
+                    : brands.find((b) => b._id === task.brandId)?.name ?? "—"
+                  : "—";
+
+                const timeTaken = getTimeTakenFromDates(task.startedAt, task.deliveredAt);
+
+                return (
+                  <div key={task._id} className={styles.taskItem}>
+                    <div className={styles.taskLeft}>
+                      <div className={styles.taskTitle}>{task.title}</div>
+                      <div className={styles.taskMeta}>
+                        <span className={styles.taskBrand}>{brandName}</span>
+                        <span className={styles.taskDue}>Due: {task.dueDate}</span>
+                        <span className={`${styles.taskFreq} ${styles[`freq_${task.frequency}`]}`}>
+                          {task.frequency}
+                        </span>
+                        {/* Time taken — only shows after employee submits */}
+                        {timeTaken && (
+                          <span className={styles.taskTime}>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="9" />
+                              <path d="M12 7v5l3 3" />
+                            </svg>
+                            {timeTaken}
+                          </span>
+                        )}
+                      </div>
+                      {task.rejectRemark && task.status === "rejected" && (
+                        <div className={styles.rejectNote}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="8" x2="12" y2="12" />
+                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                          </svg>
+                          {task.rejectRemark}
+                        </div>
+                      )}
+                    </div>
+                    <div className={styles.taskRight}>
+                      <span className={`${styles.statusPill} ${statusStyles[task.status] ?? ''}`}>
+                        {task.status}
+                      </span>
+                      <span className={`${styles.delivPill} ${task.deliveryStatus === "delivered" ? styles.delivered : styles.notDelivered}`}>
+                        {task.deliveryStatus === "delivered" ? "✓" : "✗"}
                       </span>
                     </div>
-                    {task.rejectRemark && task.status === "rejected" && (
-                      <div className={styles.rejectNote}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10" />
-                          <line x1="12" y1="8" x2="12" y2="12" />
-                          <line x1="12" y1="16" x2="12.01" y2="16" />
-                        </svg>
-                        {task.rejectRemark}
-                      </div>
-                    )}
                   </div>
-                  <div className={styles.taskRight}>
-                    <span className={`${styles.statusPill} ${statusStyles[task.status]}`}>
-                      {task.status}
-                    </span>
-                    <span className={`${styles.delivPill} ${task.deliveryStatus === "delivered" ? styles.delivered : styles.notDelivered}`}>
-                      {task.deliveryStatus === "delivered" ? "✓" : "✗"}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

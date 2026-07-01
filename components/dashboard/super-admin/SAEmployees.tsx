@@ -18,15 +18,15 @@ interface SAEmployeesProps {
 
 export default function SAEmployees({ tasks, brands, onCreated, onDeleted, onRoleAssigned }: SAEmployeesProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [viewEmp, setViewEmp] = useState<Employee | null>(null);
-  const [roleEmp, setRoleEmp] = useState<Employee | null>(null);
+  const [showCreate, setShowCreate]       = useState(false);
+  const [viewEmp, setViewEmp]             = useState<Employee | null>(null);
+  const [roleEmp, setRoleEmp]             = useState<Employee | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [deleting, setDeleting]           = useState<string | null>(null);
+  const [search, setSearch]               = useState("");
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const loadEmployees = useCallback(async () => {
@@ -43,9 +43,7 @@ export default function SAEmployees({ tasks, brands, onCreated, onDeleted, onRol
     }
   }, []);
 
-  useEffect(() => {
-    loadEmployees();
-  }, [loadEmployees]);
+  useEffect(() => { loadEmployees(); }, [loadEmployees]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleCreated = (emp: Employee) => {
@@ -84,12 +82,20 @@ export default function SAEmployees({ tasks, brands, onCreated, onDeleted, onRol
       e.department.toLowerCase().includes(search.toLowerCase())
   );
 
-  const getEmpTasks = (id: string) => tasks.filter((t) => t.assignedTo === id);
+  // Fix: assignedTo can be a populated object OR a plain string id
+  const getEmpTasks = (empId: string) =>
+    tasks.filter((t) => {
+      const id =
+        typeof t.assignedTo === "object" && t.assignedTo !== null
+          ? (t.assignedTo as { _id: string })._id
+          : t.assignedTo;
+      return id === empId;
+    });
 
   const roleColorMap: Record<string, string> = {
     super_admin: styles.roleSA,
-    admin: styles.roleAdmin,
-    employee: styles.roleEmp,
+    admin:       styles.roleAdmin,
+    employee:    styles.roleEmp,
   };
 
   return (
@@ -104,15 +110,7 @@ export default function SAEmployees({ tasks, brands, onCreated, onDeleted, onRol
         </div>
         <div className={styles.headerRight}>
           <div className={styles.searchWrap}>
-            <svg
-              className={styles.searchIcon}
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
+            <svg className={styles.searchIcon} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
@@ -123,19 +121,8 @@ export default function SAEmployees({ tasks, brands, onCreated, onDeleted, onRol
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <button
-            className={styles.addBtn}
-            onClick={() => setShowCreate(true)}
-            disabled={loading}
-          >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-            >
+          <button className={styles.addBtn} onClick={() => setShowCreate(true)} disabled={loading}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
@@ -230,11 +217,7 @@ export default function SAEmployees({ tasks, brands, onCreated, onDeleted, onRol
 
                     {/* Status */}
                     <td>
-                      <span
-                        className={`${styles.statusDot} ${
-                          emp.isActive ? styles.dotActive : styles.dotInactive
-                        }`}
-                      >
+                      <span className={`${styles.statusDot} ${emp.isActive ? styles.dotActive : styles.dotInactive}`}>
                         {emp.isActive ? "Active" : "Inactive"}
                       </span>
                     </td>
@@ -310,7 +293,6 @@ export default function SAEmployees({ tasks, brands, onCreated, onDeleted, onRol
                 );
               })}
 
-              {/* Empty */}
               {filtered.length === 0 && !error && (
                 <tr>
                   <td colSpan={7} className={styles.empty}>

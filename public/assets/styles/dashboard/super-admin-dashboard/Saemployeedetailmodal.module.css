@@ -360,3 +360,11 @@
   .taskItem { flex-direction: column; }
   .taskRight { flex-direction: row; align-items: center; }
 }
+.taskTime {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: #6366f1;
+  font-weight: 500;
+}

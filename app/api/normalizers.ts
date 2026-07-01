@@ -15,6 +15,10 @@ export interface BackendTask {
   status: TaskStatus;
   deliveryStatus: 'not_delivered' | 'delivered';
   deliveryNote: string;
+  // ── Time tracking fields ───────────────────────────────────────────────
+  // startedAt: employee-entered start time, saved once on first submission
+  startedAt: string | null;
+  // deliveredAt: updated on every submit/resubmit — used for time-taken calc
   deliveredAt: string | null;
   rejectRemark: string;
   changes: {
@@ -51,34 +55,40 @@ export function normalizeTask(raw: BackendTask): Task {
   const allChanges = Array.isArray(raw.changes) ? raw.changes : [];
 
   // Full ordered history. We keep EVERY admin-authored entry (resolved or
-  // not) so past rejection cycles are never lost — this is the core fix.
-  // Employee-authored entries (delivery-log noise from deliverTask) are
-  // filtered out entirely; they were never "requests" and were never
-  // meant to be replied to.
+  // not) so past rejection cycles are never lost.
+  // Employee-authored entries (delivery-log noise) are filtered out —
+  // they were never "requests" and were never meant to be replied to.
   const changeRequests: TaskChangeRequest[] = allChanges
     .filter((c) => !isEmployeeAuthored(c.changedBy))
     .map((c) => ({
-      id: c._id,
-      adminNote: c.note || '',
+      id:               c._id,
+      adminNote:        c.note || '',
       employeeResponse: c.employeeResponse || '',
-      requestedAt: c.changedAt,
-      resolved: c.resolved ?? false,
+      requestedAt:      c.changedAt,
+      resolved:         c.resolved ?? false,
     }));
 
   return {
-    id: raw._id,
-    title: raw.title || '',
-    description: raw.description || '',
+    id:           raw._id,
+    title:        raw.title || '',
+    description:  raw.description || '',
     brandName,
-    clientName: assignedToName,
-    status: raw.status,
+    clientName:   assignedToName,
+    status:       raw.status,
     deliveryState: raw.deliveryStatus as DeliveryState,
-    remarks: raw.deliveryNote || '',
-    dueDate: raw.dueDate ? raw.dueDate.slice(0, 10) : '',
-    assignedAt: raw.createdAt ? raw.createdAt.slice(0, 10) : '',
-    submittedAt: raw.deliveredAt || null,
-    startedAt: null,
-    completedAt: raw.deliveredAt || null,
+    remarks:      raw.deliveryNote || '',
+    dueDate:      raw.dueDate ? raw.dueDate.slice(0, 10) : '',
+    assignedAt:   raw.createdAt ? raw.createdAt.slice(0, 10) : '',
+    submittedAt:  raw.deliveredAt || null,
+
+    // ── Time tracking ──────────────────────────────────────────────────
+    // startedAt: map directly from backend — set once on first submission,
+    // never overwritten. Was hardcoded null before, that's why time was missing.
+    startedAt:   raw.startedAt || null,
+    // deliveredAt: updated on every resubmit — getTimeTaken uses this
+    deliveredAt: raw.deliveredAt || null,
+
+    completedAt: null,
     approvedAt:
       raw.status === 'approved'
         ? raw.updatedAt?.slice(0, 10) ?? null

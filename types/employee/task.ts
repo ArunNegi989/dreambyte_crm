@@ -1,4 +1,4 @@
-export type TaskStatus = 'pending' | 'changes_requested' | 'completed' | 'approved';
+export type TaskStatus = 'pending' | 'changes_requested' | 'completed' | 'approved' | 'rejected';
 
 export type DeliveryState = 'not_delivered' | 'delivered';
 
@@ -8,7 +8,6 @@ export interface TaskChangeRequest {
   employeeResponse: string;
   requestedAt: string;
   resolved: boolean;
-  
 }
 
 export interface Task {
@@ -25,7 +24,11 @@ export interface Task {
   submittedAt: string | null;
   // Employee-entered: when they say they actually started working on the task.
   // Filled in by the employee at submit time (not auto-captured).
+  // Never overwritten on reject→fix→resubmit cycles — always original start.
   startedAt: string | null;
+  // Updated to current ISO timestamp every time employee submits/resubmits.
+  // timeTaken = deliveredAt - startedAt (grows across reject cycles naturally).
+  deliveredAt: string | null;
   // Set once the employee marks the task completed (their side of the work is done).
   completedAt: string | null;
   // Set separately once the admin/client signs off. Independent of completedAt.

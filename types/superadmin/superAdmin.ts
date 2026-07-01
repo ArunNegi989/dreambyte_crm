@@ -1,5 +1,5 @@
 export type EmployeeRole = "employee" | "admin" | "super_admin";
-export type TaskStatus = "pending" | "approved" | "rejected" | "completed" | "changes_requested";;
+export type TaskStatus = "pending" | "approved" | "rejected" | "completed" | "changes_requested";
 export type TaskFrequency = "weekly" | "monthly" | "one_time";
 export type DeliveryStatus = "delivered" | "not_delivered";
 
@@ -42,13 +42,16 @@ export interface Task {
   description: string;
   assignedTo: string | { _id: string; name: string; employeeId: string; department: string; role: string };
   assignedBy: "admin" | "super_admin";
- brandId?: string | Brand | null;
+  brandId?: string | Brand | null;
   frequency: TaskFrequency;
   dueDate: string;
   status: TaskStatus;
   deliveryStatus: DeliveryStatus;
   deliveryNote?: string;
-  deliveredAt?: string;
+  // Employee-entered start time — set once on first submission, never overwritten.
+  startedAt?: string | null;
+  // Updated on every submit/resubmit — used for time-taken calculation.
+  deliveredAt?: string | null;
   rejectRemark?: string;
   changes: TaskChange[];
   createdAt: string;
