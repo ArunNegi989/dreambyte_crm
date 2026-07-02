@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { login } from '../../api/authApi';
+import { apiFetch } from '../../api/apiClient';
 import styles from '../../../assets/styles/loginpage/LoginPage.module.css';
 
 export default function LoginPage() {
@@ -11,25 +12,26 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [showRegisterBtn, setShowRegisterBtn] = useState(false);
 
-  // If already logged in, bounce straight back to the right dashboard
-  // instead of showing the login form.
   useEffect(() => {
+    // 1. If already logged in, redirect away — prevents back button returning here
     const token = localStorage.getItem('token');
     const role = localStorage.getItem('userRole');
-
     if (token && role) {
-      if (role === 'super_admin') {
-        router.replace('/dashboard/superadmindashboard');
-      } else if (role === 'admin') {
-        router.replace('/dashboard/admindashboard');
-      } else {
-        router.replace('/dashboard/employeedashboard');
-      }
+      const redirects: Record<string, string> = {
+        super_admin: '/dashboard/superadmindashboard',
+        admin:       '/dashboard/admindashboard',
+        employee:    '/dashboard/employeedashboard',
+      };
+      router.replace(redirects[role] ?? '/dashboard/employeedashboard');
       return;
     }
-    setCheckingAuth(false);
+
+    // 2. Check if any superadmin exists — only show register button if none do
+    apiFetch<{ exists: boolean }>('/superadmin/auth/check-exists')
+      .then((data) => setShowRegisterBtn(!data.exists))
+      .catch(() => setShowRegisterBtn(false)); // if check fails, hide the button safely
   }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,8 +70,6 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
-
-  if (checkingAuth) return null;
 
   return (
     <div className={styles.page}>
@@ -120,11 +120,14 @@ export default function LoginPage() {
             {isSubmitting ? 'Signing in…' : 'Sign in'}
           </button>
 
-          <div className={styles.divider}><span>or</span></div>
-
-          <a href="/auth/superadmin-register" className={styles.registerButton}>
-            Register as superadmin
-          </a>
+          {showRegisterBtn && (
+            <>
+              <div className={styles.divider}><span>or</span></div>
+              <a href="/auth/superadmin-register" className={styles.registerButton}>
+                Register as superadmin
+              </a>
+            </>
+          )}
         </form>
       </div>
     </div>
