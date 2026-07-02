@@ -28,6 +28,12 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
   });
   const [success, setSuccess] = useState(false);
 
+  // Admin can only assign tasks to plain employees — never to another
+  // admin, and never to a super admin. Guarded with `?? []` because on
+  // first render (before the parent's fetch resolves) `employees` can
+  // still be undefined.
+  const assignableEmployees = (employees ?? []).filter((emp) => emp.role === "employee");
+
   const handleSubmit = () => {
     if (!form.title || !form.assignedTo ||!form.brandId || !form.dueDate) return;
     onAssign(form);
@@ -82,7 +88,7 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
               onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
             >
               <option value="">Select Employee</option>
-              {employees.map((emp) => (
+              {assignableEmployees.map((emp) => (
                 // ← _id use ho raha hai
                 <option key={emp._id} value={emp._id}>
                   {emp.name} — {emp.role}
