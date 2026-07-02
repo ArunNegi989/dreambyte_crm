@@ -70,7 +70,7 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
-
+   
   return (
     <div className={styles.page}>
       <div className={styles.card}>
@@ -110,10 +110,10 @@ export default function LoginPage() {
           {error && <p className={styles.error} role="alert">{error}</p>}
 
           <div className={styles.optionsRow}>
-            <label className={styles.checkboxLabel}>
+            {/* <label className={styles.checkboxLabel}>
               <input type="checkbox" className={styles.checkbox} /> Remember me
             </label>
-            <a href="#" className={styles.link}>Forgot password?</a>
+            <a href="#" className={styles.link}>Forgot password?</a> */}
           </div>
 
           <button type="submit" className={styles.submitButton} disabled={isSubmitting}>
