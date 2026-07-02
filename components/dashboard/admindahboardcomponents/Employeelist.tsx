@@ -13,6 +13,10 @@ interface EmployeeListProps {
 export default function EmployeeList({ employees, tasks }: EmployeeListProps) {
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeWithStats | null>(null);
 
+  // This list is meant to show only plain employees — admins and super
+  // admins are managed elsewhere and shouldn't clutter this table.
+  const onlyEmployees = (employees ?? []).filter((emp) => emp.role === "employee");
+
   // Resolve assignedTo — could be populated object or plain string _id
   const getAssignedId = (assignedTo: Task["assignedTo"]): string => {
     if (typeof assignedTo === "object" && assignedTo !== null) {
@@ -38,7 +42,7 @@ export default function EmployeeList({ employees, tasks }: EmployeeListProps) {
       <div className={styles.container}>
         <div className={styles.tableHeader}>
           <h2 className={styles.title}>All Employees</h2>
-          <span className={styles.count}>{employees.length} total</span>
+          <span className={styles.count}>{onlyEmployees.length} total</span>
         </div>
 
         <div className={styles.tableWrap}>
@@ -54,7 +58,7 @@ export default function EmployeeList({ employees, tasks }: EmployeeListProps) {
               </tr>
             </thead>
             <tbody>
-              {employees.map((emp) => {
+              {onlyEmployees.map((emp) => {
                 const empTasks = tasks.filter(
                   (t) => getAssignedId(t.assignedTo) === emp._id
                 );
@@ -109,7 +113,7 @@ export default function EmployeeList({ employees, tasks }: EmployeeListProps) {
                 );
               })}
 
-              {employees.length === 0 && (
+              {onlyEmployees.length === 0 && (
                 <tr>
                   <td colSpan={6} className={styles.empty}>No employees found.</td>
                 </tr>
