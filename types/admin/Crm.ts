@@ -44,6 +44,8 @@ export interface Task {
   changes: TaskChange[];
   createdAt: string;
   updatedAt: string;
+  parentTaskId?: string | null;
+hasSubtasks?: boolean;
 }
 
 export interface EmployeeWithStats extends Employee {

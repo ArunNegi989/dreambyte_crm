@@ -58,11 +58,6 @@ export default function SATasks({
 
   const isAdminOrSA = viewerRole === "super_admin" || viewerRole === "admin";
 
-  // Super admin can assign tasks to admin/employee, but NEVER to another
-  // super admin. This filter is applied regardless of who's viewing, so
-  // the "Assign To" dropdown never lists a super_admin as a target.
-  const assignableEmployees = employees.filter((e) => e.role !== "super_admin");
-
   // Used so the change-log entry clearly says who rejected it.
   const actorLabel = viewerRole === "super_admin" ? "Super Admin" : "Admin";
 
@@ -273,7 +268,7 @@ export default function SATasks({
                 }
               >
                 <option value="">Select Employee</option>
-                {assignableEmployees.map((e) => (
+                {employees.map((e) => (
                   <option key={e._id} value={e._id}>
                     {e.name} — {e.role}
                   </option>

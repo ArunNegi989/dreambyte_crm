@@ -16,7 +16,34 @@ import { useAuthGuard } from '../../../hooks/useAuthGuard';
 export default function SuperAdminPage() {
   const router = useRouter();
   useAuthGuard(['super_admin']);
-  const [section, setSection] = useState<SASection>("dashboard");
+  const [section, setSectionState] = useState<SASection>("dashboard");
+
+  const validSections: SASection[] = ["dashboard", "brands", "employees", "tasks"];
+
+  // Wraps setSection so every tab change is also persisted — this is what
+  // makes the active tab survive a page refresh instead of resetting to
+  // "dashboard" every time.
+  const setSection = (s: SASection) => {
+    setSectionState(s);
+    try {
+      localStorage.setItem("saActiveSection", s);
+    } catch {
+      // ignore write failures (e.g. private browsing)
+    }
+  };
+
+  // On mount, restore whichever tab was open before the refresh.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("saActiveSection") as SASection | null;
+      if (saved && validSections.includes(saved)) {
+        setSectionState(saved);
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Global Data ───────────────────────────────────────────────────────────
   const [brands, setBrands] = useState<Brand[]>([]);

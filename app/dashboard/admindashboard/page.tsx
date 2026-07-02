@@ -9,31 +9,76 @@ import StatsCards from "@/components/dashboard/admindahboardcomponents/Statscard
 import TaskTable from "@/components/dashboard/admindahboardcomponents/Tasktable";
 import EmployeeList from "@/components/dashboard/admindahboardcomponents/Employeelist";
 import AssignTask from "@/components/dashboard/admindahboardcomponents/Assigntask";
+import AdminTasks from "@/components/dashboard/admindahboardcomponents/Admintasks";
 import { Employee, Task, TaskStatus, TaskFrequency, DashboardStats, Brand, } from "@/types/admin/Crm";
 import styles from "@/public/assets/styles/dashboard/admindashboard/admindashboard.module.css";
 import { useAuthGuard } from '../../../hooks/useAuthGuard';
-type ActiveSection = "dashboard" | "employees" | "tasks" | "assign";
+
+type ActiveSection = "dashboard" | "employees" | "tasks" | "assign" | "admin_tasks";
 
 export default function AdminDashboard() {
   const router = useRouter();
   useAuthGuard(['admin', 'super_admin']);
 
-  const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
-const [brands, setBrands] = useState<Brand[]>([]);
+  const [activeSection, setActiveSectionState] = useState<ActiveSection>("dashboard");
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const validSections: ActiveSection[] = ["dashboard", "employees", "tasks", "assign", "admin_tasks"];
+
+  // Wraps setActiveSection so every change is also persisted — this is
+  // what makes the active tab survive a page refresh.
+  const setActiveSection = (section: ActiveSection) => {
+    setActiveSectionState(section);
+    try {
+      localStorage.setItem("adminActiveSection", section);
+    } catch {
+      // ignore write failures (e.g. private browsing)
+    }
+  };
+
+  // On mount, restore whichever tab was open before the refresh.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("adminActiveSection") as ActiveSection | null;
+      if (saved && validSections.includes(saved)) {
+        setActiveSectionState(saved);
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Current logged-in admin's id ─────────────────────────────────────────
+  // Adjust this if your login flow stores the user differently. Common
+  // patterns: localStorage "user" JSON blob, or a decoded JWT payload.
+  const [currentAdminId, setCurrentAdminId] = useState<string>("");
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("user");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setCurrentAdminId(parsed?._id || parsed?.id || "");
+      }
+    } catch {
+      setCurrentAdminId("");
+    }
+  }, []);
 
   // ── Load Data ─────────────────────────────────────────────────────────────
   const loadAll = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const [empRes, taskRes,brandRes] = await Promise.all([
+      const [empRes, taskRes, brandRes] = await Promise.all([
         api.get("/employees"),
         api.get("/tasks"),
-         api.get("/brands"),
+        api.get("/brands"),
       ]);
       setEmployees(empRes.data.data);
       setTasks(taskRes.data.data);
@@ -58,6 +103,16 @@ const [brands, setBrands] = useState<Brand[]>([]);
     approvedTasks: tasks.filter((t) => t.status === "approved").length,
     rejectedTasks: tasks.filter((t) => t.status === "rejected").length,
   };
+
+  // Tasks that Super Admin assigned directly to this admin (for sidebar badge)
+  const adminTaskCount = tasks.filter((t) => {
+    const id = typeof t.assignedTo === "object" ? (t.assignedTo as { _id: string })._id : t.assignedTo;
+    return (
+      id === currentAdminId &&
+      t.assignedBy === "super_admin" &&
+      !(t as unknown as { parentTaskId?: string | null }).parentTaskId
+    );
+  }).length;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleStatusChange = async (
@@ -116,6 +171,7 @@ const [brands, setBrands] = useState<Brand[]>([]);
     employees: "Employees",
     tasks: "Task Management",
     assign: "Assign Task",
+    admin_tasks: "Tasks from Super Admin",
   };
 
   // ── Loading / Error ───────────────────────────────────────────────────────
@@ -170,6 +226,15 @@ const [brands, setBrands] = useState<Brand[]>([]);
         {activeSection === "assign" && (
           <AssignTask employees={employees} brands={brands} onAssign={handleAssignTask} />
         )}
+
+        {activeSection === "admin_tasks" && (
+          <AdminTasks
+            tasks={tasks}
+            employees={employees}
+            adminId={currentAdminId}
+            onRefresh={loadAll}
+          />
+        )}
       </>
     );
   };
@@ -178,7 +243,8 @@ const [brands, setBrands] = useState<Brand[]>([]);
     <div className={styles.layout}>
       <Sidebar
         activeSection={activeSection}
-        onSectionChange={(s) => setActiveSection(s as ActiveSection)}
+        onSectionChange={(s) => setActiveSection(s)}
+        adminTaskCount={adminTaskCount}
       />
 
       <main className={styles.main}>

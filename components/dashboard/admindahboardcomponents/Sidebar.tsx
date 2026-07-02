@@ -3,11 +3,12 @@
 import { useState } from "react";
 import styles from "@/public/assets/styles/dashboard/admindashboard/Sidebar.module.css";
 
-type ActiveSection = "dashboard" | "employees" | "tasks" | "assign";
+type ActiveSection = "dashboard" | "employees" | "tasks" | "assign" | "admin_tasks";
 
 interface SidebarProps {
   activeSection: ActiveSection;
   onSectionChange: (section: ActiveSection) => void;
+  adminTaskCount?: number;
 }
 
 const navItems = [
@@ -20,6 +21,18 @@ const navItems = [
         <rect x="14" y="3" width="7" height="7" rx="1" />
         <rect x="3" y="14" width="7" height="7" rx="1" />
         <rect x="14" y="14" width="7" height="7" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    id: "admin_tasks" as ActiveSection,
+    label: "Admin Task",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M20 7h-9" />
+        <path d="M14 17H5" />
+        <circle cx="17" cy="17" r="3" />
+        <circle cx="7" cy="7" r="3" />
       </svg>
     ),
   },
@@ -58,7 +71,7 @@ const navItems = [
   },
 ];
 
-export default function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
+export default function Sidebar({ activeSection, onSectionChange, adminTaskCount = 0 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -79,20 +92,26 @@ export default function Sidebar({ activeSection, onSectionChange }: SidebarProps
       </button>
 
       <nav className={styles.nav}>
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            className={`${styles.navItem} ${activeSection === item.id ? styles.active : ""}`}
-            onClick={() => onSectionChange(item.id)}
-            title={collapsed ? item.label : ""}
-          >
-            <span className={styles.navIcon}>{item.icon}</span>
-            {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
-            {activeSection === item.id && !collapsed && (
-              <span className={styles.activeIndicator} />
-            )}
-          </button>
-        ))}
+        {navItems.map((item) => {
+          const showBadge = item.id === "admin_tasks" && adminTaskCount > 0;
+          return (
+            <button
+              key={item.id}
+              className={`${styles.navItem} ${activeSection === item.id ? styles.active : ""}`}
+              onClick={() => onSectionChange(item.id)}
+              title={collapsed ? item.label : ""}
+            >
+              <span className={styles.navIcon}>{item.icon}</span>
+              {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
+              {showBadge && (
+                <span className={styles.navBadge}>{adminTaskCount}</span>
+              )}
+              {activeSection === item.id && !collapsed && (
+                <span className={styles.activeIndicator} />
+              )}
+            </button>
+          );
+        })}
       </nav>
 
       <div className={styles.sidebarFooter}>
