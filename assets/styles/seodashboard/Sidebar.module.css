@@ -1,0 +1,107 @@
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  background: var(--seo-bg);
+  border-right: 1px solid var(--seo-border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 16px;
+  font-family: var(--seo-font-body);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 28px;
+}
+
+.brandMark {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--seo-radius-sm);
+  background: var(--seo-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--seo-font-display);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.brandName {
+  font-family: var(--seo-font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--seo-text);
+  letter-spacing: -0.01em;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--seo-radius-sm);
+  color: var(--seo-text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.navItem:hover {
+  background: var(--seo-surface);
+  color: var(--seo-text);
+}
+
+.navItemActive {
+  background: var(--seo-primary-soft);
+  color: var(--seo-primary-dark);
+  font-weight: 600;
+}
+
+.navIcon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.navIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.logoutBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--seo-border);
+  border-radius: var(--seo-radius-sm);
+  background: var(--seo-bg);
+  color: var(--seo-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.logoutBtn:hover {
+  border-color: var(--seo-danger);
+  color: var(--seo-danger);
+}

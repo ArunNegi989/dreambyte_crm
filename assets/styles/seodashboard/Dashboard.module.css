@@ -1,0 +1,179 @@
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.title {
+  font-family: var(--seo-font-display);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--seo-text);
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  font-size: 13.5px;
+  color: var(--seo-text-muted);
+  margin: 0;
+}
+
+.loadingText,
+.emptyText {
+  font-size: 13.5px;
+  color: var(--seo-text-faint);
+}
+
+.errorBox {
+  background: var(--seo-danger-soft);
+  border: 1px solid var(--seo-danger);
+  color: var(--seo-danger);
+  border-radius: var(--seo-radius-md);
+  padding: 16px;
+  font-size: 13.5px;
+}
+
+.retryBtn {
+  margin-top: 8px;
+  border: 1px solid var(--seo-danger);
+  background: transparent;
+  color: var(--seo-danger);
+  padding: 6px 14px;
+  border-radius: var(--seo-radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.performanceGrid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.performanceCard {
+  background: var(--seo-bg);
+  border: 1px solid var(--seo-border);
+  border-radius: var(--seo-radius-md);
+  padding: 20px;
+  box-shadow: var(--seo-shadow-sm);
+}
+
+.performanceHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.sectionTitle {
+  font-family: var(--seo-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--seo-text);
+  margin: 0 0 16px;
+}
+
+.completionTag {
+  font-family: var(--seo-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--seo-primary-dark);
+  background: var(--seo-primary-soft);
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.progressTrack {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--seo-surface-alt);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--seo-primary), var(--seo-primary-dark));
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.statusLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12.5px;
+  color: var(--seo-text-muted);
+}
+
+.statusLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dotPending { background: var(--seo-text-faint); }
+.dotProgress { background: var(--seo-info); }
+.dotDone { background: var(--seo-success); }
+.dotBlocked { background: var(--seo-danger); }
+
+.tasksSection {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.dateGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dateGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dateGroupLabel {
+  font-family: var(--seo-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--seo-text);
+  margin: 0;
+}
+
+.dateGroupCount {
+  font-family: var(--seo-font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--seo-text-muted);
+  background: var(--seo-surface-alt);
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+@media (max-width: 1100px) {
+  .statsRow { grid-template-columns: repeat(3, 1fr); }
+  .performanceGrid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .statsRow { grid-template-columns: repeat(2, 1fr); }
+}

@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap');
+
+:root {
+  /* Surfaces */
+  --seo-bg: #ffffff;
+  --seo-surface: #f6f9f8;
+  --seo-surface-alt: #eef4f2;
+  --seo-border: #e3ebe8;
+  --seo-border-strong: #cddad5;
+
+  /* Text */
+  --seo-text: #16241f;
+  --seo-text-muted: #64756e;
+  --seo-text-faint: #93a29c;
+
+  /* Brand */
+  --seo-primary: #0e7c66;
+  --seo-primary-dark: #0a5f4f;
+  --seo-primary-soft: #e2f2ee;
+  --seo-accent: #c8790a;
+  --seo-accent-soft: #fbeed9;
+
+  /* Status */
+  --seo-success: #1e8e5a;
+  --seo-success-soft: #e5f5ec;
+  --seo-warning: #b7791f;
+  --seo-warning-soft: #fbf1de;
+  --seo-danger: #c0392b;
+  --seo-danger-soft: #fbe7e4;
+  --seo-info: #2563eb;
+  --seo-info-soft: #e8f0fe;
+
+  /* Shape / elevation */
+  --seo-radius-sm: 8px;
+  --seo-radius-md: 12px;
+  --seo-radius-lg: 18px;
+  --seo-shadow-sm: 0 1px 2px rgba(22, 36, 31, 0.06);
+  --seo-shadow-md: 0 8px 24px rgba(22, 36, 31, 0.08);
+  --seo-shadow-lg: 0 20px 48px rgba(22, 36, 31, 0.14);
+
+  /* Type */
+  --seo-font-display: 'Sora', 'Segoe UI', sans-serif;
+  --seo-font-body: 'Inter', 'Segoe UI', sans-serif;
+  --seo-font-mono: 'JetBrains Mono', 'Courier New', monospace;
+}

@@ -1,0 +1,182 @@
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.title {
+  font-family: var(--seo-font-display);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--seo-text);
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  font-size: 13.5px;
+  color: var(--seo-text-muted);
+  margin: 0;
+}
+
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: var(--seo-primary);
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: var(--seo-radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.addBtn:hover { background: var(--seo-primary-dark); }
+
+.summaryRow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.summaryChip {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--seo-primary-dark);
+  background: var(--seo-primary-soft);
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  background: var(--seo-bg);
+  border: 1px solid var(--seo-border);
+  border-radius: var(--seo-radius-md);
+  padding: 16px;
+  cursor: pointer;
+  box-shadow: var(--seo-shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card:hover {
+  border-color: var(--seo-primary);
+  box-shadow: var(--seo-shadow-md);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.categoryTag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--seo-primary-dark);
+  background: var(--seo-primary-soft);
+  padding: 2px 7px;
+  border-radius: 5px;
+  margin-bottom: 6px;
+}
+
+.cardTitle {
+  font-family: var(--seo-font-display);
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--seo-text);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.deleteBtn {
+  border: none;
+  background: none;
+  color: var(--seo-text-faint);
+  cursor: pointer;
+  padding: 2px;
+  min-width: 24px;
+}
+
+.deleteBtn:hover { color: var(--seo-danger); }
+
+.cardDesc {
+  font-size: 12.5px;
+  color: var(--seo-text-muted);
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+.cardOutcome {
+  font-size: 12px;
+  color: var(--seo-success);
+  background: var(--seo-success-soft);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 10px 0 0;
+}
+
+.cardFooter {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--seo-border);
+  font-size: 11.5px;
+  font-family: var(--seo-font-mono);
+  color: var(--seo-text-faint);
+}
+
+.emptyState {
+  border: 1px dashed var(--seo-border-strong);
+  border-radius: var(--seo-radius-md);
+  padding: 48px;
+  text-align: center;
+  background: var(--seo-bg);
+}
+
+.emptyTitle {
+  font-family: var(--seo-font-display);
+  font-weight: 700;
+  color: var(--seo-text);
+  margin: 0 0 4px;
+}
+
+.emptyText {
+  font-size: 13.5px;
+  color: var(--seo-text-faint);
+  margin: 0 0 16px;
+}
+
+.errorBox {
+  background: var(--seo-danger-soft);
+  border: 1px solid var(--seo-danger);
+  color: var(--seo-danger);
+  border-radius: var(--seo-radius-md);
+  padding: 16px;
+  font-size: 13.5px;
+}
+
+.retryBtn {
+  margin-top: 8px;
+  border: 1px solid var(--seo-danger);
+  background: transparent;
+  color: var(--seo-danger);
+  padding: 6px 14px;
+  border-radius: var(--seo-radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
