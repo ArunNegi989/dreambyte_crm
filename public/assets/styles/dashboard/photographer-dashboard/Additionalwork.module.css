@@ -1,0 +1,259 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.title {
+  font-size: 19px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.sub {
+  font-size: 12.5px;
+  color: #94a3b8;
+  margin: 2px 0 0;
+}
+
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  padding: 9px 16px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.addBtn:hover {
+  opacity: 0.92;
+}
+
+.formCard {
+  background: #ffffff;
+  border: 1px solid #eef1f6;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.input {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #0f172a;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.input::placeholder {
+  color: #94a3b8;
+}
+
+.input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.cancelBtn {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.cancelBtn:hover {
+  background: #f8fafc;
+}
+
+.saveBtn {
+  border: none;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  padding: 8px 18px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.saveBtn:hover {
+  opacity: 0.92;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  background: #f8fafc;
+  border-radius: 16px;
+  border: 1px dashed #e2e8f0;
+  color: #94a3b8;
+}
+
+.emptyIcon {
+  font-size: 30px;
+  margin-bottom: 8px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionLabel {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workItem {
+  background: #ffffff;
+  border: 1px solid #eef1f6;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.workItemDone {
+  opacity: 0.7;
+}
+
+.workLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sourceTag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+.fromAdmin {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.fromSelf {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.workTitle {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.workDesc {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.workDate {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+.completeBtn {
+  border: none;
+  background: #f0fdf4;
+  color: #15803d;
+  padding: 8px 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.completeBtn:hover {
+  background: #dcfce7;
+}
+
+.doneTag {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #15803d;
+  flex-shrink: 0;
+}
+
+@media (max-width: 560px) {
+  .workItem {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
