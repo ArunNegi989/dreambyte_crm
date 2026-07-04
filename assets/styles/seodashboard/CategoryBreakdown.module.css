@@ -1,0 +1,43 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 150px 1fr 28px;
+  align-items: center;
+  gap: 12px;
+}
+
+.label {
+  font-size: 12.5px;
+  color: var(--seo-text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--seo-surface-alt);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: var(--seo-primary);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.count {
+  font-family: var(--seo-font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--seo-text);
+  text-align: right;
+}

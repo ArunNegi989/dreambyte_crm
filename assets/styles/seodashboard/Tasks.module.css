@@ -1,0 +1,145 @@
+.header {
+  margin-bottom: 20px;
+}
+
+.title {
+  font-family: var(--seo-font-display);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--seo-text);
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  font-size: 13.5px;
+  color: var(--seo-text-muted);
+  margin: 0;
+}
+
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.searchField {
+  position: relative;
+  min-width: 220px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--seo-text-faint);
+}
+
+.searchInput {
+  width: 100%;
+  border: 1px solid var(--seo-border-strong);
+  border-radius: var(--seo-radius-sm);
+  padding: 8px 12px 8px 32px;
+  font-size: 13.5px;
+  font-family: var(--seo-font-body);
+  outline: none;
+  background: var(--seo-bg);
+}
+
+.searchInput:focus {
+  border-color: var(--seo-primary);
+  box-shadow: 0 0 0 3px var(--seo-primary-soft);
+}
+
+.pillGroup {
+  display: flex;
+  gap: 6px;
+}
+
+.pill {
+  border: 1px solid var(--seo-border-strong);
+  background: var(--seo-bg);
+  color: var(--seo-text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pillActive {
+  background: var(--seo-primary);
+  border-color: var(--seo-primary);
+  color: #ffffff;
+}
+
+.categorySelect {
+  border: 1px solid var(--seo-border-strong);
+  border-radius: var(--seo-radius-sm);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: var(--seo-font-body);
+  color: var(--seo-text);
+  background: var(--seo-bg);
+}
+
+.clearBtn {
+  border: none;
+  background: none;
+  color: var(--seo-primary-dark);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 4px;
+}
+
+.resultCount {
+  font-size: 12.5px;
+  color: var(--seo-text-faint);
+  margin: 0 0 10px;
+}
+
+.emptyState {
+  border: 1px dashed var(--seo-border-strong);
+  border-radius: var(--seo-radius-md);
+  padding: 40px;
+  text-align: center;
+  background: var(--seo-bg);
+}
+
+.emptyTitle {
+  font-family: var(--seo-font-display);
+  font-weight: 700;
+  color: var(--seo-text);
+  margin: 0 0 4px;
+}
+
+.emptyText {
+  font-size: 13.5px;
+  color: var(--seo-text-faint);
+  margin: 0;
+}
+
+.errorBox {
+  background: var(--seo-danger-soft);
+  border: 1px solid var(--seo-danger);
+  color: var(--seo-danger);
+  border-radius: var(--seo-radius-md);
+  padding: 16px;
+  font-size: 13.5px;
+}
+
+.retryBtn {
+  margin-top: 8px;
+  border: 1px solid var(--seo-danger);
+  background: transparent;
+  color: var(--seo-danger);
+  padding: 6px 14px;
+  border-radius: var(--seo-radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+}

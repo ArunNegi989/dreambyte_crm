@@ -1,0 +1,35 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: var(--seo-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.arrow {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.diff {
+  opacity: 0.7;
+  font-size: 11px;
+}
+
+.up {
+  color: var(--seo-success);
+  background: var(--seo-success-soft);
+}
+
+.down {
+  color: var(--seo-danger);
+  background: var(--seo-danger-soft);
+}
+
+.flat {
+  color: var(--seo-text-muted);
+  background: var(--seo-surface-alt);
+}

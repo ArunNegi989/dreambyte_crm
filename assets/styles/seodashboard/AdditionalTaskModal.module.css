@@ -1,0 +1,21 @@
+.narrow {
+  max-width: 560px;
+}
+
+.fieldFull {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.error {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--seo-danger);
+  font-weight: 500;
+}
+
+@media (max-width: 560px) {
+  .fieldFull { grid-column: span 1; }
+}

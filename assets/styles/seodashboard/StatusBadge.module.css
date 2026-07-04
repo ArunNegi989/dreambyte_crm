@@ -1,0 +1,38 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--seo-font-body);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pending {
+  background: var(--seo-surface-alt);
+  color: var(--seo-text-muted);
+}
+
+.inProgress {
+  background: var(--seo-info-soft);
+  color: var(--seo-info);
+}
+
+.completed {
+  background: var(--seo-success-soft);
+  color: var(--seo-success);
+}
+
+.blocked {
+  background: var(--seo-danger-soft);
+  color: var(--seo-danger);
+}

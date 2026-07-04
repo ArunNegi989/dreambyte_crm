@@ -1,0 +1,96 @@
+.tableWrap {
+  border: 1px solid var(--seo-border);
+  border-radius: var(--seo-radius-md);
+  overflow: hidden;
+  background: var(--seo-bg);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--seo-font-body);
+}
+
+.th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--seo-text-faint);
+  background: var(--seo-surface);
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--seo-border);
+}
+
+.row {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.row:not(:last-child) .td {
+  border-bottom: 1px solid var(--seo-border);
+}
+
+.row:hover {
+  background: var(--seo-surface);
+}
+
+.td {
+  padding: 13px 16px;
+  vertical-align: top;
+  font-size: 13.5px;
+}
+
+.title {
+  color: var(--seo-text);
+  font-weight: 600;
+  margin: 0 0 3px;
+}
+
+.desc {
+  color: var(--seo-text-faint);
+  font-size: 12.5px;
+  margin: 0;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.categoryTag {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--seo-primary-dark);
+  background: var(--seo-primary-soft);
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.brand {
+  color: var(--seo-text);
+  font-weight: 500;
+  margin: 0 0 2px;
+}
+
+.client {
+  color: var(--seo-text-faint);
+  font-size: 12.5px;
+  margin: 0;
+}
+
+.dueDate {
+  color: var(--seo-text-muted);
+  font-weight: 500;
+}
+
+.overdueDate {
+  color: var(--seo-danger);
+  font-weight: 700;
+}
+
+.rankPreview {
+  margin-top: 6px;
+}
