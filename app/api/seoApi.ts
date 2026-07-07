@@ -1,6 +1,6 @@
 import { Task, AdditionalTask, TaskStatus, TaskDetails } from '../../types/seodashboard/task';
-import { computeDashboardStats } from '../../data/employee/seodashboard/taskStats';
-import { buildDummyTasks, buildDummyAdditionalTasks } from '../../data/employee/seodashboard/dummyTasks';
+import { computeDashboardStats } from '../../data/seodashboard/taskStats';
+import { buildDummyTasks, buildDummyAdditionalTasks } from '../../data/seodashboard/dummyTasks';
 
 // This module stands in for a real backend. Every function returns a Promise
 // with a small artificial delay so the pages behave exactly like they would

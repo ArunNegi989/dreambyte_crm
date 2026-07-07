@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Task, DashboardStats, TaskStatus } from '../../../types/seodashboard/task';
-import { groupTasksByDueDate } from '../../../data/employee/seodashboard/taskStats';
+import { groupTasksByDueDate } from '../../../data/seodashboard/taskStats';
 import { getMyTasks, getDashboardStats, updateTaskWork } from '../../api/seoApi';
 import StatCard from '../../../components/dashboard/seodashboard/StatCard';
 import CategoryBreakdown from '../../../components/dashboard/seodashboard/CategoryBreakdown';

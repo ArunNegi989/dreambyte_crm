@@ -1,4 +1,4 @@
-import { Task, DashboardStats, CATEGORY_OPTIONS } from '../../../types/seodashboard/task';
+import { Task, DashboardStats, CATEGORY_OPTIONS } from '../../types/seodashboard/task';
 
 export interface TaskGroup {
   dateKey: string;
