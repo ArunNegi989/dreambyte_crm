@@ -7,6 +7,7 @@ import styles from "@/public/assets/styles/dashboard/photographer-dashboard/Shoo
 interface ShootsBoardProps {
   shoots: Shoot[];
   onStatusChange: (id: string, status: WorkStatus) => void;
+  onResubmit: (id: string, changeId: string, responseText: string) => void;
 }
 
 const typeIcon = (type: Shoot["type"]) => {
@@ -46,8 +47,10 @@ const dateLabel = (dateStr: string, today: string, tomorrow: string, yesterday: 
   });
 };
 
-export default function ShootsBoard({ shoots, onStatusChange }: ShootsBoardProps) {
+export default function ShootsBoard({ shoots, onStatusChange, onResubmit }: ShootsBoardProps) {
   const [filter, setFilter] = useState<"all" | WorkStatus>("all");
+  const [resubmitText, setResubmitText] = useState<Record<string, string>>({});
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
   const tmrDate = new Date();
@@ -76,6 +79,13 @@ export default function ShootsBoard({ shoots, onStatusChange }: ShootsBoardProps
     return "pending";
   };
 
+  const handleResubmitClick = (shoot: Shoot) => {
+    const text = (resubmitText[shoot.id] ?? "").trim();
+    if (!text || !shoot.openChange) return;
+    onResubmit(shoot.id, shoot.openChange.id, text);
+    setResubmitText((prev) => ({ ...prev, [shoot.id]: "" }));
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -84,7 +94,7 @@ export default function ShootsBoard({ shoots, onStatusChange }: ShootsBoardProps
           <p className={styles.sub}>{shoots.length} total &middot; assigned by admin / super admin</p>
         </div>
         <div className={styles.filterWrap}>
-          {(["all", "pending", "in_progress", "completed"] as const).map((f) => (
+          {(["all", "pending", "in_progress", "completed", "rejected"] as const).map((f) => (
             <button
               key={f}
               className={`${styles.filterBtn} ${filter === f ? styles.filterActive : ""}`}
@@ -111,49 +121,191 @@ export default function ShootsBoard({ shoots, onStatusChange }: ShootsBoardProps
             </div>
 
             <div className={styles.shootsGrid}>
-              {dayShoots.map((shoot) => (
-                <div key={shoot.id} className={`${styles.shootCard} ${styles[`border_${shoot.status}`]}`}>
-                  <div className={styles.cardTop}>
-                    <span className={styles.time}>{shoot.time}</span>
-                    <span className={`${styles.statusPill} ${styles[`pill_${shoot.status}`]}`}>
-                      {statusLabel(shoot.status)}
-                    </span>
+              {dayShoots.map((shoot) => {
+                const isRejected = shoot.status === "rejected";
+                return (
+                  <div
+                    key={shoot.id}
+                    className={`${styles.shootCard} ${isRejected ? "" : styles[`border_${shoot.status}`] ?? ""}`}
+                    style={isRejected ? { borderColor: "#ef4444" } : undefined}
+                  >
+                    <div className={styles.cardTop}>
+                      <span className={styles.time}>{shoot.time}</span>
+                      <span
+                        className={`${styles.statusPill} ${isRejected ? "" : styles[`pill_${shoot.status}`] ?? ""}`}
+                        style={
+                          isRejected
+                            ? { background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }
+                            : undefined
+                        }
+                      >
+                        {statusLabel(shoot.status)}
+                      </span>
+                    </div>
+
+                    <h3 className={styles.shootTitle}>{shoot.title}</h3>
+
+                    <div className={styles.brandRow}>
+                      <span className={styles.brandDot} style={{ background: shoot.brandColor }} />
+                      <span className={styles.brandName}>{shoot.brand}</span>
+                      <span className={styles.typeTag}>
+                        {typeIcon(shoot.type)}
+                        {shoot.type}
+                      </span>
+                    </div>
+
+                    <div className={styles.locationRow}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                        <circle cx="12" cy="10" r="3" />
+                      </svg>
+                      {shoot.location}
+                    </div>
+
+                    {shoot.notes && <p className={styles.notes}>📝 {shoot.notes}</p>}
+
+                    {/* ── Change history (all past rejections + resubmit responses) ── */}
+                    {shoot.changes.length > 0 && (
+                      <div style={{ marginTop: "10px" }}>
+                        <button
+                          onClick={() => setExpandedId(expandedId === shoot.id ? null : shoot.id)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            color: "#374151",
+                            background: "#f3f4f6",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "6px",
+                            padding: "6px 10px",
+                            cursor: "pointer",
+                            width: "100%",
+                            justifyContent: "space-between",
+                          }}
+                        >
+                          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            📝 Change History
+                            <span
+                              style={{
+                                background: "#dc2626",
+                                color: "#fff",
+                                borderRadius: "999px",
+                                fontSize: "10px",
+                                padding: "1px 6px",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {shoot.changes.length}
+                            </span>
+                          </span>
+                          <span>{expandedId === shoot.id ? "▲" : "▼"}</span>
+                        </button>
+
+                        {expandedId === shoot.id && (
+                          <div
+                            style={{
+                              marginTop: "6px",
+                              padding: "10px 12px",
+                              borderRadius: "8px",
+                              background: "#f9fafb",
+                              border: "1px solid #e5e7eb",
+                            }}
+                          >
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                              {shoot.changes.map((c, idx) => (
+                                <div
+                                  key={c.id}
+                                  style={{
+                                    fontSize: "12px",
+                                    paddingBottom: "8px",
+                                    borderBottom: idx < shoot.changes.length - 1 ? "1px solid #e5e7eb" : "none",
+                                  }}
+                                >
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <span style={{ fontWeight: 600, color: "#111827" }}>{c.changedBy}</span>
+                                    <span style={{ color: "#9ca3af", fontSize: "11px" }}>{c.changedAt}</span>
+                                  </div>
+                                  <p style={{ margin: "3px 0", color: "#4b5563" }}>{c.note}</p>
+                                  {c.employeeResponse && (
+                                    <p style={{ margin: "3px 0", color: "#1d4ed8" }}>
+                                      <strong>Your response:</strong> {c.employeeResponse}
+                                    </p>
+                                  )}
+                                  <span
+                                    style={{
+                                      fontSize: "11px",
+                                      fontWeight: 600,
+                                      color: c.resolved ? "#15803d" : "#b91c1c",
+                                    }}
+                                  >
+                                    {c.resolved ? "✓ Resolved" : "⚠ Awaiting your response"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {shoot.openChange && !shoot.openChange.resolved && (
+                              <div style={{ marginTop: "10px" }}>
+                                <textarea
+                                  rows={2}
+                                  placeholder="Describe what you fixed, then resubmit…"
+                                  value={resubmitText[shoot.id] ?? ""}
+                                  onChange={(e) =>
+                                    setResubmitText((prev) => ({ ...prev, [shoot.id]: e.target.value }))
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    fontSize: "13px",
+                                    padding: "6px 8px",
+                                    borderRadius: "6px",
+                                    border: "1px solid #fca5a5",
+                                    resize: "vertical",
+                                    boxSizing: "border-box",
+                                  }}
+                                />
+                                <button
+                                  onClick={() => handleResubmitClick(shoot)}
+                                  disabled={!(resubmitText[shoot.id] ?? "").trim()}
+                                  style={{
+                                    marginTop: "6px",
+                                    fontSize: "12px",
+                                    fontWeight: 600,
+                                    padding: "6px 12px",
+                                    borderRadius: "6px",
+                                    border: "none",
+                                    background: "#dc2626",
+                                    color: "#fff",
+                                    cursor: "pointer",
+                                    opacity: (resubmitText[shoot.id] ?? "").trim() ? 1 : 0.5,
+                                  }}
+                                >
+                                  Resubmit
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {!isRejected && (
+                      <div className={styles.cardFooter}>
+                        <span className={styles.assignedBy}>Assigned by {shoot.assignedBy}</span>
+                        <button
+                          className={`${styles.actionBtn} ${styles[`action_${shoot.status}`] ?? ""}`}
+                          onClick={() => onStatusChange(shoot.id, cycleStatus(shoot.status))}
+                        >
+                          {shoot.status === "pending" && "Start Shoot"}
+                          {shoot.status === "in_progress" && "Mark Done"}
+                          {shoot.status === "completed" && "✓ Shot Completed"}
+                        </button>
+                      </div>
+                    )}
                   </div>
-
-                  <h3 className={styles.shootTitle}>{shoot.title}</h3>
-
-                  <div className={styles.brandRow}>
-                    <span className={styles.brandDot} style={{ background: shoot.brandColor }} />
-                    <span className={styles.brandName}>{shoot.brand}</span>
-                    <span className={styles.typeTag}>
-                      {typeIcon(shoot.type)}
-                      {shoot.type}
-                    </span>
-                  </div>
-
-                  <div className={styles.locationRow}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
-                    {shoot.location}
-                  </div>
-
-                  {shoot.notes && <p className={styles.notes}>📝 {shoot.notes}</p>}
-
-                  <div className={styles.cardFooter}>
-                    <span className={styles.assignedBy}>Assigned by {shoot.assignedBy}</span>
-                    <button
-                      className={`${styles.actionBtn} ${styles[`action_${shoot.status}`]}`}
-                      onClick={() => onStatusChange(shoot.id, cycleStatus(shoot.status))}
-                    >
-                      {shoot.status === "pending" && "Start Shoot"}
-                      {shoot.status === "in_progress" && "Mark Done"}
-                      {shoot.status === "completed" && "✓ Shot Completed"}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))

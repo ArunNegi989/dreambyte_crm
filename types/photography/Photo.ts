@@ -6,10 +6,19 @@
 
 import api from "@/lib/api";
 
-export type WorkStatus = "pending" | "in_progress" | "completed";
+export type WorkStatus = "pending" | "in_progress" | "completed" | "rejected";
 export type MediaType = "photo" | "video" | "both";
 
 // ── Raw shape as it comes back from the backend (populated Task document) ──
+export interface RawTaskChange {
+  _id: string;
+  changedBy: string;
+  note: string;
+  changedAt: string;
+  resolved: boolean;
+  employeeResponse?: string;
+}
+
 export interface RawTask {
   _id: string;
   title: string;
@@ -28,6 +37,9 @@ export interface RawTask {
   completedCount?: number;
   createdAt?: string;
   updatedAt?: string;
+  // ── Rejection / change-request tracking ──────────────────────────────
+  rejectRemark?: string;
+  changes?: RawTaskChange[];
 }
 
 export interface RawAdditionalWork {
@@ -38,6 +50,16 @@ export interface RawAdditionalWork {
   status: "pending" | "completed";
   loggedBy: "self" | "admin";
   assignedTo: string;
+}
+
+// ── The single open (unresolved) rejection note, simplified for the UI ─────
+export interface TaskChangeNote {
+  id: string;
+  note: string;
+  changedBy: string;
+  changedAt: string;
+  resolved: boolean;
+  employeeResponse?: string;
 }
 
 // ── View-shapes the existing board components expect ───────────────────────
@@ -53,6 +75,9 @@ export interface Shoot {
   status: WorkStatus;
   assignedBy: string;
   notes?: string;
+  rejectRemark?: string;
+  openChange?: TaskChangeNote;
+  changes: TaskChangeNote[];
 }
 
 export interface EditTask {
@@ -67,6 +92,9 @@ export interface EditTask {
   deadline: string;
   status: WorkStatus;
   assignedBy: string;
+  rejectRemark?: string;
+  openChange?: TaskChangeNote;
+  changes: TaskChangeNote[];
 }
 
 export interface AdditionalWork {
@@ -95,12 +123,47 @@ const getAssignedByLabel = (assignedBy: "admin" | "super_admin"): string =>
   assignedBy === "super_admin" ? "Super Admin" : "Admin";
 
 // Backend status can be "pending" | "approved" | "in_progress" | "rejected" |
-// "completed" | "changes_requested". Photography's simpler 3-state view
-// treats anything not explicitly in_progress/completed as pending.
+// "completed" | "changes_requested". Photography's simpler view treats
+// "rejected" and "changes_requested" the same way — both need an employee
+// response before they can be resubmitted.
 const toWorkStatus = (status: string): WorkStatus => {
   if (status === "completed") return "completed";
   if (status === "in_progress") return "in_progress";
+  if (status === "rejected" || status === "changes_requested") return "rejected";
   return "pending";
+};
+
+// The most recent UNRESOLVED change entry is the "open" rejection note the
+// employee still needs to reply to. Once they reply, respondToChanges()
+// marks it resolved:true and the task flips back to completed on refetch.
+const getOpenChange = (changes?: RawTaskChange[]): TaskChangeNote | undefined => {
+  if (!changes || changes.length === 0) return undefined;
+  const unresolved = changes.filter((c) => !c.resolved);
+  if (unresolved.length === 0) return undefined;
+  const last = unresolved[unresolved.length - 1];
+  return {
+    id: last._id,
+    note: last.note,
+    changedBy: last.changedBy,
+    changedAt: last.changedAt,
+    resolved: last.resolved,
+    employeeResponse: last.employeeResponse,
+  };
+};
+
+// Full history — every rejection note + resubmit response, oldest first —
+// so the employee can see everything that's ever happened on this task,
+// not just the currently-open one.
+const mapChangeHistory = (changes?: RawTaskChange[]): TaskChangeNote[] => {
+  if (!changes || changes.length === 0) return [];
+  return changes.map((c) => ({
+    id: c._id,
+    note: c.note,
+    changedBy: c.changedBy,
+    changedAt: c.changedAt,
+    resolved: c.resolved,
+    employeeResponse: c.employeeResponse,
+  }));
 };
 
 // ── taskType classifiers (must match data/departmentTasks.ts labels) ───────
@@ -122,6 +185,9 @@ export const mapToShoot = (t: RawTask): Shoot => {
     status: toWorkStatus(t.status),
     assignedBy: getAssignedByLabel(t.assignedBy),
     notes: t.description || undefined,
+    rejectRemark: t.rejectRemark || undefined,
+    openChange: getOpenChange(t.changes),
+    changes: mapChangeHistory(t.changes),
   };
 };
 
@@ -139,6 +205,9 @@ export const mapToEditTask = (t: RawTask): EditTask => {
     deadline: t.dueDate,
     status: toWorkStatus(t.status),
     assignedBy: getAssignedByLabel(t.assignedBy),
+    rejectRemark: t.rejectRemark || undefined,
+    openChange: getOpenChange(t.changes),
+    changes: mapChangeHistory(t.changes),
   };
 };
 
@@ -164,6 +233,23 @@ export const updateTaskStatus = async (taskId: string, status: WorkStatus): Prom
 
 export const updateEditProgress = async (taskId: string, completedCount: number): Promise<RawTask> => {
   const res = await api.put(`/tasks/${taskId}`, { completedCount });
+  return res.data.data;
+};
+
+// ── Resubmit after rejection ────────────────────────────────────────────────
+// Hits the same /tasks/:id/respond endpoint the CRM's TaskModal uses:
+// closes the specific open change note (marks it resolved + attaches the
+// employee's written response) and flips the task back to
+// status: "completed", deliveryStatus: "delivered" on the backend.
+export const respondToRejection = async (
+  taskId: string,
+  changeId: string,
+  responseText: string
+): Promise<RawTask> => {
+  const res = await api.post(`/tasks/${taskId}/respond`, {
+    remarks: responseText,
+    responses: [{ id: changeId, response: responseText }],
+  });
   return res.data.data;
 };
 

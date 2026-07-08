@@ -23,6 +23,7 @@ import {
   fetchMyTasks,
   updateTaskStatus,
   updateEditProgress,
+  respondToRejection,
   fetchMyAdditionalWork,
   createAdditionalWork,
   updateAdditionalWorkStatus,
@@ -137,6 +138,18 @@ export default function PhotographerDashboard() {
       await loadAll();
     } catch (err) {
       console.error("Edit progress update failed", err);
+    }
+  };
+
+  // Employee replies to a rejection note and resubmits — closes the open
+  // change entry (marks resolved + attaches the response) and flips the
+  // task back to completed/delivered on the backend.
+  const handleResubmit = async (id: string, changeId: string, responseText: string) => {
+    try {
+      await respondToRejection(id, changeId, responseText);
+      await loadAll();
+    } catch (err) {
+      console.error("Resubmit failed", err);
     }
   };
 
@@ -255,21 +268,23 @@ export default function PhotographerDashboard() {
                     <ShootsBoard
                       shoots={shoots.filter((s) => s.date === TODAY)}
                       onStatusChange={handleShootStatusChange}
+                      onResubmit={handleResubmit}
                     />
                     <EditsBoard
                       edits={edits.filter((e) => e.date === TODAY || e.deadline === TODAY)}
                       onProgressChange={handleEditProgressChange}
+                      onResubmit={handleResubmit}
                     />
                   </div>
                 </>
               )}
 
               {activeSection === "shoots" && (
-                <ShootsBoard shoots={shoots} onStatusChange={handleShootStatusChange} />
+                <ShootsBoard shoots={shoots} onStatusChange={handleShootStatusChange} onResubmit={handleResubmit} />
               )}
 
               {activeSection === "edits" && (
-                <EditsBoard edits={edits} onProgressChange={handleEditProgressChange} />
+                <EditsBoard edits={edits} onProgressChange={handleEditProgressChange} onResubmit={handleResubmit} />
               )}
 
               {activeSection === "additional" && (

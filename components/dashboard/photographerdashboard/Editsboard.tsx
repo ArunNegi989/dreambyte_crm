@@ -7,14 +7,17 @@ import styles from "@/public/assets/styles/dashboard/photographer-dashboard/Edit
 interface EditsBoardProps {
   edits: EditTask[];
   onProgressChange: (id: string, completedCount: number) => void;
+  onResubmit: (id: string, changeId: string, responseText: string) => void;
 }
 
 const statusLabel = (s: WorkStatus) =>
   s === "in_progress" ? "In Progress" : s.charAt(0).toUpperCase() + s.slice(1);
 
-export default function EditsBoard({ edits, onProgressChange }: EditsBoardProps) {
+export default function EditsBoard({ edits, onProgressChange, onResubmit }: EditsBoardProps) {
   const [filter, setFilter] = useState<"all" | WorkStatus>("all");
   const [mediaFilter, setMediaFilter] = useState<"all" | "photo" | "video">("all");
+  const [resubmitText, setResubmitText] = useState<Record<string, string>>({});
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const filtered = edits.filter((e) => {
     const statusOk = filter === "all" || e.status === filter;
@@ -28,9 +31,16 @@ export default function EditsBoard({ edits, onProgressChange }: EditsBoardProps)
   };
 
   const isOverdue = (deadline: string, status: WorkStatus) => {
-    if (status === "completed") return false;
+    if (status === "completed" || status === "rejected") return false;
     const today = new Date().toISOString().split("T")[0];
     return deadline < today;
+  };
+
+  const handleResubmitClick = (task: EditTask) => {
+    const text = (resubmitText[task.id] ?? "").trim();
+    if (!text || !task.openChange) return;
+    onResubmit(task.id, task.openChange.id, text);
+    setResubmitText((prev) => ({ ...prev, [task.id]: "" }));
   };
 
   return (
@@ -42,7 +52,7 @@ export default function EditsBoard({ edits, onProgressChange }: EditsBoardProps)
         </div>
         <div className={styles.filterGroup}>
           <div className={styles.filterWrap}>
-            {(["all", "pending", "in_progress", "completed"] as const).map((f) => (
+            {(["all", "pending", "in_progress", "completed", "rejected"] as const).map((f) => (
               <button
                 key={f}
                 className={`${styles.filterBtn} ${filter === f ? styles.filterActive : ""}`}
@@ -76,11 +86,16 @@ export default function EditsBoard({ edits, onProgressChange }: EditsBoardProps)
           {filtered.map((task) => {
             const pct = task.totalCount > 0 ? Math.round((task.completedCount / task.totalCount) * 100) : 0;
             const overdue = isOverdue(task.deadline, task.status);
+            const isRejected = task.status === "rejected";
 
             return (
-              <div key={task.id} className={`${styles.editCard} ${styles[`border_${task.status}`]}`}>
+              <div
+                key={task.id}
+                className={`${styles.editCard} ${isRejected ? "" : styles[`border_${task.status}`] ?? ""}`}
+                style={isRejected ? { borderColor: "#ef4444" } : undefined}
+              >
                 <div className={styles.cardTop}>
-                  <span className={`${styles.mediaTag} ${styles[`media_${task.mediaType}`]}`}>
+                  <span className={`${styles.mediaTag} ${styles[`media_${task.mediaType}`] ?? ""}`}>
                     {task.mediaType === "video" ? (
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                         <polygon points="23 7 16 12 23 17 23 7" />
@@ -95,7 +110,14 @@ export default function EditsBoard({ edits, onProgressChange }: EditsBoardProps)
                     )}
                     {task.mediaType}
                   </span>
-                  <span className={`${styles.statusPill} ${styles[`pill_${task.status}`]}`}>
+                  <span
+                    className={`${styles.statusPill} ${isRejected ? "" : styles[`pill_${task.status}`] ?? ""}`}
+                    style={
+                      isRejected
+                        ? { background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }
+                        : undefined
+                    }
+                  >
                     {statusLabel(task.status)}
                   </span>
                 </div>
@@ -111,8 +133,8 @@ export default function EditsBoard({ edits, onProgressChange }: EditsBoardProps)
                 <div className={styles.progressWrap}>
                   <div className={styles.progressBarBg}>
                     <div
-                      className={`${styles.progressBarFill} ${styles[`fill_${task.status}`]}`}
-                      style={{ width: `${pct}%` }}
+                      className={`${styles.progressBarFill} ${isRejected ? "" : styles[`fill_${task.status}`] ?? ""}`}
+                      style={{ width: `${pct}%`, ...(isRejected ? { background: "#ef4444" } : {}) }}
                     />
                   </div>
                   <div className={styles.progressMeta}>
@@ -136,33 +158,161 @@ export default function EditsBoard({ edits, onProgressChange }: EditsBoardProps)
                   <span className={styles.assignedBy}>by {task.assignedBy}</span>
                 </div>
 
-                {/* Actions */}
-                <div className={styles.cardFooter}>
-                  {task.mediaType === "photo" && task.totalCount > 1 && task.status !== "completed" ? (
-                    <div className={styles.stepper}>
-                      <button className={styles.stepBtn} onClick={() => bump(task, -1)} disabled={task.completedCount === 0}>
-                        −
-                      </button>
-                      <span className={styles.stepCount}>{task.completedCount}</span>
-                      <button className={styles.stepBtn} onClick={() => bump(task, 1)} disabled={task.completedCount >= task.totalCount}>
-                        +
-                      </button>
-                    </div>
-                  ) : (
-                    <span />
-                  )}
-
-                  {task.status !== "completed" ? (
+                {/* ── Change history (all past rejections + resubmit responses) ── */}
+                {task.changes.length > 0 && (
+                  <div style={{ marginTop: "10px" }}>
                     <button
-                      className={styles.markDoneBtn}
-                      onClick={() => onProgressChange(task.id, task.totalCount)}
+                      onClick={() => setExpandedId(expandedId === task.id ? null : task.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        color: "#374151",
+                        background: "#f3f4f6",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "6px",
+                        padding: "6px 10px",
+                        cursor: "pointer",
+                        width: "100%",
+                        justifyContent: "space-between",
+                      }}
                     >
-                      Mark All Done
+                      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        📝 Change History
+                        <span
+                          style={{
+                            background: "#dc2626",
+                            color: "#fff",
+                            borderRadius: "999px",
+                            fontSize: "10px",
+                            padding: "1px 6px",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {task.changes.length}
+                        </span>
+                      </span>
+                      <span>{expandedId === task.id ? "▲" : "▼"}</span>
                     </button>
-                  ) : (
-                    <span className={styles.doneTag}>✓ Edited</span>
-                  )}
-                </div>
+
+                    {expandedId === task.id && (
+                      <div
+                        style={{
+                          marginTop: "6px",
+                          padding: "10px 12px",
+                          borderRadius: "8px",
+                          background: "#f9fafb",
+                          border: "1px solid #e5e7eb",
+                        }}
+                      >
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                          {task.changes.map((c, idx) => (
+                            <div
+                              key={c.id}
+                              style={{
+                                fontSize: "12px",
+                                paddingBottom: "8px",
+                                borderBottom: idx < task.changes.length - 1 ? "1px solid #e5e7eb" : "none",
+                              }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ fontWeight: 600, color: "#111827" }}>{c.changedBy}</span>
+                                <span style={{ color: "#9ca3af", fontSize: "11px" }}>{c.changedAt}</span>
+                              </div>
+                              <p style={{ margin: "3px 0", color: "#4b5563" }}>{c.note}</p>
+                              {c.employeeResponse && (
+                                <p style={{ margin: "3px 0", color: "#1d4ed8" }}>
+                                  <strong>Your response:</strong> {c.employeeResponse}
+                                </p>
+                              )}
+                              <span
+                                style={{
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  color: c.resolved ? "#15803d" : "#b91c1c",
+                                }}
+                              >
+                                {c.resolved ? "✓ Resolved" : "⚠ Awaiting your response"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {task.openChange && !task.openChange.resolved && (
+                          <div style={{ marginTop: "10px" }}>
+                            <textarea
+                              rows={2}
+                              placeholder="Describe what you fixed, then resubmit…"
+                              value={resubmitText[task.id] ?? ""}
+                              onChange={(e) =>
+                                setResubmitText((prev) => ({ ...prev, [task.id]: e.target.value }))
+                              }
+                              style={{
+                                width: "100%",
+                                fontSize: "13px",
+                                padding: "6px 8px",
+                                borderRadius: "6px",
+                                border: "1px solid #fca5a5",
+                                resize: "vertical",
+                                boxSizing: "border-box",
+                              }}
+                            />
+                            <button
+                              onClick={() => handleResubmitClick(task)}
+                              disabled={!(resubmitText[task.id] ?? "").trim()}
+                              style={{
+                                marginTop: "6px",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                padding: "6px 12px",
+                                borderRadius: "6px",
+                                border: "none",
+                                background: "#dc2626",
+                                color: "#fff",
+                                cursor: "pointer",
+                                opacity: (resubmitText[task.id] ?? "").trim() ? 1 : 0.5,
+                              }}
+                            >
+                              Resubmit
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions — hidden while rejected, replaced by resubmit box above */}
+                {!isRejected && (
+                  <div className={styles.cardFooter}>
+                    {task.mediaType === "photo" && task.totalCount > 1 && task.status !== "completed" ? (
+                      <div className={styles.stepper}>
+                        <button className={styles.stepBtn} onClick={() => bump(task, -1)} disabled={task.completedCount === 0}>
+                          −
+                        </button>
+                        <span className={styles.stepCount}>{task.completedCount}</span>
+                        <button className={styles.stepBtn} onClick={() => bump(task, 1)} disabled={task.completedCount >= task.totalCount}>
+                          +
+                        </button>
+                      </div>
+                    ) : (
+                      <span />
+                    )}
+
+                    {task.status !== "completed" ? (
+                      <button
+                        className={styles.markDoneBtn}
+                        onClick={() => onProgressChange(task.id, task.totalCount)}
+                      >
+                        Mark All Done
+                      </button>
+                    ) : (
+                      <span className={styles.doneTag}>✓ Edited</span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
