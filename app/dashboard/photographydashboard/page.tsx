@@ -27,6 +27,7 @@ import {
   updateAdditionalWorkStatus,
 } from "@/types/photography/Photo";
 import styles from "@/app/dashboard/photographydashboard/Photographerdashboard.module.css";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 export default function PhotographerDashboard() {
   const [activeSection, setActiveSectionState] = useState<PhotoSection>("overview");
 
