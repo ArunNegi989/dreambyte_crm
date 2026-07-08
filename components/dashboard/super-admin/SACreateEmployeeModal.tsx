@@ -204,7 +204,7 @@ export default function SACreateEmployeeModal({
                 {fieldErrors.dob && <span className={styles.fieldError}>{fieldErrors.dob}</span>}
               </div>
 
-              {/* Department */}
+              {/* Department — updated to match the department → task-type mapping */}
               <div className={styles.field}>
                 <label>Department *</label>
                 <select
@@ -213,13 +213,13 @@ export default function SACreateEmployeeModal({
                   onChange={(e) => handleChange("department", e.target.value)}
                 >
                   <option value="">Select Department</option>
+                  <option>Graphic</option>
+                  <option>SMM</option>
+                  <option>Photography</option>
+                  <option>Meta Ads</option>
+                  <option>SEO</option>
                   <option>Development</option>
-                  <option>Design</option>
-                  <option>Backend</option>
-                  <option>QA</option>
-                  <option>Marketing</option>
-                  <option>HR</option>
-                  <option>Sales</option>
+                  <option>Content Writer</option>
                 </select>
                 {fieldErrors.department && <span className={styles.fieldError}>{fieldErrors.department}</span>}
               </div>

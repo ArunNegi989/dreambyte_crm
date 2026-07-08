@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import api from "@/lib/api";
 import { Task, Employee, TaskFrequency } from "@/types/admin/Crm";
+import { getTasksForDepartment } from "@/data/superadmin/departmentTasks";
 import styles from "@/public/assets/styles/dashboard/admindashboard/Admintasks.module.css";
 
 interface AdminTasksProps {
@@ -94,6 +95,26 @@ export default function AdminTasks({
   const updateRow = (i: number, field: keyof SubtaskRow, value: string) => {
     setRows((prev) =>
       prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r))
+    );
+  };
+
+  // When a row's employee changes, look up their department and clear the
+  // row's title only if it no longer belongs to the new department's task
+  // list — same guard used in AssignTask / SATasks so a stale title from a
+  // different department can't slip through.
+  const updateRowAssignee = (i: number, empId: string) => {
+    const newEmp = onlyEmployees.find((e) => e._id === empId);
+    const newDeptTasks = getTasksForDepartment(newEmp?.department);
+    setRows((prev) =>
+      prev.map((r, idx) =>
+        idx === i
+          ? {
+              ...r,
+              assignedTo: empId,
+              title: newDeptTasks.includes(r.title) ? r.title : "",
+            }
+          : r
+      )
     );
   };
 
@@ -267,77 +288,112 @@ export default function AdminTasks({
             {splitError && <p className={styles.formError}>⚠️ {splitError}</p>}
 
             <div className={styles.rowsWrap}>
-              {rows.map((row, i) => (
-                <div key={i} className={styles.subtaskRow}>
-                  <div className={styles.rowHeader}>
-                    <span className={styles.rowIndex}>Sub-task #{i + 1}</span>
-                    {rows.length > 1 && (
-                      <button className={styles.removeRowBtn} onClick={() => removeRow(i)}>
-                        Remove
-                      </button>
-                    )}
+              {rows.map((row, i) => {
+                const rowEmp = onlyEmployees.find((e) => e._id === row.assignedTo);
+                const rowDeptTasks = getTasksForDepartment(rowEmp?.department);
+                const rowWorkTypeValue = rowDeptTasks.includes(row.title) ? row.title : "";
+
+                return (
+                  <div key={i} className={styles.subtaskRow}>
+                    <div className={styles.rowHeader}>
+                      <span className={styles.rowIndex}>Sub-task #{i + 1}</span>
+                      {rows.length > 1 && (
+                        <button className={styles.removeRowBtn} onClick={() => removeRow(i)}>
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <div className={styles.rowGrid}>
+                      <div className={styles.field}>
+                        <label>Assign To *</label>
+                        <select
+                          className={styles.input}
+                          value={row.assignedTo}
+                          onChange={(e) => updateRowAssignee(i, e.target.value)}
+                        >
+                          <option value="">Select Employee</option>
+                          {onlyEmployees.map((e) => (
+                            <option key={e._id} value={e._id}>
+                              {e.name} — {e.department}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Department — auto-filled, read-only, only shown once an employee is picked */}
+                      {rowEmp && (
+                        <div className={styles.field}>
+                          <label>Department</label>
+                          <input className={styles.input} value={rowEmp.department} disabled readOnly />
+                        </div>
+                      )}
+
+                      {/* Work Type — department-specific dropdown; selecting
+                          an option fills this row's Title below. */}
+                      {rowEmp && rowDeptTasks.length > 0 && (
+                        <div className={styles.field}>
+                          <label>Work Type *</label>
+                          <select
+                            className={styles.input}
+                            value={rowWorkTypeValue}
+                            onChange={(e) => updateRow(i, "title", e.target.value)}
+                          >
+                            <option value="">Select work type</option>
+                            {rowDeptTasks.map((wt) => (
+                              <option key={wt} value={wt}>
+                                {wt}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      <div className={styles.field}>
+                        <label>Title *</label>
+                        <input
+                          className={styles.input}
+                          placeholder="e.g. Design Instagram Post"
+                          value={row.title}
+                          onChange={(e) => updateRow(i, "title", e.target.value)}
+                        />
+                      </div>
+                      <div className={styles.field}>
+                        <label>Due Date</label>
+                        <input
+                          type="date"
+                          className={styles.input}
+                          value={row.dueDate}
+                          onChange={(e) => updateRow(i, "dueDate", e.target.value)}
+                        />
+                      </div>
+                      <div className={styles.field}>
+                        <label>Frequency</label>
+                        <select
+                          className={styles.input}
+                          value={row.frequency}
+                          onChange={(e) =>
+                            updateRow(i, "frequency", e.target.value as TaskFrequency)
+                          }
+                        >
+                          <option value="one_time">One Time</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
+                      </div>
+                      <div className={`${styles.field} ${styles.fullSpan}`}>
+                        <label>Description</label>
+                        <textarea
+                          className={`${styles.input} ${styles.textarea}`}
+                          placeholder="Describe this sub-task…"
+                          rows={2}
+                          value={row.description}
+                          onChange={(e) => updateRow(i, "description", e.target.value)}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className={styles.rowGrid}>
-                    <div className={styles.field}>
-                      <label>Title *</label>
-                      <input
-                        className={styles.input}
-                        placeholder="e.g. Design Instagram Post"
-                        value={row.title}
-                        onChange={(e) => updateRow(i, "title", e.target.value)}
-                      />
-                    </div>
-                    <div className={styles.field}>
-                      <label>Assign To *</label>
-                      <select
-                        className={styles.input}
-                        value={row.assignedTo}
-                        onChange={(e) => updateRow(i, "assignedTo", e.target.value)}
-                      >
-                        <option value="">Select Employee</option>
-                        {onlyEmployees.map((e) => (
-                          <option key={e._id} value={e._id}>
-                            {e.name} — {e.department}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className={styles.field}>
-                      <label>Due Date</label>
-                      <input
-                        type="date"
-                        className={styles.input}
-                        value={row.dueDate}
-                        onChange={(e) => updateRow(i, "dueDate", e.target.value)}
-                      />
-                    </div>
-                    <div className={styles.field}>
-                      <label>Frequency</label>
-                      <select
-                        className={styles.input}
-                        value={row.frequency}
-                        onChange={(e) =>
-                          updateRow(i, "frequency", e.target.value as TaskFrequency)
-                        }
-                      >
-                        <option value="one_time">One Time</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                      </select>
-                    </div>
-                    <div className={`${styles.field} ${styles.fullSpan}`}>
-                      <label>Description</label>
-                      <textarea
-                        className={`${styles.input} ${styles.textarea}`}
-                        placeholder="Describe this sub-task…"
-                        rows={2}
-                        value={row.description}
-                        onChange={(e) => updateRow(i, "description", e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <button className={styles.addRowBtn} onClick={addRow}>

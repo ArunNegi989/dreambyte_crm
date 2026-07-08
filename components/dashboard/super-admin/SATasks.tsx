@@ -3,6 +3,7 @@
 import { useState } from "react";
 import api from "@/lib/api";
 import { Task, Employee, Brand, TaskStatus, TaskFrequency } from "@/types/superadmin/superAdmin";
+import { getTasksForDepartment } from "@/data/superadmin/departmentTasks";
 import styles from "@/public/assets/styles/dashboard/super-admin-dashboard/Satasks.module.css";
 
 interface SATasksProps {
@@ -60,6 +61,16 @@ export default function SATasks({
 
   // Used so the change-log entry clearly says who rejected it.
   const actorLabel = viewerRole === "super_admin" ? "Super Admin" : "Admin";
+
+  // ── Department-aware "Assign To" ─────────────────────────────────────────
+  // Looks up the currently selected employee (in the assign/edit form) so we
+  // can show their department and a department-specific work-type dropdown.
+  const selectedEmployeeForForm = employees.find((e) => e._id === form.assignedTo);
+  const departmentTasks = getTasksForDepartment(selectedEmployeeForForm?.department);
+  // Keeps the Work Type <select> controlled: if the current title matches one
+  // of this department's task options, show it selected; otherwise blank
+  // (e.g. admin typed a custom title, or no department task list applies).
+  const workTypeValue = departmentTasks.includes(form.title) ? form.title : "";
 
   const visibleTasks =
     viewerRole === "employee" && viewerId
@@ -119,6 +130,20 @@ export default function SATasks({
       dueDate: t.dueDate,
     });
     setShowForm(true);
+  };
+
+  // When the employee changes, the department (and therefore the work-type
+  // list) changes too. If the previously typed/selected title no longer
+  // belongs to the new department's task list, clear it so admin doesn't
+  // accidentally submit a mismatched title — they can freely re-pick.
+  const handleAssignedToChange = (empId: string) => {
+    const newEmp = employees.find((e) => e._id === empId);
+    const newDeptTasks = getTasksForDepartment(newEmp?.department);
+    setForm((prev) => ({
+      ...prev,
+      assignedTo: empId,
+      title: newDeptTasks.includes(prev.title) ? prev.title : "",
+    }));
   };
 
   const handleSubmit = () => {
@@ -249,23 +274,13 @@ export default function SATasks({
             </button>
           </div>
           <div className={styles.formGrid}>
-            <div className={styles.field}>
-              <label>Task Title *</label>
-              <input
-                className={styles.input}
-                placeholder="e.g. Build Login Page"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-            </div>
+            {/* Assign To — moved first so department/work-type can react to it */}
             <div className={styles.field}>
               <label>Assign To *</label>
               <select
                 className={styles.input}
                 value={form.assignedTo}
-                onChange={(e) =>
-                  setForm({ ...form, assignedTo: e.target.value })
-                }
+                onChange={(e) => handleAssignedToChange(e.target.value)}
               >
                 <option value="">Select Employee</option>
                 {employees.map((e) => (
@@ -274,6 +289,50 @@ export default function SATasks({
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* Department — auto-filled, read-only, only shown once an employee is picked */}
+            {selectedEmployeeForForm && (
+              <div className={styles.field}>
+                <label>Department</label>
+                <input
+                  className={styles.input}
+                  value={selectedEmployeeForForm.department}
+                  disabled
+                  readOnly
+                />
+              </div>
+            )}
+
+            {/* Work Type — department-specific dropdown, only shown when the
+                department has a known task list. Selecting an option fills
+                the Task Title below; admin can still edit it further. */}
+            {selectedEmployeeForForm && departmentTasks.length > 0 && (
+              <div className={styles.field}>
+                <label>Work Type *</label>
+                <select
+                  className={styles.input}
+                  value={workTypeValue}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                >
+                  <option value="">Select work type</option>
+                  {departmentTasks.map((wt) => (
+                    <option key={wt} value={wt}>
+                      {wt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className={styles.field}>
+              <label>Task Title *</label>
+              <input
+                className={styles.input}
+                placeholder="e.g. Build Login Page"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
             </div>
             <div className={styles.field}>
               <label>Brand</label>
