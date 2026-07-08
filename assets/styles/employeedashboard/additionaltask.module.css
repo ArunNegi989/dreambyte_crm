@@ -1,0 +1,239 @@
+.shell {
+    display: flex;
+    min-height: 100vh;
+    background: #f5f5f2;
+  }
+  
+  .page {
+    flex: 1;
+    padding: 32px 40px;
+    max-width: 900px;
+  }
+  
+  .pageHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 6px;
+  }
+  
+  .pageTitle {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1a1a18;
+    margin: 0 0 4px;
+  }
+  
+  .pageSubtitle {
+    font-size: 13.5px;
+    color: #8a8a84;
+    margin: 0;
+    max-width: 480px;
+  }
+  
+  .newTaskBtn {
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    background: #1a1a18;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    cursor: pointer;
+  }
+  
+  .localNote {
+    font-size: 12px;
+    color: #8a8a84;
+    margin: 12px 0 20px;
+  }
+  
+  .form {
+    background: #fff;
+    border: 1px solid #e5e5e0;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .input, .textarea, .dateInput {
+    font-size: 13.5px;
+    color: #1a1a18;
+    border: 1px solid #d8d8d2;
+    border-radius: 8px;
+    padding: 9px 12px;
+    outline: none;
+    font-family: inherit;
+  }
+  
+  .input:focus, .textarea:focus, .dateInput:focus {
+    border-color: #1a1a18;
+  }
+  
+  .textarea {
+    resize: vertical;
+  }
+  
+  .formRow {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  
+  .dateLabel {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #8a8a84;
+  }
+  
+  .saveBtn {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    background: #1a1a18;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    cursor: pointer;
+  }
+  
+  .filterRow {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  
+  .filterBtn {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #8a8a84;
+    background: #fff;
+    border: 1px solid #e5e5e0;
+    border-radius: 999px;
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+  
+  .filterBtnActive {
+    color: #fff;
+    background: #1a1a18;
+    border-color: #1a1a18;
+  }
+  
+  .emptyState {
+    text-align: center;
+    padding: 60px 20px;
+  }
+  
+  .emptyTitle {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1a18;
+    margin: 0 0 4px;
+  }
+  
+  .emptySubtitle {
+    font-size: 13px;
+    color: #8a8a84;
+    margin: 0;
+  }
+  
+  .list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .card {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    background: #fff;
+    border: 1px solid #e5e5e0;
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  
+  .cardMain {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .cardTitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a18;
+    margin: 0 0 4px;
+  }
+  
+  .cardTitleDone {
+    color: #8a8a84;
+    text-decoration: line-through;
+  }
+  
+  .cardDescription {
+    font-size: 12.5px;
+    color: #8a8a84;
+    margin: 0 0 4px;
+  }
+  
+  .cardDue {
+    font-size: 11.5px;
+    color: #854f0b;
+    margin: 0;
+  }
+  
+  .cardActions {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .statusBtn {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    border-radius: 999px;
+    padding: 5px 12px;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  
+  .statusPending {
+    color: #185fa5;
+    background: #e8f1fb;
+    border-color: #cfe2f5;
+  }
+  
+  .statusCompleted {
+    color: #27500a;
+    background: #eaf4e2;
+    border-color: #d6ead0;
+  }
+  
+  .deleteBtn {
+    font-size: 17px;
+    line-height: 1;
+    color: #8a8a84;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+  }
+  
+  .deleteBtn:hover {
+    color: #a32d2d;
+  }

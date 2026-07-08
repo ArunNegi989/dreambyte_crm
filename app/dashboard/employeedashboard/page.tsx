@@ -127,6 +127,17 @@ export default function EmployeeDashboardPage() {
       <Sidebar />
       <div className={styles.page}>
         <div className={styles.topBar}>
+          <a
+            href="/dashboard/employeedashboard/additional-tasks"
+            className={styles.logoutBtn}
+            title="Your own ad-hoc tasks"
+            style={{ textDecoration: 'none' }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="16" height="16">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Additional tasks
+          </a>
           <button className={styles.logoutBtn} onClick={handleLogout} title="Logout">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="16" height="16">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />

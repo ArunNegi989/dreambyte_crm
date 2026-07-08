@@ -3,6 +3,7 @@ import { Task, TaskChangeRequest, DeliveryState } from '../../../types/employee/
 import { getTimeTaken, getTotalChangeCount } from '../../../data/employee/taskTimeHelpers';
 import StatusBadge from './StatusBadge';
 import DeliveryToggle from './DeliveryToggle';
+import SubtaskManager from '../../../app/dashboard/employeedashboard/SubtaskManager';
 import styles from '../../../assets/styles/employeedashboard/TaskModal.module.css';
 
 interface TaskModalProps {
@@ -156,6 +157,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onSubmitTask, onSu
               <span className={styles.metaValue}>{timeTaken}</span>
             </div>
           )}
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          <SubtaskManager taskId={task.id} variant="full" />
         </div>
 
         {history.length > 0 && (
