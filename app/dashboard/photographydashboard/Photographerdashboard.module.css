@@ -101,3 +101,58 @@
     padding-right: 18px;
   }
 }
+
+/* ── Add this to your existing photographerdashboard.module.css ── */
+
+.loadingState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 80px 20px;
+  color: #64748b;
+}
+
+.spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid #eef1f6;
+  border-top-color: #f59e0b;
+  border-radius: 50%;
+  animation: photoSpin 0.8s linear infinite;
+}
+
+@keyframes photoSpin {
+  to { transform: rotate(360deg); }
+}
+
+.errorState {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.errorState button {
+  border: none;
+  background: #dc2626;
+  color: #ffffff;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.errorState button:hover {
+  opacity: 0.9;
+}

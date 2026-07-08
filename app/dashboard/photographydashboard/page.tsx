@@ -1,20 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import PhotoSidebar, { PhotoSection } from "@/components/dashboard/photographerdashboard/Photosidebar";
 import PhotoStatsCards from "@/components/dashboard/photographerdashboard/Photostatscards";
 import ShootsBoard from "@/components/dashboard/photographerdashboard/Shootsboard";
 import EditsBoard from "@/components/dashboard/photographerdashboard/Editsboard";
 import AdditionalWorkBoard from "@/components/dashboard/photographerdashboard/Additionalwork";
 import {
-  mockShoots,
-  mockEdits,
-  mockAdditionalWork,
+  RawTask,
+  RawAdditionalWork,
   Shoot,
   EditTask,
   AdditionalWork,
   WorkStatus,
   TODAY,
+  isShootTask,
+  isEditTask,
+  mapToShoot,
+  mapToEditTask,
+  mapToAdditionalWork,
+  fetchMyTasks,
+  updateTaskStatus,
+  updateEditProgress,
+  fetchMyAdditionalWork,
+  createAdditionalWork,
+  updateAdditionalWorkStatus,
 } from "@/types/photography/Photo";
 import styles from "@/app/dashboard/photographydashboard/Photographerdashboard.module.css";
 
@@ -41,50 +51,102 @@ export default function PhotographerDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Static (mock) data, held in state so the UI is interactive ────────
-  // Swap these useState initializers for API-loaded data later — everything
-  // downstream (handlers, components) already expects this exact shape.
-  const [shoots, setShoots] = useState<Shoot[]>(mockShoots);
-  const [edits, setEdits] = useState<EditTask[]>(mockEdits);
-  const [additionalWork, setAdditionalWork] = useState<AdditionalWork[]>(mockAdditionalWork);
+  // ── Current logged-in photographer's id ────────────────────────────────
+  // Adjust if your login flow stores the user differently.
+  const [employeeId, setEmployeeId] = useState<string>("");
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("user");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setEmployeeId(parsed?._id || parsed?.id || "");
+      }
+    } catch {
+      setEmployeeId("");
+    }
+  }, []);
 
-  // ── Handlers ─────────────────────────────────────────────────────────
-  const handleShootStatusChange = (id: string, status: WorkStatus) => {
-    setShoots((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
+  // ── Real backend data ───────────────────────────────────────────────────
+  const [rawTasks, setRawTasks] = useState<RawTask[]>([]);
+  const [additionalWork, setAdditionalWork] = useState<AdditionalWork[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadAll = useCallback(async () => {
+    if (!employeeId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const [tasks, work] = await Promise.all([
+        fetchMyTasks(employeeId),
+        fetchMyAdditionalWork(employeeId),
+      ]);
+      setRawTasks(tasks);
+      setAdditionalWork((work as RawAdditionalWork[]).map(mapToAdditionalWork));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load dashboard";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [employeeId]);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
+
+  // ── Derived view-shapes ──────────────────────────────────────────────────
+  const shoots: Shoot[] = useMemo(
+    () => rawTasks.filter(isShootTask).map(mapToShoot),
+    [rawTasks]
+  );
+  const edits: EditTask[] = useMemo(
+    () => rawTasks.filter(isEditTask).map(mapToEditTask),
+    [rawTasks]
+  );
+
+  // ── Handlers — every action hits the real backend, then refetches ──────
+  const handleShootStatusChange = async (id: string, status: WorkStatus) => {
+    try {
+      await updateTaskStatus(id, status);
+      await loadAll();
+    } catch (err) {
+      console.error("Shoot status update failed", err);
+    }
   };
 
-  const handleEditProgressChange = (id: string, completedCount: number) => {
-    setEdits((prev) =>
-      prev.map((e) => {
-        if (e.id !== id) return e;
-        const status: WorkStatus =
-          completedCount >= e.totalCount ? "completed" : completedCount > 0 ? "in_progress" : "pending";
-        return { ...e, completedCount, status };
-      })
-    );
+  const handleEditProgressChange = async (id: string, completedCount: number) => {
+    try {
+      await updateEditProgress(id, completedCount);
+      await loadAll();
+    } catch (err) {
+      console.error("Edit progress update failed", err);
+    }
   };
 
-  const handleAdditionalStatusChange = (id: string, status: WorkStatus) => {
-    setAdditionalWork((prev) => prev.map((w) => (w.id === id ? { ...w, status } : w)));
+  const handleAdditionalStatusChange = async (id: string, status: WorkStatus) => {
+    try {
+      await updateAdditionalWorkStatus(id, status === "completed" ? "completed" : "pending");
+      await loadAll();
+    } catch (err) {
+      console.error("Additional work status update failed", err);
+    }
   };
 
-  const handleAddAdditionalWork = (title: string, description: string) => {
-    const entry: AdditionalWork = {
-      id: `aw_${Date.now()}`,
-      title,
-      description,
-      date: TODAY,
-      status: "pending",
-      loggedBy: "self",
-    };
-    setAdditionalWork((prev) => [entry, ...prev]);
+  const handleAddAdditionalWork = async (title: string, description: string) => {
+    try {
+      await createAdditionalWork(employeeId, title, description);
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to log additional work", err);
+    }
   };
 
   // ── Derived stats ────────────────────────────────────────────────────
-  const todayShoots = useMemo(() => shoots.filter((s) => s.date === TODAY), [shoots]);
+  const todayShoots = shoots.filter((s) => s.date === TODAY);
   const todayShootsCompleted = todayShoots.filter((s) => s.status === "completed").length;
 
-  const todayEdits = useMemo(() => edits.filter((e) => e.date === TODAY || e.deadline === TODAY), [edits]);
+  const todayEdits = edits.filter((e) => e.date === TODAY || e.deadline === TODAY);
   const todayEditsCompleted = todayEdits.filter((e) => e.status === "completed").length;
 
   const pendingShoots = shoots.filter((s) => s.status !== "completed").length;
@@ -135,42 +197,60 @@ export default function PhotographerDashboard() {
         </div>
 
         <div className={styles.content}>
-          {activeSection === "overview" && (
+          {loading && (
+            <div className={styles.loadingState}>
+              <div className={styles.spinner} />
+              <p>Loading your tasks...</p>
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className={styles.errorState}>
+              <span>⚠️ {error}</span>
+              <button onClick={loadAll}>Retry</button>
+            </div>
+          )}
+
+          {!loading && !error && (
             <>
-              <PhotoStatsCards
-                todayShoots={todayShoots.length}
-                todayShootsCompleted={todayShootsCompleted}
-                todayEdits={todayEdits.length}
-                todayEditsCompleted={todayEditsCompleted}
-                additionalPending={additionalPending}
-              />
-              <div className={styles.overviewGrid}>
-                <ShootsBoard
-                  shoots={shoots.filter((s) => s.date === TODAY)}
-                  onStatusChange={handleShootStatusChange}
+              {activeSection === "overview" && (
+                <>
+                  <PhotoStatsCards
+                    todayShoots={todayShoots.length}
+                    todayShootsCompleted={todayShootsCompleted}
+                    todayEdits={todayEdits.length}
+                    todayEditsCompleted={todayEditsCompleted}
+                    additionalPending={additionalPending}
+                  />
+                  <div className={styles.overviewGrid}>
+                    <ShootsBoard
+                      shoots={shoots.filter((s) => s.date === TODAY)}
+                      onStatusChange={handleShootStatusChange}
+                    />
+                    <EditsBoard
+                      edits={edits.filter((e) => e.date === TODAY || e.deadline === TODAY)}
+                      onProgressChange={handleEditProgressChange}
+                    />
+                  </div>
+                </>
+              )}
+
+              {activeSection === "shoots" && (
+                <ShootsBoard shoots={shoots} onStatusChange={handleShootStatusChange} />
+              )}
+
+              {activeSection === "edits" && (
+                <EditsBoard edits={edits} onProgressChange={handleEditProgressChange} />
+              )}
+
+              {activeSection === "additional" && (
+                <AdditionalWorkBoard
+                  items={additionalWork}
+                  onStatusChange={handleAdditionalStatusChange}
+                  onAddItem={handleAddAdditionalWork}
                 />
-                <EditsBoard
-                  edits={edits.filter((e) => e.date === TODAY || e.deadline === TODAY)}
-                  onProgressChange={handleEditProgressChange}
-                />
-              </div>
+              )}
             </>
-          )}
-
-          {activeSection === "shoots" && (
-            <ShootsBoard shoots={shoots} onStatusChange={handleShootStatusChange} />
-          )}
-
-          {activeSection === "edits" && (
-            <EditsBoard edits={edits} onProgressChange={handleEditProgressChange} />
-          )}
-
-          {activeSection === "additional" && (
-            <AdditionalWorkBoard
-              items={additionalWork}
-              onStatusChange={handleAdditionalStatusChange}
-              onAddItem={handleAddAdditionalWork}
-            />
           )}
         </div>
       </main>

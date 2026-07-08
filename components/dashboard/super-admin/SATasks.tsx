@@ -27,7 +27,17 @@ const emptyTaskForm = {
   brandId: "",
   frequency: "weekly" as TaskFrequency,
   dueDate: "",
+  // ── Photography-specific (only sent to backend when relevant) ──
+  location: "",
+  time: "",
+  mediaType: "" as "" | "photo" | "video" | "both",
+  totalCount: "",
 };
+
+// Work types that need the Shoots-specific fields (location/time/media type)
+const SHOOT_WORK_TYPES = ["Shoots"];
+// Work types that need a "how many to edit" count
+const EDIT_COUNT_WORK_TYPES = ["Photo Edit"];
 
 export default function SATasks({
   tasks,
@@ -45,6 +55,7 @@ export default function SATasks({
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Task | null>(null);
   const [form, setForm] = useState(emptyTaskForm);
+  const [workType, setWorkType] = useState(""); // separate from form.title so the dropdown stays controlled
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [empResponses, setEmpResponses] = useState<Record<string, string>>({});
   const [rejectRemark, setRejectRemark] = useState<Record<string, string>>({});
@@ -58,19 +69,14 @@ export default function SATasks({
   const [delivering, setDelivering] = useState(false);
 
   const isAdminOrSA = viewerRole === "super_admin" || viewerRole === "admin";
-
-  // Used so the change-log entry clearly says who rejected it.
   const actorLabel = viewerRole === "super_admin" ? "Super Admin" : "Admin";
 
   // ── Department-aware "Assign To" ─────────────────────────────────────────
-  // Looks up the currently selected employee (in the assign/edit form) so we
-  // can show their department and a department-specific work-type dropdown.
   const selectedEmployeeForForm = employees.find((e) => e._id === form.assignedTo);
   const departmentTasks = getTasksForDepartment(selectedEmployeeForForm?.department);
-  // Keeps the Work Type <select> controlled: if the current title matches one
-  // of this department's task options, show it selected; otherwise blank
-  // (e.g. admin typed a custom title, or no department task list applies).
-  const workTypeValue = departmentTasks.includes(form.title) ? form.title : "";
+
+  const isShootWork = SHOOT_WORK_TYPES.includes(workType);
+  const isEditCountWork = EDIT_COUNT_WORK_TYPES.includes(workType);
 
   const visibleTasks =
     viewerRole === "employee" && viewerId
@@ -109,11 +115,19 @@ export default function SATasks({
   const openAdd = () => {
     setEditTarget(null);
     setForm(emptyTaskForm);
+    setWorkType("");
     setShowForm(true);
   };
 
   const openEdit = (t: Task) => {
     setEditTarget(t);
+    const tAny = t as unknown as {
+      taskType?: string;
+      location?: string;
+      time?: string;
+      mediaType?: "photo" | "video" | "both" | null;
+      totalCount?: number | null;
+    };
     setForm({
       title: t.title,
       description: t.description,
@@ -128,40 +142,76 @@ export default function SATasks({
         : "",
       frequency: t.frequency,
       dueDate: t.dueDate,
+      location: tAny.location ?? "",
+      time: tAny.time ?? "",
+      mediaType: (tAny.mediaType as "" | "photo" | "video" | "both") ?? "",
+      totalCount: tAny.totalCount != null ? String(tAny.totalCount) : "",
     });
+    setWorkType(tAny.taskType ?? "");
     setShowForm(true);
   };
 
-  // When the employee changes, the department (and therefore the work-type
-  // list) changes too. If the previously typed/selected title no longer
-  // belongs to the new department's task list, clear it so admin doesn't
-  // accidentally submit a mismatched title — they can freely re-pick.
+  // When the employee changes, department (and its work-type list) changes.
+  // Clear the work type / title / photography fields since they belonged
+  // to the previous department and would otherwise silently carry over.
   const handleAssignedToChange = (empId: string) => {
-    const newEmp = employees.find((e) => e._id === empId);
-    const newDeptTasks = getTasksForDepartment(newEmp?.department);
     setForm((prev) => ({
       ...prev,
       assignedTo: empId,
-      title: newDeptTasks.includes(prev.title) ? prev.title : "",
+      title: "",
+      location: "",
+      time: "",
+      mediaType: "",
+      totalCount: "",
+    }));
+    setWorkType("");
+  };
+
+  const handleWorkTypeChange = (wt: string) => {
+    setWorkType(wt);
+    setForm((prev) => ({
+      ...prev,
+      title: wt,
+      // Reset photography fields when switching between work types so a
+      // stale count/location from a different type can't slip through.
+      location: SHOOT_WORK_TYPES.includes(wt) ? prev.location : "",
+      time: SHOOT_WORK_TYPES.includes(wt) ? prev.time : "",
+      mediaType: SHOOT_WORK_TYPES.includes(wt) ? prev.mediaType : "",
+      totalCount: EDIT_COUNT_WORK_TYPES.includes(wt) ? prev.totalCount : "",
     }));
   };
 
   const handleSubmit = () => {
     if (!form.title || !form.assignedTo) return;
+
+    const basePayload = {
+      title: form.title,
+      description: form.description,
+      assignedTo: form.assignedTo,
+      brandId: form.brandId || undefined,
+      frequency: form.frequency,
+      dueDate: form.dueDate,
+      // ── photography extras — harmless no-ops for non-photography tasks ──
+      taskType: workType || undefined,
+      location: isShootWork ? form.location : undefined,
+      time: isShootWork ? form.time : undefined,
+      mediaType: isShootWork && form.mediaType ? form.mediaType : undefined,
+      totalCount: isEditCountWork && form.totalCount ? form.totalCount : undefined,
+    };
+
     if (editTarget) {
-      onEditTask({ ...editTarget, ...form, brandId: form.brandId || undefined });
+      onEditTask({ ...editTarget, ...basePayload } as Task);
     } else {
       onAddTask({
-        ...form,
+        ...basePayload,
         assignedBy: viewerRole === "admin" ? "admin" : "super_admin",
-        brandId: form.brandId || undefined,
         status: "pending",
         deliveryStatus: "not_delivered",
         deliveryNote: "",
         deliveredAt: undefined,
         rejectRemark: "",
         changes: [],
-      });
+      } as Omit<Task, "_id" | "createdAt" | "updatedAt">);
     }
     setShowForm(false);
   };
@@ -183,13 +233,6 @@ export default function SATasks({
     }
   };
 
-  // ── Status radio change handler ──────────────────────────────────────────
-  // - "rejected": sends the current reject-remark draft (or the existing
-  //   saved remark) so it's persisted directly to task.rejectRemark.
-  //   This NEVER touches changes[] — that array is only for
-  //   "changes_requested" revision notes via onAddChange.
-  // - any other status: clears stale local remark draft so the UI doesn't
-  //   show leftover text if the task is rejected again later.
   const handleStatusChange = (task: Task, tid: string, s: TaskStatus) => {
     onStatusChange(
       tid,
@@ -199,7 +242,6 @@ export default function SATasks({
     );
 
     if (s === "rejected") {
-      // Open a fresh, empty box every time the task is (re)marked rejected.
       setRejectRemark((prev) => ({ ...prev, [tid]: "" }));
       setRemarkOpen((prev) => ({ ...prev, [tid]: true }));
     } else {
@@ -274,7 +316,7 @@ export default function SATasks({
             </button>
           </div>
           <div className={styles.formGrid}>
-            {/* Assign To — moved first so department/work-type can react to it */}
+            {/* Assign To — first, so department/work-type can react to it */}
             <div className={styles.field}>
               <label>Assign To *</label>
               <select
@@ -291,7 +333,7 @@ export default function SATasks({
               </select>
             </div>
 
-            {/* Department — auto-filled, read-only, only shown once an employee is picked */}
+            {/* Department — auto-filled, read-only */}
             {selectedEmployeeForForm && (
               <div className={styles.field}>
                 <label>Department</label>
@@ -304,16 +346,14 @@ export default function SATasks({
               </div>
             )}
 
-            {/* Work Type — department-specific dropdown, only shown when the
-                department has a known task list. Selecting an option fills
-                the Task Title below; admin can still edit it further. */}
+            {/* Work Type — department-specific dropdown */}
             {selectedEmployeeForForm && departmentTasks.length > 0 && (
               <div className={styles.field}>
                 <label>Work Type *</label>
                 <select
                   className={styles.input}
-                  value={workTypeValue}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  value={workType}
+                  onChange={(e) => handleWorkTypeChange(e.target.value)}
                 >
                   <option value="">Select work type</option>
                   {departmentTasks.map((wt) => (
@@ -322,6 +362,60 @@ export default function SATasks({
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {/* ── Photography: Shoots-specific fields ── */}
+            {isShootWork && (
+              <>
+                <div className={styles.field}>
+                  <label>Shoot Location</label>
+                  <input
+                    className={styles.input}
+                    placeholder="e.g. Rishikesh Riverside Studio"
+                    value={form.location}
+                    onChange={(e) => setForm({ ...form, location: e.target.value })}
+                  />
+                </div>
+                <div className={styles.field}>
+                  <label>Shoot Time</label>
+                  <input
+                    className={styles.input}
+                    placeholder="e.g. 10:30 AM"
+                    value={form.time}
+                    onChange={(e) => setForm({ ...form, time: e.target.value })}
+                  />
+                </div>
+                <div className={styles.field}>
+                  <label>Media Type</label>
+                  <select
+                    className={styles.input}
+                    value={form.mediaType}
+                    onChange={(e) =>
+                      setForm({ ...form, mediaType: e.target.value as "" | "photo" | "video" | "both" })
+                    }
+                  >
+                    <option value="">Select type</option>
+                    <option value="photo">Photo</option>
+                    <option value="video">Video</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* ── Photography: Edit-count field ── */}
+            {isEditCountWork && (
+              <div className={styles.field}>
+                <label>Total Photos to Edit *</label>
+                <input
+                  type="number"
+                  min={1}
+                  className={styles.input}
+                  placeholder="e.g. 40"
+                  value={form.totalCount}
+                  onChange={(e) => setForm({ ...form, totalCount: e.target.value })}
+                />
               </div>
             )}
 
@@ -373,10 +467,10 @@ export default function SATasks({
               />
             </div>
             <div className={`${styles.field} ${styles.fullSpan}`}>
-              <label>Description</label>
+              <label>Description {isShootWork ? "/ Notes" : ""}</label>
               <textarea
                 className={`${styles.input} ${styles.textarea}`}
-                placeholder="Describe the task…"
+                placeholder={isShootWork ? "Any notes for the shoot…" : "Describe the task…"}
                 rows={3}
                 value={form.description}
                 onChange={(e) =>
@@ -420,6 +514,11 @@ export default function SATasks({
             {filteredTasks.map((task) => {
               const tid = getTaskId(task);
               const isExpanded = expandedId === tid;
+              const taskAny = task as unknown as {
+                totalCount?: number | null;
+                completedCount?: number;
+                taskType?: string;
+              };
 
               return (
                 <>
@@ -430,6 +529,12 @@ export default function SATasks({
                         <span className={styles.taskName}>{task.title}</span>
                         <span className={styles.taskDesc}>
                           {task.description}
+                          {taskAny.totalCount != null && (
+                            <>
+                              {" "}
+                              &middot; {taskAny.completedCount ?? 0}/{taskAny.totalCount} edited
+                            </>
+                          )}
                         </span>
                       </div>
                     </td>
@@ -499,12 +604,6 @@ export default function SATasks({
                           >
                             ✓ Delivered
                           </span>
-                          {task.deliveryNote && (
-                            <span className={styles.delivNote}>
-                            
-                            </span>
-                          )}
-                          
                         </div>
                       ) : viewerRole === "employee" ? (
                         <button
@@ -577,7 +676,6 @@ export default function SATasks({
                           ))}
                         </div>
                       ) : (
-                        /* ── Employee: status badge + reject remark banner ── */
                         <div className={styles.empStatusCell}>
                           <span
                             className={`${styles.sLabel} ${
@@ -672,12 +770,6 @@ export default function SATasks({
                     </td>
                   </tr>
 
-                  {/* ── Reject remark row (Admin/SA inline edit) ──
-                      Only shows while actively writing a NEW rejection
-                      remark. Once saved, it disappears completely — it
-                      reappears only when the task gets rejected again
-                      (i.e. after the employee resubmits and admin/SA
-                      rejects once more). */}
                   {isAdminOrSA &&
                     task.status === "rejected" &&
                     (remarkOpen[tid] || !task.rejectRemark) && (
@@ -723,7 +815,6 @@ export default function SATasks({
                       </tr>
                     )}
 
-                  {/* ── Change log expanded row (used only for change-requests, not rejection) ── */}
                   {isExpanded && (
                     <tr key={`${tid}-changes`} className={styles.changeRow}>
                       <td colSpan={10}>
@@ -741,7 +832,6 @@ export default function SATasks({
                             <div className={styles.chList}>
                               {task.changes.map((ch, idx) => (
                                 <div key={ch._id} className={styles.chItem}>
-                                  {/* ── Change entry header ── */}
                                   <div className={styles.chTop}>
                                     <div className={styles.chTopLeft}>
                                       <span className={styles.chIdx}>
@@ -761,7 +851,6 @@ export default function SATasks({
                                     )}
                                   </div>
 
-                                  {/* ── Admin/SA Note ── */}
                                   <div className={styles.chNoteBox}>
                                     <span className={styles.chNoteLabel}>
                                       📝 {task.status === "rejected" ? "Rejection Reason" : "Note"}
@@ -769,7 +858,6 @@ export default function SATasks({
                                     <p className={styles.chNote}>{ch.note}</p>
                                   </div>
 
-                                  {/* ── Employee Response (already submitted) ── */}
                                   {ch.employeeResponse && (
                                     <div className={styles.chEmpResponse}>
                                       <span className={styles.chEmpLabel}>
@@ -781,7 +869,6 @@ export default function SATasks({
                                     </div>
                                   )}
 
-                                  {/* ── Employee reply box (only for the employee, only if unresolved) ── */}
                                   {viewerRole === "employee" &&
                                     !ch.resolved &&
                                     !ch.employeeResponse && (
