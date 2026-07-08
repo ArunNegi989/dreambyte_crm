@@ -1,9 +1,9 @@
 "use client";
 
-// app/dashboard/metadashboard/layout.tsx
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 import '../../../assets/styles/metadashboard/meta-dashboard.css';
 
 const NAV_ITEMS = [
@@ -66,7 +66,7 @@ function Sidebar() {
 }
 
 export default function MetaDashboardLayout({ children }: { children: React.ReactNode }) {
-  // useAuthGuard(['meta']); // hook this into the same guard used by other dashboards
+  useAuthGuard(['employee', 'admin', 'super_admin'], ['meta']);
 
   return (
     <div className="md-shell">

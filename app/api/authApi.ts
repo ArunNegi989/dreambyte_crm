@@ -30,7 +30,6 @@ export async function login(payload: {
 
   let lastError: Error | null = null;
 
-  // Try employee endpoint first
   try {
     const response = await apiFetch<LoginResponse>('/employee/auth/login', {
       method: 'POST',
@@ -42,7 +41,6 @@ export async function login(payload: {
     lastError = err instanceof Error ? err : new Error('Login failed');
   }
 
-  // Fall back to superadmin endpoint
   try {
     const response = await apiFetch<LoginResponse>('/superadmin/auth/login', {
       method: 'POST',
@@ -51,7 +49,6 @@ export async function login(payload: {
     storeSession(response);
     return response;
   } catch {
-    // Both failed — throw the first error message (more meaningful)
     throw lastError ?? new Error('Invalid employee ID or password');
   }
 }
@@ -60,6 +57,7 @@ function storeSession(response: LoginResponse) {
   if (typeof window === 'undefined') return;
   localStorage.setItem('token', response.token);
   localStorage.setItem('userRole', response.user.role);
+  localStorage.setItem('userDepartment', response.user.department);
   localStorage.setItem('userName', response.user.name);
   localStorage.setItem('user', JSON.stringify(response.user));
 }
@@ -79,6 +77,7 @@ export async function logout(role?: string): Promise<void> {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('token');
       localStorage.removeItem('userRole');
+      localStorage.removeItem('userDepartment');
       localStorage.removeItem('userName');
       localStorage.removeItem('user');
     }

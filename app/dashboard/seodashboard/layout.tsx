@@ -7,7 +7,7 @@ import { useAuthGuard } from '../../../hooks/useAuthGuard';
 import styles from '../../../assets/styles/seodashboard/Layout.module.css';
 
 export default function SeoDashboardLayout({ children }: { children: React.ReactNode }) {
-  // useAuthGuard(['seo']); // guard this whole segment the same way the employee dashboard does
+  useAuthGuard(['employee', 'admin', 'super_admin'], ['seo']); // ⚠️ confirm 'seo' matches DB value
 
   return (
     <div className={styles.shell}>

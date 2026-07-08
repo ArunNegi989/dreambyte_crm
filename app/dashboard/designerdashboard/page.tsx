@@ -15,9 +15,10 @@ import {
   TODAY,
 } from "@/types/designer/Designer";
 import styles from "@/public/assets/styles/dashboard/designerdashboard/Designerdashboard.module.css";
-
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 export default function DesignerDashboard() {
   const [activeSection, setActiveSectionState] = useState<DesignerSection>("overview");
+  useAuthGuard(['employee', 'admin', 'super_admin'], ['designer']); // ⚠️ confirm 'designer' matches DB value
 
   // ── Persist active tab across refresh ──────────────────────────────────
   const validSections: DesignerSection[] = ["overview", "tasks", "additional", "history"];

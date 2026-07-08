@@ -6,6 +6,26 @@ import { login } from '../../api/authApi';
 import { apiFetch } from '../../api/apiClient';
 import styles from '../../../assets/styles/loginpage/LoginPage.module.css';
 
+const DEPARTMENT_DASHBOARDS: Record<string, string> = {
+  'meta ads':  '/dashboard/metadashboard',
+  'developer': '/dashboard/developerdashboard',
+  'sales':     '/dashboard/salesdashboard',
+};
+
+const ROLE_DASHBOARDS: Record<string, string> = {
+  super_admin: '/dashboard/superadmindashboard',
+  admin:       '/dashboard/admindashboard',
+  employee:    '/dashboard/employeedashboard',
+};
+
+function getHomeRoute(role: string, department?: string | null): string {
+  const key = (department || '').trim().toLowerCase();
+  if (role === 'employee' && DEPARTMENT_DASHBOARDS[key]) {
+    return DEPARTMENT_DASHBOARDS[key];
+  }
+  return ROLE_DASHBOARDS[role] ?? '/dashboard/employeedashboard';
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({ employeeId: '', password: '' });
@@ -15,23 +35,17 @@ export default function LoginPage() {
   const [showRegisterBtn, setShowRegisterBtn] = useState(false);
 
   useEffect(() => {
-    // 1. If already logged in, redirect away — prevents back button returning here
     const token = localStorage.getItem('token');
     const role = localStorage.getItem('userRole');
+    const department = localStorage.getItem('userDepartment');
     if (token && role) {
-      const redirects: Record<string, string> = {
-        super_admin: '/dashboard/superadmindashboard',
-        admin:       '/dashboard/admindashboard',
-        employee:    '/dashboard/employeedashboard',
-      };
-      router.replace(redirects[role] ?? '/dashboard/employeedashboard');
+      router.replace(getHomeRoute(role, department));
       return;
     }
 
-    // 2. Check if any superadmin exists — only show register button if none do
     apiFetch<{ exists: boolean }>('/superadmin/auth/check-exists')
       .then((data) => setShowRegisterBtn(!data.exists))
-      .catch(() => setShowRegisterBtn(false)); // if check fails, hide the button safely
+      .catch(() => setShowRegisterBtn(false));
   }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,28 +63,17 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       const data = await login(formData);
+      // login() already persists session (incl. userDepartment) via storeSession()
 
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('userRole', data.user.role);
-      localStorage.setItem('userName', data.user.name);
-      localStorage.setItem('userEmployeeId', data.user.employeeId);
-      localStorage.setItem('user', JSON.stringify(data.user));
-
-      const role = data.user.role;
-      if (role === 'super_admin') {
-        router.replace('/dashboard/superadmindashboard');
-      } else if (role === 'admin') {
-        router.replace('/dashboard/admindashboard');
-      } else {
-        router.replace('/dashboard/employeedashboard');
-      }
+      const fallback = getHomeRoute(data.user.role, data.user.department);
+      router.replace(data.redirectTo || fallback);
     } catch (err: any) {
       setError(err.message || 'Invalid credentials. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
-   
+
   return (
     <div className={styles.page}>
       <div className={styles.card}>

@@ -27,8 +27,10 @@ import {
   updateAdditionalWorkStatus,
 } from "@/types/photography/Photo";
 import styles from "@/app/dashboard/photographydashboard/Photographerdashboard.module.css";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function PhotographerDashboard() {
+  useAuthGuard(['employee', 'admin', 'super_admin'], ['photography']); // ⚠️ confirm matches DB value
   const [activeSection, setActiveSectionState] = useState<PhotoSection>("overview");
 
   // ── Persist active tab across refresh ──────────────────────────────────
