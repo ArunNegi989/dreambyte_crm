@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import PhotoSidebar, { PhotoSection } from "@/components/dashboard/photographerdashboard/Photosidebar";
 import PhotoStatsCards from "@/components/dashboard/photographerdashboard/Photostatscards";
 import ShootsBoard from "@/components/dashboard/photographerdashboard/Shootsboard";
@@ -28,8 +29,13 @@ import {
 } from "@/types/photography/Photo";
 import styles from "@/app/dashboard/photographydashboard/Photographerdashboard.module.css";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { logout } from "@/app/api/authApi";
+
 export default function PhotographerDashboard() {
+  useAuthGuard(['employee', 'admin', 'super_admin'], ['photography']); // ⚠️ confirm matches DB value
+  const router = useRouter();
   const [activeSection, setActiveSectionState] = useState<PhotoSection>("overview");
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // ── Persist active tab across refresh ──────────────────────────────────
   const validSections: PhotoSection[] = ["overview", "shoots", "edits", "additional"];
@@ -52,7 +58,6 @@ export default function PhotographerDashboard() {
   }, []);
 
   // ── Current logged-in photographer's id ────────────────────────────────
-  // Adjust if your login flow stores the user differently.
   const [employeeId, setEmployeeId] = useState<string>("");
   useEffect(() => {
     try {
@@ -65,6 +70,17 @@ export default function PhotographerDashboard() {
       setEmployeeId("");
     }
   }, []);
+
+  // ── Logout handler ──────────────────────────────────────────────────────
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout("employee");
+    } finally {
+      router.replace("/auth/login");
+    }
+  };
 
   // ── Real backend data ───────────────────────────────────────────────────
   const [rawTasks, setRawTasks] = useState<RawTask[]>([]);
@@ -193,6 +209,19 @@ export default function PhotographerDashboard() {
               <span className={styles.pillDot} />
               Photographer
             </div>
+            <button
+              type="button"
+              className={styles.logoutBtn}
+              onClick={handleLogout}
+              disabled={loggingOut}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              {loggingOut ? "Signing out…" : "Logout"}
+            </button>
           </div>
         </div>
 
