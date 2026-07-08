@@ -2,6 +2,7 @@
 
 // app/dashboard/metadashboard/page.tsx
 import React, { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   CATEGORY_META,
   CURRENT_EMPLOYEE,
@@ -11,6 +12,7 @@ import {
   computeStats,
 } from '../../../data/metadashboard/dummyData';
 import TaskModal from '../../../components/dashboard/metadashboard/TaskModal';
+import { logout } from '../../api/authApi';
 
 const STAT_ICONS = {
   total: (
@@ -90,10 +92,12 @@ function groupByCategory(tasks: Task[]) {
 }
 
 export default function MetaDashboardPage() {
+  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(DUMMY_TASKS);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customRange, setCustomRange] = useState({ from: '', to: '' });
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const stats = useMemo(() => computeStats(tasks), [tasks]);
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -109,6 +113,16 @@ export default function MetaDashboardPage() {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...payload } : t)));
   };
 
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      router.replace('/auth/login');
+    }
+  };
+
   return (
     <div>
       <header className="md-header">
@@ -116,6 +130,14 @@ export default function MetaDashboardPage() {
           <h1 className="md-title">Dashboard</h1>
           <p className="md-subtitle">{today} · {CURRENT_EMPLOYEE}</p>
         </div>
+        <button type="button" className="md-logout-btn" onClick={handleLogout} disabled={loggingOut}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          {loggingOut ? 'Signing out…' : 'Logout'}
+        </button>
       </header>
 
       {/* task stat cards */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import SMMSidebar, { SMMSection } from "@/components/dashboard/smmdashboardcomponents/Smmsidebar";
 import SMMStatsCards from "@/components/dashboard/smmdashboardcomponents/Smmstatscards";
 import SMMTasksBoard from "@/components/dashboard/smmdashboardcomponents/Smmtasksboard";
@@ -19,10 +20,14 @@ import {
 } from "@/types/smm/SMM";
 import styles from "@/app/dashboard/smmdashboard/smmdashboard.module.css";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { logout } from "@/app/api/authApi";
+
 export default function SMMDashboard() {
+  const router = useRouter();
   const [activeSection, setActiveSectionState] = useState<SMMSection>("overview");
+  const [loggingOut, setLoggingOut] = useState(false);
   useAuthGuard(['employee', 'admin', 'super_admin'], ['smm']); // ⚠️ confirm matches DB value
-  // ── Persist active tab across refresh ──────────────────────────────────
+
   const validSections: SMMSection[] = ["overview", "tasks", "posting", "additional", "history"];
   const setActiveSection = (s: SMMSection) => {
     setActiveSectionState(s);
@@ -42,13 +47,10 @@ export default function SMMDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Static (mock) data, held in state so the UI is interactive ────────
-  // Swap these initializers for API-loaded data later.
   const [tasks, setTasks] = useState<SMMTask[]>(mockTasks);
   const [postingEntries, setPostingEntries] = useState<PostingEntry[]>(mockPostingEntries);
   const [additionalWork, setAdditionalWork] = useState<AdditionalWork[]>(mockAdditionalWork);
 
-  // ── Task handlers ───────────────────────────────────────────────────
   const handleTaskStatusChange = (id: string, status: TaskStatus) => {
     setTasks((prev) =>
       prev.map((t) =>
@@ -71,7 +73,6 @@ export default function SMMDashboard() {
     );
   };
 
-  // ── Posting handlers ────────────────────────────────────────────────
   const handlePostingStatusChange = (id: string, status: TaskStatus) => {
     setPostingEntries((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
   };
@@ -88,7 +89,6 @@ export default function SMMDashboard() {
     );
   };
 
-  // ── Additional work handlers ────────────────────────────────────────
   const handleAdditionalStatusChange = (id: string, status: "pending" | "completed") => {
     setAdditionalWork((prev) => prev.map((w) => (w.id === id ? { ...w, status } : w)));
   };
@@ -105,7 +105,16 @@ export default function SMMDashboard() {
     setAdditionalWork((prev) => [entry, ...prev]);
   };
 
-  // ── Derived stats ────────────────────────────────────────────────────
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      router.replace("/auth/login");
+    }
+  };
+
   const todayTasks = useMemo(() => tasks.filter((t) => t.dueDate === TODAY), [tasks]);
   const todayCompleted = todayTasks.filter((t) => t.status === "completed").length;
 
@@ -164,6 +173,19 @@ export default function SMMDashboard() {
               <span className={styles.pillDot} />
               SMM
             </div>
+            <button
+              type="button"
+              className={styles.logoutBtn}
+              onClick={handleLogout}
+              disabled={loggingOut}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              {loggingOut ? "Signing out…" : "Logout"}
+            </button>
           </div>
         </div>
 

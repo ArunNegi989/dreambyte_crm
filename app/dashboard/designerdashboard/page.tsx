@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import DesignerSidebar, { DesignerSection } from "@/components/dashboard/designerdashboard/Designersidebar";
 import DesignerStatsCards from "@/components/dashboard/designerdashboard/Designerstatscards";
 import DesignerTasksBoard from "@/components/dashboard/designerdashboard/Designertasksboard";
@@ -16,11 +17,14 @@ import {
 } from "@/types/designer/Designer";
 import styles from "@/public/assets/styles/dashboard/designerdashboard/Designerdashboard.module.css";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { logout } from "@/app/api/authApi";
+
 export default function DesignerDashboard() {
+  const router = useRouter();
   const [activeSection, setActiveSectionState] = useState<DesignerSection>("overview");
+  const [loggingOut, setLoggingOut] = useState(false);
   useAuthGuard(['employee', 'admin', 'super_admin'], ['designer']); // ⚠️ confirm 'designer' matches DB value
 
-  // ── Persist active tab across refresh ──────────────────────────────────
   const validSections: DesignerSection[] = ["overview", "tasks", "additional", "history"];
   const setActiveSection = (s: DesignerSection) => {
     setActiveSectionState(s);
@@ -40,12 +44,9 @@ export default function DesignerDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Static (mock) data, held in state so the UI is interactive ────────
-  // Swap these initializers for API-loaded data later.
   const [tasks, setTasks] = useState<DesignTask[]>(mockTasks);
   const [additionalWork, setAdditionalWork] = useState<AdditionalWork[]>(mockAdditionalWork);
 
-  // ── Handlers ─────────────────────────────────────────────────────────
   const handleStatusChange = (id: string, status: TaskStatus) => {
     setTasks((prev) =>
       prev.map((t) =>
@@ -86,7 +87,16 @@ export default function DesignerDashboard() {
     setAdditionalWork((prev) => [entry, ...prev]);
   };
 
-  // ── Derived stats ────────────────────────────────────────────────────
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      router.replace("/auth/login");
+    }
+  };
+
   const todayTasks = useMemo(() => tasks.filter((t) => t.dueDate === TODAY), [tasks]);
   const todayCompleted = todayTasks.filter((t) => t.status === "completed").length;
 
@@ -147,6 +157,19 @@ export default function DesignerDashboard() {
               <span className={styles.pillDot} />
               Designer
             </div>
+            <button
+              type="button"
+              className={styles.logoutBtn}
+              onClick={handleLogout}
+              disabled={loggingOut}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              {loggingOut ? "Signing out…" : "Logout"}
+            </button>
           </div>
         </div>
 
