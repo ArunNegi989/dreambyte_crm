@@ -6,7 +6,6 @@ import {
   CATEGORY_META,
   CURRENT_EMPLOYEE,
   DUMMY_TASKS,
-  PERFORMANCE_METRICS,
   Task,
   TaskStatus,
   computeStats,
@@ -118,19 +117,6 @@ export default function MetaDashboardPage() {
           <p className="md-subtitle">{today} · {CURRENT_EMPLOYEE}</p>
         </div>
       </header>
-
-      {/* performance metrics */}
-      <div className="md-metrics-row">
-        {PERFORMANCE_METRICS.map((m) => (
-          <div className="md-metric-card" key={m.label}>
-            <p className="md-metric-label">{m.label}</p>
-            <p className="md-metric-value">{m.value}</p>
-            <span className={`md-metric-change ${m.trend}`}>
-              {m.trend === 'up' ? '▲' : m.trend === 'down' ? '▼' : '—'} {m.change}
-            </span>
-          </div>
-        ))}
-      </div>
 
       {/* task stat cards */}
       <div className="md-stats-row">

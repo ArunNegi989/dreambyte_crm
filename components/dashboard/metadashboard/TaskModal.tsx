@@ -22,6 +22,16 @@ export default function TaskModal({ task, onClose, onSave }: TaskModalProps) {
   const [remarks, setRemarks] = useState(task.remarks || '');
   const cat = CATEGORY_META[task.category];
 
+  // Status changes save immediately — so the dashboard's counts (assigned /
+  // pending / in progress / completed) update the moment someone marks a
+  // task, without waiting for "Save changes" to be clicked.
+  const handleStatusChange = (newStatus: TaskStatus) => {
+    setStatus(newStatus);
+    onSave(task.id, { status: newStatus, remarks });
+  };
+
+  // "Save changes" still exists to persist remarks (and re-confirm status)
+  // before closing the modal.
   const handleSave = () => {
     onSave(task.id, { status, remarks });
     onClose();
@@ -64,7 +74,7 @@ export default function TaskModal({ task, onClose, onSave }: TaskModalProps) {
 
           <div className="md-field">
             <label className="md-field-label">Status</label>
-            <select className="md-select" value={status} onChange={(e) => setStatus(e.target.value as TaskStatus)}>
+            <select className="md-select" value={status} onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}>
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
