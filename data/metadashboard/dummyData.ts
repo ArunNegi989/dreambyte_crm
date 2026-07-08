@@ -73,7 +73,7 @@ const todayOffset = (days: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-export const CURRENT_EMPLOYEE = 'Aisha Khan';
+export const CURRENT_EMPLOYEE = '';
 
 export const DUMMY_TASKS: Task[] = [
   {

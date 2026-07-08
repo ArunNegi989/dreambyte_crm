@@ -18,10 +18,10 @@ import {
   TODAY,
 } from "@/types/smm/SMM";
 import styles from "@/app/dashboard/smmdashboard/smmdashboard.module.css";
-
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 export default function SMMDashboard() {
   const [activeSection, setActiveSectionState] = useState<SMMSection>("overview");
-
+  useAuthGuard(['employee', 'admin', 'super_admin'], ['smm']); // ⚠️ confirm matches DB value
   // ── Persist active tab across refresh ──────────────────────────────────
   const validSections: SMMSection[] = ["overview", "tasks", "posting", "additional", "history"];
   const setActiveSection = (s: SMMSection) => {
