@@ -1,40 +1,85 @@
 "use client";
 
-// components/dashboard/metadashboard/TaskModal.tsx
 import React, { useState } from 'react';
-import { CATEGORY_META, Task, TaskStatus } from '../../../data/metadashboard/dummyData';
+import { CATEGORY_META } from '../../../data/metadashboard/dummyData';
+import { Task } from '../../../types/metadashboard/metaTask';
+import { setTaskInProgress, submitTaskWork, respondToTaskChanges } from '../../../app/api/metaApi';
 
 interface TaskModalProps {
   task: Task;
   onClose: () => void;
-  onSave: (taskId: string, payload: { status: TaskStatus; remarks: string }) => void;
+  onSaved: () => void;
 }
 
-const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'in-progress', label: 'In progress' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'blocked', label: 'Blocked' },
-];
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending',
+  approved: 'Approved',
+  in_progress: 'In progress',
+  rejected: 'Rejected',
+  completed: 'Completed',
+  changes_requested: 'Changes requested',
+};
 
-export default function TaskModal({ task, onClose, onSave }: TaskModalProps) {
-  const [status, setStatus] = useState<TaskStatus>(task.status);
-  const [remarks, setRemarks] = useState(task.remarks || '');
-  const cat = CATEGORY_META[task.category];
+export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
+  const [note, setNote] = useState('');
+  const [responses, setResponses] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  // Status changes save immediately — so the dashboard's counts (assigned /
-  // pending / in progress / completed) update the moment someone marks a
-  // task, without waiting for "Save changes" to be clicked.
-  const handleStatusChange = (newStatus: TaskStatus) => {
-    setStatus(newStatus);
-    onSave(task.id, { status: newStatus, remarks });
+  const cat = CATEGORY_META[task.category as keyof typeof CATEGORY_META];
+  const openChanges = task.changes.filter((c) => !c.resolved);
+  const resolvedChanges = task.changes.filter((c) => c.resolved);
+  const hasOpenChanges = openChanges.length > 0;
+
+  // "approved" means an admin/super admin has signed off on behalf of the
+  // client — the task is done and closed, same as "completed". No further
+  // action (start working / submit / reply) makes sense once approved.
+  const isDone = task.status === 'completed' || task.status === 'approved';
+
+  const handleStartWork = async () => {
+    try {
+      setSaving(true);
+      setError('');
+      await setTaskInProgress(task.id);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update status');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // "Save changes" still exists to persist remarks (and re-confirm status)
-  // before closing the modal.
-  const handleSave = () => {
-    onSave(task.id, { status, remarks });
-    onClose();
+  const handleSubmitWork = async () => {
+    try {
+      setSaving(true);
+      setError('');
+      await submitTaskWork(task.id, note, new Date().toISOString());
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit task');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRespond = async () => {
+    const payload = openChanges.map((c) => ({ id: c._id, response: (responses[c._id] ?? '').trim() }));
+    if (payload.some((r) => r.response.length === 0)) {
+      setError('Please reply to every open note before resubmitting.');
+      return;
+    }
+    try {
+      setSaving(true);
+      setError('');
+      await respondToTaskChanges(task.id, payload, note);
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send responses');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -42,7 +87,12 @@ export default function TaskModal({ task, onClose, onSave }: TaskModalProps) {
       <div className="md-modal" onClick={(e) => e.stopPropagation()}>
         <div className="md-modal-header">
           <div>
-            <span className="md-chip" style={{ color: cat.color, background: `${cat.color}1a` }}>{cat.label}</span>
+            <span
+              className="md-chip"
+              style={cat ? { color: cat.color, background: `${cat.color}1a` } : undefined}
+            >
+              {cat?.label ?? task.category ?? 'Task'}
+            </span>
             <h2 className="md-modal-title">{task.title}</h2>
           </div>
           <button type="button" className="md-modal-close" onClick={onClose} aria-label="Close">
@@ -57,12 +107,16 @@ export default function TaskModal({ task, onClose, onSave }: TaskModalProps) {
 
           <div className="md-detail-grid">
             <div className="md-detail-item">
-              <span className="md-detail-key">Assigned to</span>
-              <span className="md-detail-val">{task.assignedTo}</span>
+              <span className="md-detail-key">Status</span>
+              <span className="md-detail-val">{STATUS_LABELS[task.status] ?? task.status}</span>
             </div>
             <div className="md-detail-item">
               <span className="md-detail-key">Due date</span>
-              <span className="md-detail-val">{task.dueDate}</span>
+              <span className="md-detail-val">{task.dueDate || '—'}</span>
+            </div>
+            <div className="md-detail-item">
+              <span className="md-detail-key">Delivery</span>
+              <span className="md-detail-val">{task.deliveryStatus === 'delivered' ? 'Delivered' : 'Not delivered'}</span>
             </div>
             {Object.entries(task.details).map(([key, value]) => (
               <div className="md-detail-item" key={key}>
@@ -72,29 +126,82 @@ export default function TaskModal({ task, onClose, onSave }: TaskModalProps) {
             ))}
           </div>
 
-          <div className="md-field">
-            <label className="md-field-label">Status</label>
-            <select className="md-select" value={status} onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}>
-              {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
+          {/* Approved is a closed, client-signed-off state — no open notes,
+              no reply flow, no submit button. Just show a plain confirmation. */}
+          {task.status === 'approved' && (
+            <div className="md-field">
+              <p style={{ fontSize: 12.5, color: 'var(--md-text-muted)' }}>
+                ✓ This task has been approved. No further action is needed.
+              </p>
+            </div>
+          )}
 
-          <div className="md-field">
-            <label className="md-field-label">Remarks</label>
-            <textarea
-              className="md-textarea"
-              placeholder="Add a note about progress or blockers…"
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-            />
-          </div>
+          {hasOpenChanges && task.status !== 'approved' && (
+            <div className="md-field">
+              <label className="md-field-label">Admin notes awaiting your reply</label>
+              {openChanges.map((c) => (
+                <div key={c._id} style={{ marginBottom: 12 }}>
+                  <p style={{ fontSize: 12.5, color: 'var(--md-text-muted)', marginBottom: 4 }}>
+                    <strong>{c.changedBy}</strong> · {c.changedAt}: {c.note}
+                  </p>
+                  <textarea
+                    className="md-textarea"
+                    placeholder="Your reply to this note…"
+                    value={responses[c._id] ?? ''}
+                    onChange={(e) => setResponses((prev) => ({ ...prev, [c._id]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {resolvedChanges.length > 0 && (
+            <div className="md-field">
+              <label className="md-field-label">History</label>
+              {resolvedChanges.map((c) => (
+                <p key={c._id} style={{ fontSize: 12, color: 'var(--md-text-faint)', marginBottom: 6 }}>
+                  {c.changedAt} · {c.changedBy}: {c.note}
+                  {c.employeeResponse && <> — <em>you replied: {c.employeeResponse}</em></>}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {!isDone && (
+            <div className="md-field">
+              <label className="md-field-label">
+                {hasOpenChanges ? 'Note for admin (optional)' : 'Delivery note (optional)'}
+              </label>
+              <textarea
+                className="md-textarea"
+                placeholder="Add context, links, or anything the reviewer should know…"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </div>
+          )}
+
+          {error && <p style={{ color: 'var(--md-danger)', fontSize: 12.5, fontWeight: 500 }}>{error}</p>}
         </div>
 
         <div className="md-modal-footer">
-          <button type="button" className="md-btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="md-btn-primary" onClick={handleSave}>Save changes</button>
+          <button type="button" className="md-btn-secondary" onClick={onClose}>Close</button>
+
+          {!isDone && !hasOpenChanges && task.status !== 'in_progress' && (
+            <button type="button" className="md-btn-secondary" onClick={handleStartWork} disabled={saving}>
+              Start working
+            </button>
+          )}
+
+          {!isDone && hasOpenChanges ? (
+            <button type="button" className="md-btn-primary" onClick={handleRespond} disabled={saving}>
+              {saving ? 'Sending…' : 'Send replies & resubmit'}
+            </button>
+          ) : !isDone ? (
+            <button type="button" className="md-btn-primary" onClick={handleSubmitWork} disabled={saving}>
+              {saving ? 'Submitting…' : 'Mark as done'}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
