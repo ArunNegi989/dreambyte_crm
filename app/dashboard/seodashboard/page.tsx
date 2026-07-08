@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Task, DashboardStats, TaskStatus } from '../../../types/seodashboard/task';
 import { groupTasksByDueDate } from '../../../data/seodashboard/taskStats';
 import { getMyTasks, getDashboardStats, updateTaskWork } from '../../api/seoApi';
+import { logout } from '../../api/authApi';
 import StatCard from '../../../components/dashboard/seodashboard/StatCard';
 import CategoryBreakdown from '../../../components/dashboard/seodashboard/CategoryBreakdown';
 import TaskTable from '../../../components/dashboard/seodashboard/TaskTable';
@@ -29,11 +31,13 @@ const ICONS = {
 };
 
 export default function SeoDashboardPage() {
+  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -56,6 +60,16 @@ export default function SeoDashboardPage() {
     fetchData();
   };
 
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      router.replace('/auth/login');
+    }
+  };
+
   const groups = groupTasksByDueDate(tasks);
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -66,6 +80,14 @@ export default function SeoDashboardPage() {
           <h1 className={styles.title}>Dashboard</h1>
           <p className={styles.subtitle}>{today}</p>
         </div>
+        <button type="button" className={styles.logoutBtn} onClick={handleLogout} disabled={loggingOut}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          {loggingOut ? 'Signing out…' : 'Logout'}
+        </button>
       </header>
 
       {loading ? (

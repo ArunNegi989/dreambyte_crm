@@ -178,3 +178,30 @@
   .md-detail-grid { grid-template-columns: 1fr; }
   .md-field-full { grid-column: span 1; }
 }
+
+
+.md-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.md-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #fecaca;
+  background: #fff5f5;
+  color: #b91c1c;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+  flex-shrink: 0;
+}
+
+.md-logout-btn:hover { background: #fee2e2; }
+.md-logout-btn:disabled { opacity: 0.6; cursor: default; }
