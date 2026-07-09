@@ -32,6 +32,26 @@ import styles from "@/app/dashboard/photographydashboard/Photographerdashboard.m
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { logout } from "@/app/api/authApi";
 
+// ── Date helpers for the Overview date navigator ───────────────────────────
+const shiftDate = (dateStr: string, days: number) => {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+};
+
+const overviewDateLabel = (dateStr: string) => {
+  if (dateStr === TODAY) return "Today";
+  const yesterday = shiftDate(TODAY, -1);
+  const tomorrow = shiftDate(TODAY, 1);
+  if (dateStr === yesterday) return "Yesterday";
+  if (dateStr === tomorrow) return "Tomorrow";
+  return new Date(dateStr).toLocaleDateString("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+};
+
 export default function PhotographerDashboard() {
   useAuthGuard(['employee', 'admin', 'super_admin'], ['photography']); // ⚠️ confirm matches DB value
   const router = useRouter();
@@ -57,6 +77,10 @@ export default function PhotographerDashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Overview date filter — lets the photographer browse previous days'
+  // shoots/edits instead of only ever seeing today's. Defaults to today. ──
+  const [overviewDate, setOverviewDate] = useState<string>(TODAY);
 
   // ── Current logged-in photographer's id ────────────────────────────────
   const [employeeId, setEmployeeId] = useState<string>("");
@@ -171,19 +195,28 @@ export default function PhotographerDashboard() {
     }
   };
 
-  // ── Derived stats ────────────────────────────────────────────────────
-  const todayShoots = shoots.filter((s) => s.date === TODAY);
-  const todayShootsCompleted = todayShoots.filter((s) => s.status === "completed").length;
+  // ── Derived stats — now based on the selected overview date, not just
+  // a hardcoded "today", so switching the date navigator updates
+  // everything on the Overview tab (stats cards + the two boards). ──────
+  const overviewShoots = shoots.filter((s) => s.date === overviewDate);
+  const overviewEdits = edits.filter((e) => e.date === overviewDate || e.deadline === overviewDate);
 
-  const todayEdits = edits.filter((e) => e.date === TODAY || e.deadline === TODAY);
-  const todayEditsCompleted = todayEdits.filter((e) => e.status === "completed").length;
+  // "approved" counts as done too, same as "completed" — an admin-approved
+  // shoot/edit shouldn't still show up as pending on the overview.
+  const isDone = (status: WorkStatus) => status === "completed" || status === "approved";
 
-  const pendingShoots = shoots.filter((s) => s.status !== "completed").length;
-  const pendingEdits = edits.filter((e) => e.status !== "completed").length;
+  const overviewShootsCompleted = overviewShoots.filter((s) => isDone(s.status)).length;
+  const overviewEditsCompleted = overviewEdits.filter((e) => isDone(e.status)).length;
+
+  const pendingShoots = shoots.filter((s) => !isDone(s.status)).length;
+  const pendingEdits = edits.filter((e) => !isDone(e.status)).length;
   const additionalPending = additionalWork.filter((w) => w.status !== "completed").length;
 
   const sectionMeta: Record<PhotoSection, { title: string; sub: string }> = {
-    overview: { title: "Today's Overview", sub: "Your shoots, edits, and extra work at a glance" },
+    overview: {
+      title: overviewDate === TODAY ? "Today's Overview" : `Overview — ${overviewDateLabel(overviewDate)}`,
+      sub: "Your shoots, edits, and extra work at a glance",
+    },
     shoots: { title: "Shoots", sub: "Everything assigned to you, grouped by day" },
     edits: { title: "Edits", sub: "Photo and video edit queue with progress tracking" },
     additional: { title: "Additional Work", sub: "Extra tasks outside the regular pipeline" },
@@ -205,6 +238,126 @@ export default function PhotographerDashboard() {
             <p className={styles.pageSub}>{sectionMeta[activeSection].sub}</p>
           </div>
           <div className={styles.topBarRight}>
+            {/* ── Date navigator — only meaningful on the Overview tab, but
+                always visible next to the date chip so it's easy to find. ── */}
+            {activeSection === "overview" && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: "#f8fafc",
+                  border: "1px solid #eef1f6",
+                  borderRadius: "999px",
+                  padding: "4px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setOverviewDate((d) => shiftDate(d, -1))}
+                  title="Previous day"
+                  style={{
+                    width: "26px",
+                    height: "26px",
+                    borderRadius: "50%",
+                    border: "1px solid #e2e8f0",
+                    background: "#ffffff",
+                    color: "#475569",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                </button>
+
+                <span
+                  style={{
+                    position: "relative",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "11.5px",
+                      fontWeight: 700,
+                      color: "#0e7490",
+                      background: "#ecfeff",
+                      padding: "3px 8px",
+                      borderRadius: "999px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {overviewDateLabel(overviewDate)}
+                  </span>
+                  <input
+                    type="date"
+                    value={overviewDate}
+                    onChange={(e) => setOverviewDate(e.target.value || TODAY)}
+                    style={{
+                      border: "1px solid #e2e8f0",
+                      background: "#ffffff",
+                      borderRadius: "8px",
+                      padding: "5px 8px",
+                      fontSize: "12.5px",
+                      fontWeight: 600,
+                      color: "#0f172a",
+                      cursor: "pointer",
+                      outline: "none",
+                    }}
+                    title="Pick any date from the calendar"
+                  />
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setOverviewDate((d) => shiftDate(d, 1))}
+                  title="Next day"
+                  style={{
+                    width: "26px",
+                    height: "26px",
+                    borderRadius: "50%",
+                    border: "1px solid #e2e8f0",
+                    background: "#ffffff",
+                    color: "#475569",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </button>
+
+                {overviewDate !== TODAY && (
+                  <button
+                    type="button"
+                    onClick={() => setOverviewDate(TODAY)}
+                    style={{
+                      border: "none",
+                      background: "#ecfeff",
+                      color: "#0e7490",
+                      padding: "5px 10px",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      borderRadius: "999px",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Today
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className={styles.dateChip}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -258,20 +411,20 @@ export default function PhotographerDashboard() {
               {activeSection === "overview" && (
                 <>
                   <PhotoStatsCards
-                    todayShoots={todayShoots.length}
-                    todayShootsCompleted={todayShootsCompleted}
-                    todayEdits={todayEdits.length}
-                    todayEditsCompleted={todayEditsCompleted}
+                    todayShoots={overviewShoots.length}
+                    todayShootsCompleted={overviewShootsCompleted}
+                    todayEdits={overviewEdits.length}
+                    todayEditsCompleted={overviewEditsCompleted}
                     additionalPending={additionalPending}
                   />
                   <div className={styles.overviewGrid}>
                     <ShootsBoard
-                      shoots={shoots.filter((s) => s.date === TODAY)}
+                      shoots={overviewShoots}
                       onStatusChange={handleShootStatusChange}
                       onResubmit={handleResubmit}
                     />
                     <EditsBoard
-                      edits={edits.filter((e) => e.date === TODAY || e.deadline === TODAY)}
+                      edits={overviewEdits}
                       onProgressChange={handleEditProgressChange}
                       onResubmit={handleResubmit}
                     />
