@@ -156,8 +156,7 @@ export default function SeoDashboardPage() {
       )}
 
       {selectedTask && (
-        <TaskModal task={selectedTask} onClose={() => setSelectedTask(null)} onSave={handleSaveTask} />
-      )}
+        <TaskModal task={selectedTask} onClose={() => setSelectedTask(null)} onSave={handleSaveTask} onRespond={fetchData} />      )}
     </div>
   );
 }
