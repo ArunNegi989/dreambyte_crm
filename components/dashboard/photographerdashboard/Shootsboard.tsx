@@ -33,8 +33,11 @@ const typeIcon = (type: Shoot["type"]) => {
   );
 };
 
-const statusLabel = (s: WorkStatus) =>
-  s === "in_progress" ? "In Progress" : s.charAt(0).toUpperCase() + s.slice(1);
+const statusLabel = (s: WorkStatus) => {
+  if (s === "in_progress") return "In Progress";
+  if (s === "approved") return "Approved";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
 
 const dateLabel = (dateStr: string, today: string, tomorrow: string, yesterday: string) => {
   if (dateStr === today) return "Today";
@@ -86,6 +89,12 @@ export default function ShootsBoard({ shoots, onStatusChange, onResubmit }: Shoo
     setResubmitText((prev) => ({ ...prev, [shoot.id]: "" }));
   };
 
+  // Custom inline colors for the two statuses that don't have dedicated
+  // CSS module classes (rejected was already handled this way; approved
+  // follows the same pattern so no CSS file edits are required).
+  const rejectedColors = { background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" };
+  const approvedColors = { background: "#ecfeff", color: "#0e7490", border: "1px solid #a5f3fc" };
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -94,7 +103,7 @@ export default function ShootsBoard({ shoots, onStatusChange, onResubmit }: Shoo
           <p className={styles.sub}>{shoots.length} total &middot; assigned by admin / super admin</p>
         </div>
         <div className={styles.filterWrap}>
-          {(["all", "pending", "in_progress", "completed", "rejected"] as const).map((f) => (
+          {(["all", "pending", "in_progress", "completed", "approved", "rejected"] as const).map((f) => (
             <button
               key={f}
               className={`${styles.filterBtn} ${filter === f ? styles.filterActive : ""}`}
@@ -123,22 +132,28 @@ export default function ShootsBoard({ shoots, onStatusChange, onResubmit }: Shoo
             <div className={styles.shootsGrid}>
               {dayShoots.map((shoot) => {
                 const isRejected = shoot.status === "rejected";
+                const isApproved = shoot.status === "approved";
+                const needsCustomColor = isRejected || isApproved;
+
                 return (
                   <div
                     key={shoot.id}
-                    className={`${styles.shootCard} ${isRejected ? "" : styles[`border_${shoot.status}`] ?? ""}`}
-                    style={isRejected ? { borderColor: "#ef4444" } : undefined}
+                    className={`${styles.shootCard} ${needsCustomColor ? "" : styles[`border_${shoot.status}`] ?? ""}`}
+                    style={
+                      isRejected
+                        ? { borderColor: "#ef4444" }
+                        : isApproved
+                        ? { borderColor: "#0ea5e9" }
+                        : undefined
+                    }
                   >
                     <div className={styles.cardTop}>
                       <span className={styles.time}>{shoot.time}</span>
                       <span
-                        className={`${styles.statusPill} ${isRejected ? "" : styles[`pill_${shoot.status}`] ?? ""}`}
-                        style={
-                          isRejected
-                            ? { background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }
-                            : undefined
-                        }
+                        className={`${styles.statusPill} ${needsCustomColor ? "" : styles[`pill_${shoot.status}`] ?? ""}`}
+                        style={isRejected ? rejectedColors : isApproved ? approvedColors : undefined}
                       >
+                        {isApproved && "✓ "}
                         {statusLabel(shoot.status)}
                       </span>
                     </div>
@@ -290,7 +305,10 @@ export default function ShootsBoard({ shoots, onStatusChange, onResubmit }: Shoo
                       </div>
                     )}
 
-                    {!isRejected && (
+                    {/* Footer: rejected -> hidden (resubmit box above covers it).
+                        approved -> finalized badge, no action needed.
+                        everything else -> normal cycle-status action button. */}
+                    {!isRejected && !isApproved && (
                       <div className={styles.cardFooter}>
                         <span className={styles.assignedBy}>Assigned by {shoot.assignedBy}</span>
                         <button
@@ -301,6 +319,15 @@ export default function ShootsBoard({ shoots, onStatusChange, onResubmit }: Shoo
                           {shoot.status === "in_progress" && "Mark Done"}
                           {shoot.status === "completed" && "✓ Shot Completed"}
                         </button>
+                      </div>
+                    )}
+
+                    {isApproved && (
+                      <div className={styles.cardFooter}>
+                        <span className={styles.assignedBy}>Assigned by {shoot.assignedBy}</span>
+                        <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#0e7490" }}>
+                          ✓ Approved by Admin
+                        </span>
                       </div>
                     )}
                   </div>

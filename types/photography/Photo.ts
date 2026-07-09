@@ -1,12 +1,16 @@
 // ── Photographer Dashboard: Real Backend-Driven Types ──────────────────────
-// This replaces the old static mock-data file. Everything here talks to the
-// same /tasks and /additional-work endpoints the rest of the CRM uses —
 // Photography tasks are just regular Task documents with `taskType` set to
 // "Shoots", "Photo Edit", or "Video Edit" (see data/departmentTasks.ts).
 
 import api from "@/lib/api";
 
-export type WorkStatus = "pending" | "in_progress" | "completed" | "rejected";
+// ── FIX: "approved" is now its own state, distinct from "completed" ────────
+// "completed" = the photographer submitted/delivered the work.
+// "approved"  = an admin/super admin reviewed it and confirmed it's good.
+// Keeping these separate means the photographer can actually SEE the
+// difference on the card ("✓ Delivered" vs "✓ Approved by Admin") instead
+// of both looking identical.
+export type WorkStatus = "pending" | "in_progress" | "completed" | "approved" | "rejected";
 export type MediaType = "photo" | "video" | "both";
 
 // ── Raw shape as it comes back from the backend (populated Task document) ──
@@ -37,7 +41,6 @@ export interface RawTask {
   completedCount?: number;
   createdAt?: string;
   updatedAt?: string;
-  // ── Rejection / change-request tracking ──────────────────────────────
   rejectRemark?: string;
   changes?: RawTaskChange[];
 }
@@ -52,7 +55,6 @@ export interface RawAdditionalWork {
   assignedTo: string;
 }
 
-// ── The single open (unresolved) rejection note, simplified for the UI ─────
 export interface TaskChangeNote {
   id: string;
   note: string;
@@ -62,7 +64,6 @@ export interface TaskChangeNote {
   employeeResponse?: string;
 }
 
-// ── View-shapes the existing board components expect ───────────────────────
 export interface Shoot {
   id: string;
   brand: string;
@@ -108,7 +109,6 @@ export interface AdditionalWork {
 
 export const TODAY = new Date().toISOString().split("T")[0];
 
-// ── Deterministic brand color (backend Brand model has no color field) ─────
 const BRAND_PALETTE = ["#f59e0b", "#6366f1", "#ec4899", "#10b981", "#0ea5e9", "#a855f7", "#ef4444"];
 const brandColorFromName = (name: string): string => {
   let hash = 0;
@@ -123,19 +123,18 @@ const getAssignedByLabel = (assignedBy: "admin" | "super_admin"): string =>
   assignedBy === "super_admin" ? "Super Admin" : "Admin";
 
 // Backend status can be "pending" | "approved" | "in_progress" | "rejected" |
-// "completed" | "changes_requested". Photography's simpler view treats
-// "rejected" and "changes_requested" the same way — both need an employee
-// response before they can be resubmitted.
+// "completed" | "changes_requested". "approved" now maps straight through
+// to its own WorkStatus instead of being swallowed into "pending" (the old
+// bug) or merged into "completed" (loses the distinction the photographer
+// actually needs to see).
 const toWorkStatus = (status: string): WorkStatus => {
+  if (status === "approved") return "approved";
   if (status === "completed") return "completed";
   if (status === "in_progress") return "in_progress";
   if (status === "rejected" || status === "changes_requested") return "rejected";
   return "pending";
 };
 
-// The most recent UNRESOLVED change entry is the "open" rejection note the
-// employee still needs to reply to. Once they reply, respondToChanges()
-// marks it resolved:true and the task flips back to completed on refetch.
 const getOpenChange = (changes?: RawTaskChange[]): TaskChangeNote | undefined => {
   if (!changes || changes.length === 0) return undefined;
   const unresolved = changes.filter((c) => !c.resolved);
@@ -151,9 +150,6 @@ const getOpenChange = (changes?: RawTaskChange[]): TaskChangeNote | undefined =>
   };
 };
 
-// Full history — every rejection note + resubmit response, oldest first —
-// so the employee can see everything that's ever happened on this task,
-// not just the currently-open one.
 const mapChangeHistory = (changes?: RawTaskChange[]): TaskChangeNote[] => {
   if (!changes || changes.length === 0) return [];
   return changes.map((c) => ({
@@ -166,11 +162,9 @@ const mapChangeHistory = (changes?: RawTaskChange[]): TaskChangeNote[] => {
   }));
 };
 
-// ── taskType classifiers (must match data/departmentTasks.ts labels) ───────
 export const isShootTask = (t: RawTask) => t.taskType === "Shoots";
 export const isEditTask = (t: RawTask) => t.taskType === "Photo Edit" || t.taskType === "Video Edit";
 
-// ── Mappers: RawTask -> view shape ──────────────────────────────────────────
 export const mapToShoot = (t: RawTask): Shoot => {
   const brandName = getBrandName(t.brandId);
   return {
@@ -220,7 +214,6 @@ export const mapToAdditionalWork = (w: RawAdditionalWork): AdditionalWork => ({
   loggedBy: w.loggedBy,
 });
 
-// ── API calls ────────────────────────────────────────────────────────────────
 export const fetchMyTasks = async (employeeId: string): Promise<RawTask[]> => {
   const res = await api.get(`/tasks?assignedTo=${employeeId}`);
   return res.data.data;
@@ -236,11 +229,6 @@ export const updateEditProgress = async (taskId: string, completedCount: number)
   return res.data.data;
 };
 
-// ── Resubmit after rejection ────────────────────────────────────────────────
-// Hits the same /tasks/:id/respond endpoint the CRM's TaskModal uses:
-// closes the specific open change note (marks it resolved + attaches the
-// employee's written response) and flips the task back to
-// status: "completed", deliveryStatus: "delivered" on the backend.
 export const respondToRejection = async (
   taskId: string,
   changeId: string,

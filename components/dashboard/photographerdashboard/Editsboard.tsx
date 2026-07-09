@@ -10,8 +10,11 @@ interface EditsBoardProps {
   onResubmit: (id: string, changeId: string, responseText: string) => void;
 }
 
-const statusLabel = (s: WorkStatus) =>
-  s === "in_progress" ? "In Progress" : s.charAt(0).toUpperCase() + s.slice(1);
+const statusLabel = (s: WorkStatus) => {
+  if (s === "in_progress") return "In Progress";
+  if (s === "approved") return "Approved";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
 
 export default function EditsBoard({ edits, onProgressChange, onResubmit }: EditsBoardProps) {
   const [filter, setFilter] = useState<"all" | WorkStatus>("all");
@@ -31,7 +34,7 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
   };
 
   const isOverdue = (deadline: string, status: WorkStatus) => {
-    if (status === "completed" || status === "rejected") return false;
+    if (status === "completed" || status === "approved" || status === "rejected") return false;
     const today = new Date().toISOString().split("T")[0];
     return deadline < today;
   };
@@ -43,6 +46,9 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
     setResubmitText((prev) => ({ ...prev, [task.id]: "" }));
   };
 
+  const rejectedColors = { background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" };
+  const approvedColors = { background: "#ecfeff", color: "#0e7490", border: "1px solid #a5f3fc" };
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -52,7 +58,7 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
         </div>
         <div className={styles.filterGroup}>
           <div className={styles.filterWrap}>
-            {(["all", "pending", "in_progress", "completed", "rejected"] as const).map((f) => (
+            {(["all", "pending", "in_progress", "completed", "approved", "rejected"] as const).map((f) => (
               <button
                 key={f}
                 className={`${styles.filterBtn} ${filter === f ? styles.filterActive : ""}`}
@@ -87,12 +93,20 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
             const pct = task.totalCount > 0 ? Math.round((task.completedCount / task.totalCount) * 100) : 0;
             const overdue = isOverdue(task.deadline, task.status);
             const isRejected = task.status === "rejected";
+            const isApproved = task.status === "approved";
+            const needsCustomColor = isRejected || isApproved;
 
             return (
               <div
                 key={task.id}
-                className={`${styles.editCard} ${isRejected ? "" : styles[`border_${task.status}`] ?? ""}`}
-                style={isRejected ? { borderColor: "#ef4444" } : undefined}
+                className={`${styles.editCard} ${needsCustomColor ? "" : styles[`border_${task.status}`] ?? ""}`}
+                style={
+                  isRejected
+                    ? { borderColor: "#ef4444" }
+                    : isApproved
+                    ? { borderColor: "#0ea5e9" }
+                    : undefined
+                }
               >
                 <div className={styles.cardTop}>
                   <span className={`${styles.mediaTag} ${styles[`media_${task.mediaType}`] ?? ""}`}>
@@ -111,13 +125,10 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
                     {task.mediaType}
                   </span>
                   <span
-                    className={`${styles.statusPill} ${isRejected ? "" : styles[`pill_${task.status}`] ?? ""}`}
-                    style={
-                      isRejected
-                        ? { background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }
-                        : undefined
-                    }
+                    className={`${styles.statusPill} ${needsCustomColor ? "" : styles[`pill_${task.status}`] ?? ""}`}
+                    style={isRejected ? rejectedColors : isApproved ? approvedColors : undefined}
                   >
+                    {isApproved && "✓ "}
                     {statusLabel(task.status)}
                   </span>
                 </div>
@@ -133,8 +144,12 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
                 <div className={styles.progressWrap}>
                   <div className={styles.progressBarBg}>
                     <div
-                      className={`${styles.progressBarFill} ${isRejected ? "" : styles[`fill_${task.status}`] ?? ""}`}
-                      style={{ width: `${pct}%`, ...(isRejected ? { background: "#ef4444" } : {}) }}
+                      className={`${styles.progressBarFill} ${needsCustomColor ? "" : styles[`fill_${task.status}`] ?? ""}`}
+                      style={{
+                        width: `${pct}%`,
+                        ...(isRejected ? { background: "#ef4444" } : {}),
+                        ...(isApproved ? { background: "#0ea5e9" } : {}),
+                      }}
                     />
                   </div>
                   <div className={styles.progressMeta}>
@@ -284,8 +299,10 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
                   </div>
                 )}
 
-                {/* Actions — hidden while rejected, replaced by resubmit box above */}
-                {!isRejected && (
+                {/* Footer: rejected -> hidden (resubmit box above covers it).
+                    approved -> finalized badge, no action needed.
+                    everything else -> normal stepper/mark-done actions. */}
+                {!isRejected && !isApproved && (
                   <div className={styles.cardFooter}>
                     {task.mediaType === "photo" && task.totalCount > 1 && task.status !== "completed" ? (
                       <div className={styles.stepper}>
@@ -311,6 +328,15 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
                     ) : (
                       <span className={styles.doneTag}>✓ Edited</span>
                     )}
+                  </div>
+                )}
+
+                {isApproved && (
+                  <div className={styles.cardFooter}>
+                    <span className={styles.assignedBy}>by {task.assignedBy}</span>
+                    <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#0e7490" }}>
+                      ✓ Approved by Admin
+                    </span>
                   </div>
                 )}
               </div>
