@@ -7,9 +7,13 @@ import { apiFetch } from '../../api/apiClient';
 import styles from '../../../assets/styles/loginpage/LoginPage.module.css';
 
 const DEPARTMENT_DASHBOARDS: Record<string, string> = {
-  'meta ads':  '/dashboard/metadashboard',
-  'developer': '/dashboard/developerdashboard',
-  'sales':     '/dashboard/salesdashboard',
+  'graphic':        '/dashboard/designerdashboard',
+  'smm':            '/dashboard/smmdashboard',
+  'photography':    '/dashboard/photographydashboard',
+  'meta ads':       '/dashboard/metadashboard',
+  'seo':            '/dashboard/seodashboard',
+  'development':    '/dashboard/developerdashboard',
+  'content writer': '/dashboard/contentwriterdashboard',
 };
 
 const ROLE_DASHBOARDS: Record<string, string> = {
@@ -36,10 +40,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    const role = localStorage.getItem('userRole');
-    const department = localStorage.getItem('userDepartment');
-    if (token && role) {
-      router.replace(getHomeRoute(role, department));
+    const home = localStorage.getItem('userHomeRoute');
+    if (token && home) {
+      router.replace(home);
       return;
     }
 

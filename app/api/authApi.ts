@@ -60,6 +60,7 @@ function storeSession(response: LoginResponse) {
   localStorage.setItem('userDepartment', response.user.department);
   localStorage.setItem('userName', response.user.name);
   localStorage.setItem('user', JSON.stringify(response.user));
+  localStorage.setItem('userHomeRoute', response.redirectTo); // single source of truth for redirects
 }
 
 // ── Logout ────────────────────────────────────────────────────────────────────
@@ -80,6 +81,7 @@ export async function logout(role?: string): Promise<void> {
       localStorage.removeItem('userDepartment');
       localStorage.removeItem('userName');
       localStorage.removeItem('user');
+      localStorage.removeItem('userHomeRoute');
     }
   }
 }

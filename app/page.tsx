@@ -23,18 +23,14 @@ export default function Home() {
   // ── Auth check — runs first, before any animation/loader is shown ──
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const role = localStorage.getItem("userRole");
+    const home = localStorage.getItem("userHomeRoute");
 
     if (token) {
       // Already logged in — skip the loader entirely and don't add
       // this page to history, so back button can't land here.
-      if (role === "super_admin") {
-        router.replace("/dashboard/superadmindashboard");
-      } else if (role === "admin") {
-        router.replace("/dashboard/admindashboard");
-      } else {
-        router.replace("/dashboard/employeedashboard");
-      }
+      // Trust the home route saved at login time (single source of
+      // truth, computed by the backend) instead of re-deriving it here.
+      router.replace(home || "/dashboard/employeedashboard");
       return; // don't fall through to the loader
     }
 
