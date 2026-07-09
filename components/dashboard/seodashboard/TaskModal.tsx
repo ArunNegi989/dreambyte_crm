@@ -7,12 +7,14 @@ import DynamicField from './DynamicField';
 import StatusBadge from './StatusBadge';
 import PriorityBadge from './PriorityBadge';
 import RankChip from './RankChip';
+import { respondToTaskChange } from '../../../app/api/seoApi';
 import styles from '../../../assets/styles/seodashboard/TaskModal.module.css';
 
 interface TaskModalProps {
   task: Task;
   onClose: () => void;
   onSave: (taskId: string, payload: { status: TaskStatus; remarks: string; details: any }) => Promise<void> | void;
+  onRespond?: () => void; // optional: lets the parent page refetch after a reply is sent
 }
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
@@ -35,7 +37,16 @@ function formatDate(value?: string | null): string {
   return new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export default function TaskModal({ task, onClose, onSave }: TaskModalProps) {
+function formatDateTime(value?: string | null): string {
+  if (!value) return '';
+  return new Date(value).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function isAdminAuthor(changedBy: string): boolean {
+  return changedBy.toLowerCase().includes('admin');
+}
+
+export default function TaskModal({ task, onClose, onSave, onRespond }: TaskModalProps) {
   const config = CATEGORY_FIELD_CONFIG[task.category];
   const meta = CATEGORY_META[task.category];
 
@@ -50,6 +61,47 @@ export default function TaskModal({ task, onClose, onSave }: TaskModalProps) {
   const [rows, setRows] = useState<Record<string, any>[]>(
     config.isList ? (Array.isArray(initialDetail) ? initialDetail : []) : []
   );
+
+  // ── Admin feedback ──────────────────────────────────────────────────────
+  const adminFeedback = useMemo(() => {
+    const changeEntries = task.changes ?? [];
+    const adminChanges = changeEntries.filter((c) => isAdminAuthor(c.changedBy));
+
+    const hasMatchingChange = adminChanges.some((c) => c.note === task.rejectRemark);
+    const fallback =
+      task.status === 'rejected' && task.rejectRemark && !hasMatchingChange
+        ? [{
+            id: null as string | null,
+            changedBy: 'Admin',
+            note: task.rejectRemark,
+            changedAt: task.submittedAt || '',
+            resolved: false,
+            employeeResponse: '',
+          }]
+        : [];
+
+    return [...adminChanges, ...fallback].sort((a, b) => b.changedAt.localeCompare(a.changedAt));
+  }, [task]);
+
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [locallyReplied, setLocallyReplied] = useState<Record<string, string>>({});
+  const [replying, setReplying] = useState<string | null>(null);
+
+  const handleReply = async (changeId: string) => {
+    const text = (replyDrafts[changeId] || '').trim();
+    if (!text) return;
+    try {
+      setReplying(changeId);
+      await respondToTaskChange(task.id, changeId, text);
+      setLocallyReplied((prev) => ({ ...prev, [changeId]: text }));
+      setReplyDrafts((prev) => ({ ...prev, [changeId]: '' }));
+      onRespond?.();
+    } catch (err) {
+      console.error('Failed to send reply', err);
+    } finally {
+      setReplying(null);
+    }
+  };
 
   const overdue = useMemo(
     () => task.status !== 'completed' && task.dueDate < new Date().toISOString().slice(0, 10),
@@ -95,6 +147,90 @@ export default function TaskModal({ task, onClose, onSave }: TaskModalProps) {
 
         <div className={styles.body}>
           <p className={styles.description}>{task.description}</p>
+
+          {adminFeedback.length > 0 && (
+            <div
+              style={{
+                background: '#fef2f2',
+                border: '1px solid #fca5a5',
+                borderRadius: 10,
+                padding: '0.85rem 1rem',
+                margin: '0.75rem 0 1rem',
+              }}
+            >
+              <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#991b1b', marginBottom: '0.5rem' }}>
+                ⚠️ Feedback from admin
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                {adminFeedback.map((c) => {
+                  const key = c.id ?? `legacy_${c.changedAt}`;
+                  const employeeResponse = c.employeeResponse || (c.id ? locallyReplied[c.id] : '') || '';
+                  const resolved = c.resolved || (c.id ? !!locallyReplied[c.id] : false);
+
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        background: 'white',
+                        border: '1px solid #fecaca',
+                        borderRadius: 8,
+                        padding: '0.6rem 0.75rem',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                          {c.changedBy}{c.changedAt ? ` · ${formatDateTime(c.changedAt)}` : ''}
+                        </span>
+                        {resolved && (
+                          <span style={{ fontSize: '0.68rem', background: '#dcfce7', color: '#166534', padding: '0.1rem 0.5rem', borderRadius: 999 }}>
+                            Resolved
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ margin: '0.35rem 0', fontSize: '0.85rem', color: '#374151' }}>{c.note}</p>
+
+                      {employeeResponse ? (
+                        <div style={{ background: '#f9fafb', borderRadius: 6, padding: '0.4rem 0.6rem', marginTop: '0.35rem' }}>
+                          <span style={{ fontSize: '0.68rem', color: '#6b7280', fontWeight: 600 }}>Your reply</span>
+                          <p style={{ margin: '0.15rem 0 0', fontSize: '0.82rem' }}>{employeeResponse}</p>
+                        </div>
+                      ) : c.id ? (
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
+                          <input
+                            style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 6, padding: '0.35rem 0.55rem', fontSize: '0.82rem' }}
+                            placeholder="Write a reply…"
+                            value={replyDrafts[c.id] || ''}
+                            onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [c.id as string]: e.target.value }))}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleReply(c.id as string)}
+                            disabled={replying === c.id}
+                            style={{
+                              background: '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: 6,
+                              padding: '0.35rem 0.8rem',
+                              fontSize: '0.78rem',
+                              cursor: replying === c.id ? 'not-allowed' : 'pointer',
+                              opacity: replying === c.id ? 0.6 : 1,
+                            }}
+                          >
+                            {replying === c.id ? 'Sending…' : 'Reply'}
+                          </button>
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: '0.72rem', color: '#9ca3af', fontStyle: 'italic', margin: '0.35rem 0 0' }}>
+                          Recorded before reply support — update the status below to resolve.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className={styles.metaGrid}>
             <div className={styles.metaItem}>
