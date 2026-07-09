@@ -1,17 +1,11 @@
 "use client";
 
-// app/dashboard/metadashboard/page.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  CATEGORY_META,
-  CURRENT_EMPLOYEE,
-  DUMMY_TASKS,
-  Task,
-  TaskStatus,
-  computeStats,
-} from '../../../data/metadashboard/dummyData';
+import { CATEGORY_META } from '../../../data/metadashboard/dummyData';
+import { Task } from '../../../types/metadashboard/metaTask';
 import TaskModal from '../../../components/dashboard/metadashboard/TaskModal';
+import { fetchMyTasks, fetchDashboardStats, MetaStats } from '../../api/metaApi';
 import { logout } from '../../api/authApi';
 
 const STAT_ICONS = {
@@ -39,14 +33,35 @@ const DATE_FILTERS: { value: DateFilter; label: string }[] = [
   { value: 'custom', label: 'Custom range' },
 ];
 
+// Real statuses -> the CSS badge class they visually reuse.
+// (.md-status only has pending/in-progress/completed/blocked style rules —
+// this maps the extra real statuses onto the closest existing look.)
+const STATUS_BADGE_CLASS: Record<string, string> = {
+  pending: 'pending',
+  approved: 'pending',
+  in_progress: 'in-progress',
+  completed: 'completed',
+  rejected: 'blocked',
+  changes_requested: 'blocked',
+};
+
+const STATUS_DISPLAY: Record<string, string> = {
+  pending: 'Pending',
+  approved: 'Approved',
+  in_progress: 'In progress',
+  completed: 'Completed',
+  rejected: 'Rejected',
+  changes_requested: 'Changes requested',
+};
+
 function isOverdue(t: Task, today: string) {
-  return t.status !== 'completed' && t.dueDate < today;
+  return t.status !== 'completed' && !!t.dueDate && t.dueDate < today;
 }
 
 const toIso = (d: Date) => d.toISOString().slice(0, 10);
 
 function weekRange(now: Date) {
-  const day = now.getDay(); // 0 = Sunday
+  const day = now.getDay();
   const start = new Date(now);
   start.setDate(now.getDate() - day);
   const end = new Date(start);
@@ -60,58 +75,85 @@ function monthRange(now: Date) {
   return { start: toIso(start), end: toIso(end) };
 }
 
-function filterByDate(
-  tasks: Task[],
-  filter: DateFilter,
-  today: string,
-  customRange: { from: string; to: string }
-) {
+function filterByDate(tasks: Task[], filter: DateFilter, today: string, customRange: { from: string; to: string }) {
   if (filter === 'all') return tasks;
   if (filter === 'today') return tasks.filter((t) => t.dueDate === today);
-
   if (filter === 'week') {
     const { start, end } = weekRange(new Date());
     return tasks.filter((t) => t.dueDate >= start && t.dueDate <= end);
   }
-
   if (filter === 'month') {
     const { start, end } = monthRange(new Date());
     return tasks.filter((t) => t.dueDate >= start && t.dueDate <= end);
   }
-
-  // custom
   if (!customRange.from || !customRange.to) return tasks;
   return tasks.filter((t) => t.dueDate >= customRange.from && t.dueDate <= customRange.to);
 }
 
 function groupByCategory(tasks: Task[]) {
-  const order = Object.keys(CATEGORY_META) as (keyof typeof CATEGORY_META)[];
-  return order
-    .map((category) => ({ category, tasks: tasks.filter((t) => t.category === category) }))
-    .filter((g) => g.tasks.length > 0);
+  const byCat = new Map<string, Task[]>();
+  tasks.forEach((t) => {
+    const key = t.category || 'uncategorized';
+    if (!byCat.has(key)) byCat.set(key, []);
+    byCat.get(key)!.push(t);
+  });
+  return Array.from(byCat.entries()).map(([category, tasks]) => ({ category, tasks }));
 }
 
 export default function MetaDashboardPage() {
   const router = useRouter();
-  const [tasks, setTasks] = useState<Task[]>(DUMMY_TASKS);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [stats, setStats] = useState<MetaStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customRange, setCustomRange] = useState({ from: '', to: '' });
   const [loggingOut, setLoggingOut] = useState(false);
 
-  const stats = useMemo(() => computeStats(tasks), [tasks]);
+  const [employeeId, setEmployeeId] = useState<string>('');
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('user');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setEmployeeId(parsed?._id || parsed?.id || '');
+      }
+    } catch {
+      setEmployeeId('');
+    }
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    if (!employeeId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const [fetchedTasks, fetchedStats] = await Promise.all([
+        fetchMyTasks(employeeId),
+        fetchDashboardStats(employeeId),
+      ]);
+      setTasks(fetchedTasks);
+      setStats(fetchedStats);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  }, [employeeId]);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
+
   const todayIso = new Date().toISOString().slice(0, 10);
   const filteredTasks = useMemo(
     () => filterByDate(tasks, dateFilter, todayIso, customRange),
     [tasks, dateFilter, todayIso, customRange]
   );
   const groups = useMemo(() => groupByCategory(filteredTasks), [filteredTasks]);
-  const maxCat = Math.max(1, ...stats.categoryBreakdown.map((c) => c.count));
+  const maxCat = Math.max(1, ...(stats?.categoryBreakdown.map((c) => c.count) ?? [1]));
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
-
-  const handleSaveTask = (taskId: string, payload: { status: TaskStatus; remarks: string }) => {
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...payload } : t)));
-  };
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -128,7 +170,7 @@ export default function MetaDashboardPage() {
       <header className="md-header">
         <div>
           <h1 className="md-title">Dashboard</h1>
-          <p className="md-subtitle">{today} · {CURRENT_EMPLOYEE}</p>
+          <p className="md-subtitle">{today}</p>
         </div>
         <button type="button" className="md-logout-btn" onClick={handleLogout} disabled={loggingOut}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -140,140 +182,162 @@ export default function MetaDashboardPage() {
         </button>
       </header>
 
-      {/* task stat cards */}
-      <div className="md-stats-row">
-        <div className="md-stat-card">
-          <span className="md-stat-icon">{STAT_ICONS.total}</span>
-          <div><p className="md-stat-value">{stats.total}</p><p className="md-stat-label">Total tasks</p></div>
-        </div>
-        <div className="md-stat-card">
-          <span className="md-stat-icon">{STAT_ICONS.progress}</span>
-          <div><p className="md-stat-value">{stats.inProgress}</p><p className="md-stat-label">In progress</p></div>
-        </div>
-        <div className="md-stat-card success">
-          <span className="md-stat-icon">{STAT_ICONS.completed}</span>
-          <div><p className="md-stat-value">{stats.completed}</p><p className="md-stat-label">Completed</p></div>
-        </div>
-        <div className="md-stat-card danger">
-          <span className="md-stat-icon">{STAT_ICONS.overdue}</span>
-          <div><p className="md-stat-value">{stats.overdue}</p><p className="md-stat-label">Overdue</p></div>
-        </div>
-      </div>
+      {loading && <p className="md-empty-text">Loading your tasks…</p>}
 
-      <div className="md-grid-2">
-        <section className="md-card">
-          <div className="md-card-header">
-            <h2 className="md-section-title">Overall performance</h2>
-            <span className="md-tag">{stats.completionRate}% completion rate</span>
-          </div>
-          <div className="md-progress-track">
-            <div className="md-progress-fill" style={{ width: `${stats.completionRate}%` }} />
-          </div>
-          <div className="md-legend">
-            <span><i className="md-dot pending" />Pending {stats.pending}</span>
-            <span><i className="md-dot progress" />In progress {stats.inProgress}</span>
-            <span><i className="md-dot done" />Completed {stats.completed}</span>
-            <span><i className="md-dot blocked" />Blocked {stats.blocked}</span>
-          </div>
-        </section>
+      {!loading && error && (
+        <div className="md-empty">
+          <p className="md-empty-title">Couldn't load your dashboard</p>
+          <p className="md-empty-text">{error}</p>
+          <button type="button" className="md-btn-secondary" onClick={loadAll}>Retry</button>
+        </div>
+      )}
 
-        <section className="md-card">
-          <div className="md-card-header">
-            <h2 className="md-section-title">Tasks by category</h2>
+      {!loading && !error && stats && (
+        <>
+          <div className="md-stats-row">
+            <div className="md-stat-card">
+              <span className="md-stat-icon">{STAT_ICONS.total}</span>
+              <div><p className="md-stat-value">{stats.total}</p><p className="md-stat-label">Total tasks</p></div>
+            </div>
+            <div className="md-stat-card">
+              <span className="md-stat-icon">{STAT_ICONS.progress}</span>
+              <div><p className="md-stat-value">{stats.inProgress}</p><p className="md-stat-label">In progress</p></div>
+            </div>
+            <div className="md-stat-card success">
+              <span className="md-stat-icon">{STAT_ICONS.completed}</span>
+              <div><p className="md-stat-value">{stats.completed}</p><p className="md-stat-label">Completed</p></div>
+            </div>
+            <div className="md-stat-card danger">
+              <span className="md-stat-icon">{STAT_ICONS.overdue}</span>
+              <div><p className="md-stat-value">{stats.overdue}</p><p className="md-stat-label">Overdue</p></div>
+            </div>
           </div>
-          {stats.categoryBreakdown.map((c) => (
-            <div className="md-cat-row" key={c.category}>
-              <span className="md-cat-label">{CATEGORY_META[c.category].label}</span>
-              <div className="md-cat-track">
-                <div
-                  className="md-cat-fill"
-                  style={{ width: `${(c.count / maxCat) * 100}%`, background: CATEGORY_META[c.category].color }}
+
+          <div className="md-grid-2">
+            <section className="md-card">
+              <div className="md-card-header">
+                <h2 className="md-section-title">Overall performance</h2>
+                <span className="md-tag">{stats.completionRate}% completion rate</span>
+              </div>
+              <div className="md-progress-track">
+                <div className="md-progress-fill" style={{ width: `${stats.completionRate}%` }} />
+              </div>
+              <div className="md-legend">
+                <span><i className="md-dot pending" />Pending {stats.pending + stats.approved}</span>
+                <span><i className="md-dot progress" />In progress {stats.inProgress}</span>
+                <span><i className="md-dot done" />Completed {stats.completed}</span>
+                <span><i className="md-dot blocked" />Blocked {stats.rejected + stats.changesRequested}</span>
+              </div>
+            </section>
+
+            <section className="md-card">
+              <div className="md-card-header">
+                <h2 className="md-section-title">Tasks by category</h2>
+              </div>
+              {stats.categoryBreakdown.map((c) => {
+                const meta = CATEGORY_META[c.category as keyof typeof CATEGORY_META];
+                return (
+                  <div className="md-cat-row" key={c.category}>
+                    <span className="md-cat-label">{meta?.label ?? c.category}</span>
+                    <div className="md-cat-track">
+                      <div
+                        className="md-cat-fill"
+                        style={{ width: `${(c.count / maxCat) * 100}%`, background: meta?.color ?? '#94a3b8' }}
+                      />
+                    </div>
+                    <span className="md-cat-count">{c.count}</span>
+                  </div>
+                );
+              })}
+            </section>
+          </div>
+
+          <section>
+            <h2 className="md-section-title" style={{ marginBottom: 14 }}>Your tasks</h2>
+
+            <div className="md-filter-row">
+              {DATE_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  className={`md-filter-btn ${dateFilter === f.value ? 'active' : ''}`}
+                  onClick={() => setDateFilter(f.value)}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {dateFilter === 'custom' && (
+              <div className="md-filter-row" style={{ alignItems: 'center', marginTop: -6 }}>
+                <input
+                  type="date"
+                  className="md-input"
+                  value={customRange.from}
+                  onChange={(e) => setCustomRange((prev) => ({ ...prev, from: e.target.value }))}
+                />
+                <span style={{ color: 'var(--md-text-faint)', fontSize: 12.5 }}>to</span>
+                <input
+                  type="date"
+                  className="md-input"
+                  value={customRange.to}
+                  onChange={(e) => setCustomRange((prev) => ({ ...prev, to: e.target.value }))}
                 />
               </div>
-              <span className="md-cat-count">{c.count}</span>
-            </div>
-          ))}
-        </section>
-      </div>
+            )}
 
-      <section>
-        <h2 className="md-section-title" style={{ marginBottom: 14 }}>Your tasks</h2>
-
-        <div className="md-filter-row">
-          {DATE_FILTERS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              className={`md-filter-btn ${dateFilter === f.value ? 'active' : ''}`}
-              onClick={() => setDateFilter(f.value)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
- 
-        {dateFilter === 'custom' && (
-          <div className="md-filter-row" style={{ alignItems: 'center', marginTop: -6 }}>
-            <input
-              type="date"
-              className="md-input"
-              value={customRange.from}
-              onChange={(e) => setCustomRange((prev) => ({ ...prev, from: e.target.value }))}
-            />
-            <span style={{ color: 'var(--md-text-faint)', fontSize: 12.5 }}>to</span>
-            <input
-              type="date"
-              className="md-input"
-              value={customRange.to}
-              onChange={(e) => setCustomRange((prev) => ({ ...prev, to: e.target.value }))}
-            />
-          </div>
-        )}
-
-        {groups.length === 0 ? (
-          <div className="md-empty">
-            <p className="md-empty-title">Nothing to show here</p>
-            <p className="md-empty-text">No tasks match this date filter right now.</p>
-          </div>
-        ) : (
-          groups.map((group) => {
-            const cat = CATEGORY_META[group.category];
-            return (
-              <div className="md-date-group" key={group.category}>
-                <div className="md-date-group-header">
-                  <span className="md-chip" style={{ color: cat.color, background: `${cat.color}1a` }}>{cat.label}</span>
-                  <span className="md-date-group-count">{group.tasks.length}</span>
-                </div>
-                <div className="md-table-wrap">
-                  <table className="md-table">
-                    <thead>
-                      <tr>
-                        <th>Task</th>
-                        <th>Priority</th>
-                        <th>Status</th>
-                        <th>Due</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.tasks.map((t) => (
-                        <tr key={t.id} className="clickable" onClick={() => setSelectedTask(t)}>
-                          <td className="md-task-title">{t.title}</td>
-                          <td><span className={`md-badge ${t.priority}`}>{t.priority}</span></td>
-                          <td><span className={`md-status ${t.status}`}>{t.status.replace('-', ' ')}</span></td>
-                          <td className={`md-due ${isOverdue(t, todayIso) ? 'overdue' : ''}`}>{t.dueDate}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            {groups.length === 0 ? (
+              <div className="md-empty">
+                <p className="md-empty-title">Nothing to show here</p>
+                <p className="md-empty-text">No tasks match this date filter right now.</p>
               </div>
-            );
-          })
-        )}
-      </section>
+            ) : (
+              groups.map((group) => {
+                const meta = CATEGORY_META[group.category as keyof typeof CATEGORY_META];
+                return (
+                  <div className="md-date-group" key={group.category}>
+                    <div className="md-date-group-header">
+                      <span className="md-chip" style={meta ? { color: meta.color, background: `${meta.color}1a` } : undefined}>
+                        {meta?.label ?? group.category}
+                      </span>
+                      <span className="md-date-group-count">{group.tasks.length}</span>
+                    </div>
+                    <div className="md-table-wrap">
+                      <table className="md-table">
+                        <thead>
+                          <tr>
+                            <th>Task</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Due</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.tasks.map((t) => (
+                            <tr key={t.id} className="clickable" onClick={() => setSelectedTask(t)}>
+                              <td className="md-task-title">{t.title}</td>
+                              <td><span className={`md-badge ${t.priority}`}>{t.priority}</span></td>
+                              <td><span className={`md-status ${STATUS_BADGE_CLASS[t.status] ?? 'pending'}`}>{STATUS_DISPLAY[t.status] ?? t.status}</span></td>
+                              <td className={`md-due ${isOverdue(t, todayIso) ? 'overdue' : ''}`}>{t.dueDate || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </section>
+        </>
+      )}
 
       {selectedTask && (
-        <TaskModal task={selectedTask} onClose={() => setSelectedTask(null)} onSave={handleSaveTask} />
+        <TaskModal
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onSaved={loadAll}
+        />
       )}
     </div>
   );

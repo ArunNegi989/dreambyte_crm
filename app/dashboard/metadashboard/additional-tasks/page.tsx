@@ -1,19 +1,22 @@
 "use client";
 
 // app/dashboard/metadashboard/additional-tasks/page.tsx
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   AdditionalTask,
   CATEGORY_META,
   CATEGORY_OPTIONS,
-  DUMMY_ADDITIONAL_TASKS,
 } from '../../../../data/metadashboard/dummyData';
+import { fetchMyAdditionalWork, createAdditionalWork } from '../../../api/metaApi';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export default function AdditionalTasksPage() {
-  const [items, setItems] = useState<AdditionalTask[]>(DUMMY_ADDITIONAL_TASKS);
+  const [items, setItems] = useState<AdditionalTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<string>('other');
@@ -21,30 +24,68 @@ export default function AdditionalTasksPage() {
   const [date, setDate] = useState(todayIso());
   const [hoursSpent, setHoursSpent] = useState<number | ''>('');
   const [outcome, setOutcome] = useState('');
-  const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
+
+  const [employeeId, setEmployeeId] = useState<string>('');
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('user');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setEmployeeId(parsed?._id || parsed?.id || '');
+      }
+    } catch {
+      setEmployeeId('');
+    }
+  }, []);
+
+  const loadItems = useCallback(async () => {
+    if (!employeeId) return;
+    try {
+      setLoading(true);
+      setLoadError('');
+      const fetched = await fetchMyAdditionalWork(employeeId);
+      setItems(fetched);
+    } catch (err: unknown) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to load additional work');
+    } finally {
+      setLoading(false);
+    }
+  }, [employeeId]);
+
+  useEffect(() => {
+    loadItems();
+  }, [loadItems]);
 
   const resetForm = () => {
     setTitle(''); setCategory('other'); setDescription(''); setDate(todayIso());
-    setHoursSpent(''); setOutcome(''); setError('');
+    setHoursSpent(''); setOutcome(''); setFormError('');
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim() || !description.trim()) {
-      setError('Give the work a title and a short description before saving.');
+      setFormError('Give the work a title and a short description before saving.');
       return;
     }
-    const newItem: AdditionalTask = {
-      id: `a${Date.now()}`,
-      title: title.trim(),
-      category: category as AdditionalTask['category'],
-      description: description.trim(),
-      date,
-      hoursSpent,
-      outcome: outcome.trim(),
-    };
-    setItems((prev) => [newItem, ...prev]);
-    resetForm();
-    setShowForm(false);
+    try {
+      setSaving(true);
+      setFormError('');
+      await createAdditionalWork(employeeId, {
+        title: title.trim(),
+        category,
+        description: description.trim(),
+        date,
+        hoursSpent,
+        outcome: outcome.trim(),
+      });
+      resetForm();
+      setShowForm(false);
+      await loadItems();
+    } catch (err: unknown) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save entry');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -57,36 +98,48 @@ export default function AdditionalTasksPage() {
         <button type="button" className="md-add-btn" onClick={() => setShowForm(true)}>+ Log work</button>
       </header>
 
-      {items.length === 0 ? (
+      {loading && <p className="md-empty-text">Loading…</p>}
+
+      {!loading && loadError && (
         <div className="md-empty">
-          <p className="md-empty-title">Nothing logged yet</p>
-          <p className="md-empty-text">Use "Log work" to record something useful you did outside your task list.</p>
+          <p className="md-empty-title">Couldn't load your entries</p>
+          <p className="md-empty-text">{loadError}</p>
+          <button type="button" className="md-btn-secondary" onClick={loadItems}>Retry</button>
         </div>
-      ) : (
-        <div className="md-list">
-          {items.map((item) => {
-            const cat = item.category === 'other' ? null : CATEGORY_META[item.category];
-            return (
-              <div className="md-list-card" key={item.id}>
-                <div className="md-list-card-header">
-                  <span
-                    className="md-chip"
-                    style={cat ? { color: cat.color, background: `${cat.color}1a` } : { color: 'var(--md-text-muted)', background: 'var(--md-surface)' }}
-                  >
-                    {cat ? cat.label : 'Other'}
-                  </span>
+      )}
+
+      {!loading && !loadError && (
+        items.length === 0 ? (
+          <div className="md-empty">
+            <p className="md-empty-title">Nothing logged yet</p>
+            <p className="md-empty-text">Use "Log work" to record something useful you did outside your task list.</p>
+          </div>
+        ) : (
+          <div className="md-list">
+            {items.map((item) => {
+              const cat = item.category === 'other' ? null : CATEGORY_META[item.category];
+              return (
+                <div className="md-list-card" key={item.id}>
+                  <div className="md-list-card-header">
+                    <span
+                      className="md-chip"
+                      style={cat ? { color: cat.color, background: `${cat.color}1a` } : { color: 'var(--md-text-muted)', background: 'var(--md-surface)' }}
+                    >
+                      {cat ? cat.label : 'Other'}
+                    </span>
+                  </div>
+                  <p className="md-list-card-title">{item.title}</p>
+                  <p className="md-list-card-desc">{item.description}</p>
+                  {item.outcome && <p className="md-list-card-outcome">{item.outcome}</p>}
+                  <div className="md-list-card-footer">
+                    <span>{item.date}</span>
+                    <span>{item.hoursSpent === '' ? '—' : `${item.hoursSpent}h`}</span>
+                  </div>
                 </div>
-                <p className="md-list-card-title">{item.title}</p>
-                <p className="md-list-card-desc">{item.description}</p>
-                {item.outcome && <p className="md-list-card-outcome">{item.outcome}</p>}
-                <div className="md-list-card-footer">
-                  <span>{item.date}</span>
-                  <span>{item.hoursSpent === '' ? '—' : `${item.hoursSpent}h`}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )
       )}
 
       {showForm && (
@@ -148,12 +201,14 @@ export default function AdditionalTasksPage() {
                 <textarea className="md-textarea" placeholder="What came out of it?" value={outcome} onChange={(e) => setOutcome(e.target.value)} />
               </div>
 
-              {error && <p style={{ color: 'var(--md-danger)', fontSize: 12.5, fontWeight: 500 }}>{error}</p>}
+              {formError && <p style={{ color: 'var(--md-danger)', fontSize: 12.5, fontWeight: 500 }}>{formError}</p>}
             </div>
 
             <div className="md-modal-footer">
               <button type="button" className="md-btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
-              <button type="button" className="md-btn-primary" onClick={handleSave}>Save entry</button>
+              <button type="button" className="md-btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving…' : 'Save entry'}
+              </button>
             </div>
           </div>
         </div>
