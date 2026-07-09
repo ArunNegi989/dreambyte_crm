@@ -4,17 +4,19 @@ import { useMemo, useState } from "react";
 import {
   DesignTask,
   TaskStatus,
-  TaskType,
   Frequency,
-  TASK_TYPE_META,
+  getTaskTypeMeta,
   FREQUENCY_META,
+  getBrandName,
+  getTimeTakenLabel,
 } from "@/types/designer/Designer";
 import styles from "@/public/assets/styles/dashboard/designerdashboard/Designertasksboard.module.css";
 
 interface DesignerTasksBoardProps {
   tasks: DesignTask[];
-  onStatusChange: (id: string, status: TaskStatus) => void;
-  onReplyToChange: (taskId: string, changeId: string, response: string) => void;
+  onStartTask: (id: string) => void;
+  onSubmitTask: (id: string, note: string) => void;
+  onRespondChanges: (id: string, responses: { id: string; response: string }[]) => void;
   showFilters?: boolean;
   title?: string;
   subtitle?: string;
@@ -23,10 +25,32 @@ interface DesignerTasksBoardProps {
 const statusLabel = (s: TaskStatus) => {
   if (s === "in_progress") return "In Progress";
   if (s === "changes_requested") return "Changes Requested";
+  if (s === "completed") return "Submitted — In Review";
+  if (s === "approved") return "Approved";
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
+const statusColor = (s: TaskStatus) => {
+  switch (s) {
+    case "pending":
+      return { bg: "#f1f5f9", color: "#475569" };
+    case "in_progress":
+      return { bg: "#eff6ff", color: "#1d4ed8" };
+    case "completed":
+      return { bg: "#fefce8", color: "#a16207" };
+    case "approved":
+      return { bg: "#f0fdf4", color: "#15803d" };
+    case "rejected":
+      return { bg: "#fef2f2", color: "#b91c1c" };
+    case "changes_requested":
+      return { bg: "#fff7ed", color: "#c2410c" };
+    default:
+      return { bg: "#f1f5f9", color: "#475569" };
+  }
+};
+
 const dateLabel = (dateStr: string) => {
+  if (!dateStr) return "No due date";
   const today = new Date().toISOString().split("T")[0];
   const t = new Date();
   t.setDate(t.getDate() + 1);
@@ -47,8 +71,9 @@ const dateLabel = (dateStr: string) => {
 
 export default function DesignerTasksBoard({
   tasks,
-  onStatusChange,
-  onReplyToChange,
+  onStartTask,
+  onSubmitTask,
+  onRespondChanges,
   showFilters = true,
   title = "My Tasks",
   subtitle = "Everything assigned to you, grouped by day",
@@ -57,9 +82,13 @@ export default function DesignerTasksBoard({
   const [rangeFilter, setRangeFilter] = useState<"all" | "today" | "week" | "month">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | TaskStatus>("all");
   const [frequencyFilter, setFrequencyFilter] = useState<"all" | Frequency>("all");
-  const [typeFilter, setTypeFilter] = useState<"all" | TaskType>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [submitModal, setSubmitModal] = useState<DesignTask | null>(null);
+  const [submitNote, setSubmitNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [resubmitting, setResubmitting] = useState<string | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
   const weekStart = new Date();
@@ -67,12 +96,17 @@ export default function DesignerTasksBoard({
   const weekStartStr = weekStart.toISOString().split("T")[0];
   const monthStr = today.slice(0, 7);
 
+  const typeOptions = useMemo(
+    () => Array.from(new Set(tasks.map((t) => t.taskType).filter(Boolean))),
+    [tasks]
+  );
+
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
       if (dateFilter && t.dueDate !== dateFilter) return false;
       if (rangeFilter === "today" && t.dueDate !== today) return false;
       if (rangeFilter === "week" && t.dueDate < weekStartStr) return false;
-      if (rangeFilter === "month" && !t.dueDate.startsWith(monthStr)) return false;
+      if (rangeFilter === "month" && !(t.dueDate || "").startsWith(monthStr)) return false;
       if (statusFilter !== "all" && t.status !== statusFilter) return false;
       if (frequencyFilter !== "all" && t.frequency !== frequencyFilter) return false;
       if (typeFilter !== "all" && t.taskType !== typeFilter) return false;
@@ -84,10 +118,11 @@ export default function DesignerTasksBoard({
   const grouped = useMemo(() => {
     const map = new Map<string, DesignTask[]>();
     [...filtered]
-      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+      .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
       .forEach((t) => {
-        if (!map.has(t.dueDate)) map.set(t.dueDate, []);
-        map.get(t.dueDate)!.push(t);
+        const key = t.dueDate || "No due date";
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push(t);
       });
     return Array.from(map.entries());
   }, [filtered]);
@@ -100,23 +135,46 @@ export default function DesignerTasksBoard({
     setTypeFilter("all");
   };
 
-  const hasUnresolvedChanges = (task: DesignTask) =>
-    task.changes.some((c) => !c.resolved);
+  const openChanges = (task: DesignTask) => task.changes.filter((c) => !c.resolved);
 
-  const sendReply = (task: DesignTask, changeId: string) => {
-    const text = replyDrafts[changeId] ?? "";
-    if (!text.trim()) return;
-    onReplyToChange(task.id, changeId, text.trim());
-    setReplyDrafts((prev) => ({ ...prev, [changeId]: "" }));
+  const allOpenRepliesFilled = (task: DesignTask) => {
+    const open = openChanges(task);
+    return open.length > 0 && open.every((c) => (replyDrafts[c._id] ?? "").trim().length > 0);
   };
 
-  const cycleAction = (task: DesignTask): { label: string; next: TaskStatus } | null => {
-    if (task.status === "pending") return { label: "Start Task", next: "in_progress" };
-    if (task.status === "in_progress") return { label: "Submit for Review", next: "completed" };
-    if ((task.status === "rejected" || task.status === "changes_requested") && !hasUnresolvedChanges(task)) {
-      return { label: "Resubmit", next: "completed" };
+  const handleResubmit = async (task: DesignTask) => {
+    const responses = openChanges(task).map((c) => ({
+      id: c._id,
+      response: (replyDrafts[c._id] ?? "").trim(),
+    }));
+    setResubmitting(task._id);
+    try {
+      await onRespondChanges(task._id, responses);
+      setReplyDrafts((prev) => {
+        const next = { ...prev };
+        responses.forEach((r) => delete next[r.id]);
+        return next;
+      });
+    } finally {
+      setResubmitting(null);
     }
-    return null;
+  };
+
+  const openSubmitModal = (task: DesignTask) => {
+    setSubmitModal(task);
+    setSubmitNote("");
+  };
+
+  const confirmSubmit = async () => {
+    if (!submitModal) return;
+    setSubmitting(true);
+    try {
+      await onSubmitTask(submitModal._id, submitNote.trim());
+      setSubmitModal(null);
+      setSubmitNote("");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -170,21 +228,21 @@ export default function DesignerTasksBoard({
             >
               <option value="all">All Frequencies</option>
               {(Object.keys(FREQUENCY_META) as Frequency[]).map((f) => (
-                <option key={f} value={f}>{FREQUENCY_META[f].label}</option>
+                <option key={f} value={f}>
+                  {FREQUENCY_META[f].label}
+                </option>
               ))}
             </select>
           </div>
 
           <div className={styles.filterGroup}>
             <label className={styles.filterLabel}>Task Type</label>
-            <select
-              className={styles.selectInput}
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as "all" | TaskType)}
-            >
+            <select className={styles.selectInput} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
               <option value="all">All Types</option>
-              {(Object.keys(TASK_TYPE_META) as TaskType[]).map((t) => (
-                <option key={t} value={t}>{TASK_TYPE_META[t].label}</option>
+              {typeOptions.map((t) => (
+                <option key={t} value={t}>
+                  {getTaskTypeMeta(t).label}
+                </option>
               ))}
             </select>
           </div>
@@ -201,7 +259,8 @@ export default function DesignerTasksBoard({
               <option value="in_progress">In Progress</option>
               <option value="changes_requested">Changes Requested</option>
               <option value="rejected">Rejected</option>
-              <option value="completed">Completed</option>
+              <option value="completed">Submitted — In Review</option>
+              <option value="approved">Approved</option>
             </select>
           </div>
 
@@ -221,25 +280,33 @@ export default function DesignerTasksBoard({
           <div key={date} className={styles.dayGroup}>
             <div className={styles.dayHeader}>
               <span className={styles.dayLabel}>{dateLabel(date)}</span>
-              <span className={styles.dayCount}>{dayTasks.length} task{dayTasks.length > 1 ? "s" : ""}</span>
+              <span className={styles.dayCount}>
+                {dayTasks.length} task{dayTasks.length > 1 ? "s" : ""}
+              </span>
               <span className={styles.dayLine} />
             </div>
 
             <div className={styles.tasksGrid}>
               {dayTasks.map((task) => {
-                const typeMeta = TASK_TYPE_META[task.taskType];
-                const freqMeta = FREQUENCY_META[task.frequency];
-                const action = cycleAction(task);
-                const isExpanded = expandedId === task.id;
+                const typeMeta = getTaskTypeMeta(task.taskType);
+                const freqMeta = FREQUENCY_META[task.frequency] ?? FREQUENCY_META.one_time;
+                const isExpanded = expandedId === task._id;
                 const needsAttentionBanner = task.status === "rejected" || task.status === "changes_requested";
+                const sColor = statusColor(task.status);
+                const timeTaken = getTimeTakenLabel(task.startedAt, task.deliveredAt);
+                const open = openChanges(task);
 
                 return (
-                  <div key={task.id} className={`${styles.taskCard} ${styles[`border_${task.status}`]}`}>
+                  <div
+                    key={task._id}
+                    className={styles.taskCard}
+                    style={{ borderTop: `3px solid ${sColor.color}` }}
+                  >
                     <div className={styles.cardTop}>
                       <span className={styles.typeTag} style={{ background: typeMeta.bg, color: typeMeta.color }}>
                         {typeMeta.label}
                       </span>
-                      <span className={`${styles.statusPill} ${styles[`pill_${task.status}`]}`}>
+                      <span className={styles.statusPill} style={{ background: sColor.bg, color: sColor.color }}>
                         {statusLabel(task.status)}
                       </span>
                     </div>
@@ -248,10 +315,7 @@ export default function DesignerTasksBoard({
                     <p className={styles.taskDesc}>{task.description}</p>
 
                     <div className={styles.metaRow}>
-                      <span className={styles.brandRow}>
-                        <span className={styles.brandDot} style={{ background: task.brandColor }} />
-                        {task.brand}
-                      </span>
+                      <span className={styles.brandRow}>{getBrandName(task.brandId)}</span>
                       <span className={styles.freqTag} style={{ background: freqMeta.bg, color: freqMeta.color }}>
                         {freqMeta.label}
                       </span>
@@ -264,9 +328,18 @@ export default function DesignerTasksBoard({
                         <line x1="8" y1="2" x2="8" y2="6" />
                         <line x1="3" y1="10" x2="21" y2="10" />
                       </svg>
-                      Due {task.dueDate}
-                      <span className={styles.assignedBy}>&middot; by {task.assignedBy}</span>
+                      Due {task.dueDate || "—"}
+                      <span className={styles.assignedBy}>
+                        &middot; by {task.assignedBy === "super_admin" ? "Super Admin" : "Admin"}
+                      </span>
                     </div>
+
+                    {timeTaken && (
+                      <div style={{ fontSize: 12, color: "#64748b", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                        ⏱ Time taken: <strong>{timeTaken}</strong>
+                        {!task.deliveredAt && task.status === "in_progress" && " (running)"}
+                      </div>
+                    )}
 
                     {needsAttentionBanner && task.rejectRemark && (
                       <div className={styles.remarkBanner}>
@@ -283,7 +356,7 @@ export default function DesignerTasksBoard({
                     {task.changes.length > 0 && (
                       <button
                         className={`${styles.changeToggle} ${needsAttentionBanner ? styles.changeToggleAlert : ""}`}
-                        onClick={() => setExpandedId(isExpanded ? null : task.id)}
+                        onClick={() => setExpandedId(isExpanded ? null : task._id)}
                       >
                         <span className={styles.changeBubble}>{task.changes.length}</span>
                         Change Log {isExpanded ? "▲" : "▼"}
@@ -293,7 +366,7 @@ export default function DesignerTasksBoard({
                     {isExpanded && (
                       <div className={styles.changeList}>
                         {task.changes.map((ch) => (
-                          <div key={ch.id} className={styles.changeItem}>
+                          <div key={ch._id} className={styles.changeItem}>
                             <div className={styles.changeTop}>
                               <span className={styles.changeBy}>{ch.changedBy}</span>
                               <span className={styles.changeDate}>{ch.changedAt}</span>
@@ -301,47 +374,64 @@ export default function DesignerTasksBoard({
                             </div>
                             <p className={styles.changeNote}>{ch.note}</p>
 
-                            {ch.designerResponse && (
+                            {ch.employeeResponse && (
                               <div className={styles.designerResponse}>
                                 <span className={styles.designerResponseLabel}>💬 Your Reply</span>
-                                <p className={styles.designerResponseText}>{ch.designerResponse}</p>
+                                <p className={styles.designerResponseText}>{ch.employeeResponse}</p>
                               </div>
                             )}
 
-                            {!ch.resolved && !ch.designerResponse && (
+                            {!ch.resolved && !ch.employeeResponse && (
                               <div className={styles.replyBox}>
                                 <textarea
                                   className={styles.replyInput}
                                   rows={2}
                                   placeholder="Write your reply after making the fix…"
-                                  value={replyDrafts[ch.id] ?? ""}
+                                  value={replyDrafts[ch._id] ?? ""}
                                   onChange={(e) =>
-                                    setReplyDrafts((prev) => ({ ...prev, [ch.id]: e.target.value }))
+                                    setReplyDrafts((prev) => ({ ...prev, [ch._id]: e.target.value }))
                                   }
                                 />
-                                <button className={styles.replyBtn} onClick={() => sendReply(task, ch.id)}>
-                                  Send Reply
-                                </button>
                               </div>
                             )}
                           </div>
                         ))}
+
+                        {open.length > 0 && (
+                          <button
+                            className={styles.replyBtn}
+                            disabled={!allOpenRepliesFilled(task) || resubmitting === task._id}
+                            onClick={() => handleResubmit(task)}
+                            style={{ marginTop: 8, opacity: allOpenRepliesFilled(task) ? 1 : 0.5 }}
+                          >
+                            {resubmitting === task._id
+                              ? "Resubmitting…"
+                              : `Resubmit All Changes (${open.length})`}
+                          </button>
+                        )}
                       </div>
                     )}
 
                     <div className={styles.cardFooter}>
-                      {action ? (
-                        <button
-                          className={`${styles.actionBtn} ${styles[`action_${task.status}`]}`}
-                          onClick={() => onStatusChange(task.id, action.next)}
-                        >
-                          {action.label}
+                      {task.status === "pending" && (
+                        <button className={styles.actionBtn} onClick={() => onStartTask(task._id)}>
+                          Start Task
                         </button>
-                      ) : task.status === "completed" ? (
-                        <span className={styles.doneTag}>✓ Completed</span>
-                      ) : (
-                        <span className={styles.waitingTag}>Reply to all notes to resubmit</span>
                       )}
+                      {task.status === "in_progress" && (
+                        <button className={styles.actionBtn} onClick={() => openSubmitModal(task)}>
+                          Submit for Review
+                        </button>
+                      )}
+                      {(task.status === "rejected" || task.status === "changes_requested") && (
+                        <span className={styles.waitingTag}>
+                          {open.length > 0 ? "Reply to all notes above to resubmit" : "Ready to resubmit"}
+                        </span>
+                      )}
+                      {task.status === "completed" && (
+                        <span className={styles.waitingTag}>Awaiting Super Admin review</span>
+                      )}
+                      {task.status === "approved" && <span className={styles.doneTag}>✓ Approved</span>}
                     </div>
                   </div>
                 );
@@ -349,6 +439,75 @@ export default function DesignerTasksBoard({
             </div>
           </div>
         ))
+      )}
+
+      {/* ── Submit for Review modal ── */}
+      {submitModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+          }}
+          onClick={() => !submitting && setSubmitModal(null)}
+        >
+          <div
+            style={{ background: "#fff", borderRadius: 12, padding: 24, width: 420, maxWidth: "90vw" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, marginBottom: 4 }}>Submit for Review</h3>
+            <p style={{ margin: 0, marginBottom: 12, color: "#64748b", fontSize: 13 }}>{submitModal.title}</p>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Note (optional)</label>
+            <textarea
+              rows={4}
+              value={submitNote}
+              onChange={(e) => setSubmitNote(e.target.value)}
+              placeholder="Any notes for the reviewer, links, etc…"
+              style={{
+                width: "100%",
+                marginTop: 4,
+                marginBottom: 16,
+                padding: 8,
+                borderRadius: 8,
+                border: "1px solid #e2e8f0",
+                fontFamily: "inherit",
+              }}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                onClick={() => setSubmitModal(null)}
+                disabled={submitting}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid #e2e8f0",
+                  background: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSubmit}
+                disabled={submitting}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#4338ca",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                {submitting ? "Submitting…" : "Submit"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -39,6 +39,24 @@ const SHOOT_WORK_TYPES = ["Shoots"];
 // Work types that need a "how many to edit" count
 const EDIT_COUNT_WORK_TYPES = ["Photo Edit"];
 
+// ── Time-taken helper — same formula the Designer Dashboard uses, so both
+// sides (employee + super admin) always show the identical number. ─────────
+const getTimeTakenLabel = (startedAt?: string | null, deliveredAt?: string | null): string => {
+  if (!startedAt) return "—";
+  const start = new Date(startedAt).getTime();
+  const end = deliveredAt ? new Date(deliveredAt).getTime() : Date.now();
+  let diffMs = end - start;
+  if (diffMs < 0) diffMs = 0;
+
+  const mins = Math.floor(diffMs / 60000);
+  const hrs = Math.floor(mins / 60);
+  const days = Math.floor(hrs / 24);
+
+  if (days > 0) return `${days}d ${hrs % 24}h`;
+  if (hrs > 0) return `${hrs}h ${mins % 60}m`;
+  return `${mins}m`;
+};
+
 export default function SATasks({
   tasks,
   employees,
@@ -505,6 +523,7 @@ export default function SATasks({
               <th>Freq</th>
               <th>Due</th>
               <th>Delivery</th>
+              <th>Time Taken</th>
               <th>Changes</th>
               <th>Status</th>
               <th>Actions</th>
@@ -518,7 +537,10 @@ export default function SATasks({
                 totalCount?: number | null;
                 completedCount?: number;
                 taskType?: string;
+                startedAt?: string | null;
+                deliveredAt?: string | null;
               };
+              const colSpanFull = isAdminOrSA ? 11 : 10;
 
               return (
                 <>
@@ -622,6 +644,30 @@ export default function SATasks({
                           ✗ Not Delivered
                         </span>
                       )}
+                    </td>
+
+                    {/* Time Taken — how long the employee spent on this task,
+                        computed from startedAt (stamped when they hit "Start
+                        Task" / go in_progress) to deliveredAt (or now, if
+                        still running). Same number shown on their own dashboard. */}
+                    <td>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          color: taskAny.startedAt ? "#334155" : "#94a3b8",
+                          whiteSpace: "nowrap",
+                        }}
+                        title={
+                          taskAny.startedAt
+                            ? `Started: ${new Date(taskAny.startedAt).toLocaleString("en-IN")}`
+                            : "Not started yet"
+                        }
+                      >
+                        {getTimeTakenLabel(taskAny.startedAt, taskAny.deliveredAt)}
+                        {taskAny.startedAt && !taskAny.deliveredAt && (
+                          <span style={{ color: "#2563eb" }}> ●</span>
+                        )}
+                      </span>
                     </td>
 
                     {/* Changes toggle */}
@@ -774,7 +820,7 @@ export default function SATasks({
                     task.status === "rejected" &&
                     (remarkOpen[tid] || !task.rejectRemark) && (
                       <tr key={`${tid}-remark`} className={styles.remarkRow}>
-                        <td colSpan={10}>
+                        <td colSpan={colSpanFull}>
                           <div className={styles.remarkBox}>
                             <span className={styles.remarkLabel}>
                               Reject Remark:
@@ -817,7 +863,7 @@ export default function SATasks({
 
                   {isExpanded && (
                     <tr key={`${tid}-changes`} className={styles.changeRow}>
-                      <td colSpan={10}>
+                      <td colSpan={colSpanFull}>
                         <div className={styles.changeDropdown}>
                           <div className={styles.changeHeader}>
                             Change Log —{" "}
@@ -919,7 +965,7 @@ export default function SATasks({
 
             {filteredTasks.length === 0 && (
               <tr>
-                <td colSpan={10} className={styles.empty}>
+                <td colSpan={isAdminOrSA ? 11 : 10} className={styles.empty}>
                   No tasks found.
                 </td>
               </tr>

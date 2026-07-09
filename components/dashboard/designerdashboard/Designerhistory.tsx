@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DesignTask, TASK_TYPE_META, TaskType } from "@/types/designer/Designer";
+import { DesignTask, getTaskTypeMeta, getBrandName } from "@/types/designer/Designer";
 import styles from "@/public/assets/styles/dashboard/designerdashboard/Designerhistory.module.css";
 
 interface DesignerHistoryProps {
-  tasks: DesignTask[]; // only completed tasks passed in
+  tasks: DesignTask[]; // completed + approved tasks passed in from the dashboard
 }
 
 const monthLabel = (ym: string) => {
@@ -14,23 +14,25 @@ const monthLabel = (ym: string) => {
   return d.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 };
 
+const completedDate = (t: DesignTask) => (t.deliveredAt ?? t.dueDate ?? "").slice(0, 10);
+
 export default function DesignerHistory({ tasks }: DesignerHistoryProps) {
   const [monthFilter, setMonthFilter] = useState<string>("all");
 
   const months = useMemo(() => {
-    const set = new Set(tasks.map((t) => (t.completedAt ?? t.dueDate).slice(0, 7)));
+    const set = new Set(tasks.map((t) => completedDate(t).slice(0, 7)).filter(Boolean));
     return Array.from(set).sort().reverse();
   }, [tasks]);
 
   const filteredTasks = useMemo(() => {
     if (monthFilter === "all") return tasks;
-    return tasks.filter((t) => (t.completedAt ?? t.dueDate).slice(0, 7) === monthFilter);
+    return tasks.filter((t) => completedDate(t).slice(0, 7) === monthFilter);
   }, [tasks, monthFilter]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, DesignTask[]>();
     filteredTasks.forEach((t) => {
-      const key = (t.completedAt ?? t.dueDate).slice(0, 7);
+      const key = completedDate(t).slice(0, 7) || "Undated";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(t);
     });
@@ -38,13 +40,13 @@ export default function DesignerHistory({ tasks }: DesignerHistoryProps) {
   }, [filteredTasks]);
 
   const typeBreakdown = useMemo(() => {
-    const counts: Partial<Record<TaskType, number>> = {};
+    const counts: Record<string, number> = {};
     filteredTasks.forEach((t) => {
       counts[t.taskType] = (counts[t.taskType] ?? 0) + 1;
     });
     const max = Math.max(1, ...Object.values(counts));
-    return (Object.keys(counts) as TaskType[])
-      .map((type) => ({ type, count: counts[type]!, pct: Math.round((counts[type]! / max) * 100) }))
+    return Object.keys(counts)
+      .map((type) => ({ type, count: counts[type], pct: Math.round((counts[type] / max) * 100) }))
       .sort((a, b) => b.count - a.count);
   }, [filteredTasks]);
 
@@ -53,16 +55,16 @@ export default function DesignerHistory({ tasks }: DesignerHistoryProps) {
       <div className={styles.header}>
         <div>
           <h2 className={styles.title}>Past Record</h2>
-          <p className={styles.sub}>{filteredTasks.length} tasks completed{monthFilter !== "all" ? ` in ${monthLabel(monthFilter)}` : " overall"}</p>
+          <p className={styles.sub}>
+            {filteredTasks.length} tasks completed{monthFilter !== "all" ? ` in ${monthLabel(monthFilter)}` : " overall"}
+          </p>
         </div>
-        <select
-          className={styles.monthSelect}
-          value={monthFilter}
-          onChange={(e) => setMonthFilter(e.target.value)}
-        >
+        <select className={styles.monthSelect} value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
           <option value="all">All Time</option>
           {months.map((m) => (
-            <option key={m} value={m}>{monthLabel(m)}</option>
+            <option key={m} value={m}>
+              {monthLabel(m)}
+            </option>
           ))}
         </select>
       </div>
@@ -73,15 +75,12 @@ export default function DesignerHistory({ tasks }: DesignerHistoryProps) {
           <h3 className={styles.breakdownTitle}>Work Breakdown by Type</h3>
           <div className={styles.breakdownList}>
             {typeBreakdown.map(({ type, count, pct }) => {
-              const meta = TASK_TYPE_META[type];
+              const meta = getTaskTypeMeta(type);
               return (
                 <div key={type} className={styles.breakdownRow}>
                   <span className={styles.breakdownLabel}>{meta.label}</span>
                   <div className={styles.breakdownBarBg}>
-                    <div
-                      className={styles.breakdownBarFill}
-                      style={{ width: `${pct}%`, background: meta.color }}
-                    />
+                    <div className={styles.breakdownBarFill} style={{ width: `${pct}%`, background: meta.color }} />
                   </div>
                   <span className={styles.breakdownCount}>{count}</span>
                 </div>
@@ -101,29 +100,30 @@ export default function DesignerHistory({ tasks }: DesignerHistoryProps) {
         grouped.map(([ym, monthTasks]) => (
           <div key={ym} className={styles.monthGroup}>
             <div className={styles.monthHeader}>
-              <span className={styles.monthLabel}>{monthLabel(ym)}</span>
+              <span className={styles.monthLabel}>{ym === "Undated" ? "Undated" : monthLabel(ym)}</span>
               <span className={styles.monthCount}>{monthTasks.length} completed</span>
               <span className={styles.monthLine} />
             </div>
 
             <div className={styles.recordList}>
               {monthTasks
-                .sort((a, b) => (b.completedAt ?? b.dueDate).localeCompare(a.completedAt ?? a.dueDate))
+                .sort((a, b) => completedDate(b).localeCompare(completedDate(a)))
                 .map((task) => {
-                  const meta = TASK_TYPE_META[task.taskType];
+                  const meta = getTaskTypeMeta(task.taskType);
                   return (
-                    <div key={task.id} className={styles.recordItem}>
+                    <div key={task._id} className={styles.recordItem}>
                       <span className={styles.recordType} style={{ background: meta.bg, color: meta.color }}>
                         {meta.label}
                       </span>
                       <div className={styles.recordInfo}>
                         <span className={styles.recordTitle}>{task.title}</span>
                         <span className={styles.recordMeta}>
-                          <span className={styles.recordBrandDot} style={{ background: task.brandColor }} />
-                          {task.brand} &middot; Completed {task.completedAt ?? task.dueDate}
+                          {getBrandName(task.brandId)} &middot; Completed {completedDate(task) || task.dueDate}
                         </span>
                       </div>
-                      <span className={styles.recordDoneTag}>✓ Done</span>
+                      <span className={styles.recordDoneTag}>
+                        {task.status === "approved" ? "✓ Approved" : "✓ Submitted"}
+                      </span>
                     </div>
                   );
                 })}

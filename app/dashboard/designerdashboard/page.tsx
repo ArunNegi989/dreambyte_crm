@@ -1,20 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import DesignerSidebar, { DesignerSection } from "@/components/dashboard/designerdashboard/Designersidebar";
 import DesignerStatsCards from "@/components/dashboard/designerdashboard/Designerstatscards";
 import DesignerTasksBoard from "@/components/dashboard/designerdashboard/Designertasksboard";
 import DesignerAdditionalWork from "@/components/dashboard/designerdashboard/Designeradditionalwork";
 import DesignerHistory from "@/components/dashboard/designerdashboard/Designerhistory";
+import { DesignTask, AdditionalWork, todayStr } from "@/types/designer/Designer";
 import {
-  mockTasks,
-  mockAdditionalWork,
-  DesignTask,
-  AdditionalWork,
-  TaskStatus,
-  TODAY,
-} from "@/types/designer/Designer";
+  fetchMyTasks,
+  fetchMyAdditionalWork,
+  startTask,
+  submitTaskForReview,
+  respondToTaskChanges,
+  addAdditionalWork,
+  markAdditionalWorkDone,
+} from "@/app/api/Designerapi";
 import styles from "@/public/assets/styles/dashboard/designerdashboard/Designerdashboard.module.css";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { logout } from "@/app/api/authApi";
@@ -44,47 +46,75 @@ export default function DesignerDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [tasks, setTasks] = useState<DesignTask[]>(mockTasks);
-  const [additionalWork, setAdditionalWork] = useState<AdditionalWork[]>(mockAdditionalWork);
+  // ── Live backend data — no mock arrays anywhere below this line ────────
+  const [tasks, setTasks] = useState<DesignTask[]>([]);
+  const [additionalWork, setAdditionalWork] = useState<AdditionalWork[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleStatusChange = (id: string, status: TaskStatus) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? { ...t, status, completedAt: status === "completed" ? new Date().toISOString().split("T")[0] : t.completedAt }
-          : t
-      )
-    );
+  // Date shown next to the date chip in the top bar. Defaults to today;
+  // changing it lets the designer look back at any previous date's tasks
+  // right from the Overview tab, without leaving the page.
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr());
+  const isToday = selectedDate === todayStr();
+
+  const loadAll = useCallback(async () => {
+    try {
+      setError(null);
+      const [t, w] = await Promise.all([fetchMyTasks(), fetchMyAdditionalWork()]);
+      setTasks(t);
+      setAdditionalWork(w);
+    } catch (err) {
+      console.error("Failed to load designer dashboard data", err);
+      setError("Could not load your tasks. Please refresh.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
+
+  // ── Task actions — each hits the backend then re-syncs from server so
+  // the UI always reflects the real source of truth (esp. important since
+  // status changes cascade into changes[]/deliveryStatus server-side). ───
+  const handleStartTask = async (id: string) => {
+    setTasks((prev) => prev.map((t) => (t._id === id ? { ...t, status: "in_progress" } : t)));
+    try {
+      await startTask(id);
+    } finally {
+      loadAll();
+    }
   };
 
-  const handleReplyToChange = (taskId: string, changeId: string, response: string) => {
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== taskId) return t;
-        return {
-          ...t,
-          changes: t.changes.map((c) =>
-            c.id === changeId ? { ...c, designerResponse: response, resolved: true } : c
-          ),
-        };
-      })
-    );
+  const handleSubmitTask = async (id: string, note: string) => {
+    const task = tasks.find((t) => t._id === id);
+    await submitTaskForReview(id, note, task?.startedAt ?? undefined);
+    await loadAll();
   };
 
-  const handleAdditionalStatusChange = (id: string, status: "pending" | "completed") => {
-    setAdditionalWork((prev) => prev.map((w) => (w.id === id ? { ...w, status } : w)));
+  const handleRespondChanges = async (
+    id: string,
+    responses: { id: string; response: string }[]
+  ) => {
+    await respondToTaskChanges(id, responses);
+    await loadAll();
   };
 
-  const handleAddAdditionalWork = (title: string, description: string) => {
-    const entry: AdditionalWork = {
-      id: `aw_${Date.now()}`,
-      title,
-      description,
-      date: TODAY,
-      status: "pending",
-      loggedBy: "self",
-    };
-    setAdditionalWork((prev) => [entry, ...prev]);
+  // ── Additional work actions ─────────────────────────────────────────────
+  const handleAdditionalStatusChange = async (id: string) => {
+    setAdditionalWork((prev) => prev.map((w) => (w._id === id ? { ...w, status: "completed" } : w)));
+    try {
+      await markAdditionalWorkDone(id);
+    } finally {
+      loadAll();
+    }
+  };
+
+  const handleAddAdditionalWork = async (title: string, description: string) => {
+    await addAdditionalWork(title, description);
+    await loadAll();
   };
 
   const handleLogout = async () => {
@@ -97,8 +127,8 @@ export default function DesignerDashboard() {
     }
   };
 
-  const todayTasks = useMemo(() => tasks.filter((t) => t.dueDate === TODAY), [tasks]);
-  const todayCompleted = todayTasks.filter((t) => t.status === "completed").length;
+  const todayTasks = useMemo(() => tasks.filter((t) => t.dueDate === selectedDate), [tasks, selectedDate]);
+  const todayCompleted = todayTasks.filter((t) => t.status === "completed" || t.status === "approved").length;
 
   const needsAttention = tasks.filter(
     (t) => t.status === "rejected" || t.status === "changes_requested"
@@ -108,14 +138,19 @@ export default function DesignerDashboard() {
     (t) => t.status === "pending" || t.status === "in_progress"
   ).length;
 
-  const monthStr = TODAY.slice(0, 7);
+  const monthStr = todayStr().slice(0, 7);
   const completedThisMonth = tasks.filter(
-    (t) => t.status === "completed" && (t.completedAt ?? t.dueDate).startsWith(monthStr)
+    (t) =>
+      (t.status === "completed" || t.status === "approved") &&
+      (t.deliveredAt ?? t.dueDate ?? "").startsWith(monthStr)
   ).length;
 
   const additionalPending = additionalWork.filter((w) => w.status !== "completed").length;
 
-  const completedTasks = useMemo(() => tasks.filter((t) => t.status === "completed"), [tasks]);
+  const completedTasks = useMemo(
+    () => tasks.filter((t) => t.status === "completed" || t.status === "approved"),
+    [tasks]
+  );
 
   const sectionMeta: Record<DesignerSection, { title: string; sub: string }> = {
     overview: { title: "Today's Overview", sub: "Your tasks, changes, and extra work at a glance" },
@@ -147,11 +182,46 @@ export default function DesignerDashboard() {
                 <line x1="8" y1="2" x2="8" y2="6" />
                 <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
-              {new Date().toLocaleDateString("en-IN", {
+              {new Date(selectedDate).toLocaleDateString("en-IN", {
                 weekday: "long",
                 day: "numeric",
                 month: "long",
               })}
+              {/* ── Date filter: lets the designer jump to any previous date's tasks ── */}
+              <input
+                type="date"
+                value={selectedDate}
+                max={todayStr()}
+                onChange={(e) => setSelectedDate(e.target.value || todayStr())}
+                title="Check tasks from a previous date"
+                style={{
+                  marginLeft: 8,
+                  border: "none",
+                  background: "transparent",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  color: "inherit",
+                  colorScheme: "light",
+                }}
+              />
+              {!isToday && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(todayStr())}
+                  style={{
+                    marginLeft: 4,
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                    fontSize: 11,
+                    textDecoration: "underline",
+                    color: "inherit",
+                    padding: 0,
+                  }}
+                >
+                  Today
+                </button>
+              )}
             </div>
             <div className={styles.designerPill}>
               <span className={styles.pillDot} />
@@ -174,43 +244,61 @@ export default function DesignerDashboard() {
         </div>
 
         <div className={styles.content}>
-          {activeSection === "overview" && (
+          {loading ? (
+            <div style={{ padding: 48, textAlign: "center", color: "#64748b" }}>Loading your dashboard…</div>
+          ) : error ? (
+            <div style={{ padding: 48, textAlign: "center", color: "#b91c1c" }}>
+              {error}{" "}
+              <button
+                onClick={loadAll}
+                style={{ textDecoration: "underline", cursor: "pointer", background: "none", border: "none", color: "#b91c1c" }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
             <>
-              <DesignerStatsCards
-                todayTasks={todayTasks.length}
-                todayCompleted={todayCompleted}
-                needsAttention={needsAttention}
-                completedThisMonth={completedThisMonth}
-                additionalPending={additionalPending}
-              />
-              <DesignerTasksBoard
-                tasks={todayTasks}
-                onStatusChange={handleStatusChange}
-                onReplyToChange={handleReplyToChange}
-                showFilters={false}
-                title="Today's Tasks"
-                subtitle="Everything due today across all task types"
-              />
+              {activeSection === "overview" && (
+                <>
+                  <DesignerStatsCards
+                    todayTasks={todayTasks.length}
+                    todayCompleted={todayCompleted}
+                    needsAttention={needsAttention}
+                    completedThisMonth={completedThisMonth}
+                    additionalPending={additionalPending}
+                  />
+                  <DesignerTasksBoard
+                    tasks={todayTasks}
+                    onStartTask={handleStartTask}
+                    onSubmitTask={handleSubmitTask}
+                    onRespondChanges={handleRespondChanges}
+                    showFilters={false}
+                    title={isToday ? "Today's Tasks" : `Tasks — ${selectedDate}`}
+                    subtitle="Everything due on this date across all task types"
+                  />
+                </>
+              )}
+
+              {activeSection === "tasks" && (
+                <DesignerTasksBoard
+                  tasks={tasks}
+                  onStartTask={handleStartTask}
+                  onSubmitTask={handleSubmitTask}
+                  onRespondChanges={handleRespondChanges}
+                />
+              )}
+
+              {activeSection === "additional" && (
+                <DesignerAdditionalWork
+                  items={additionalWork}
+                  onStatusChange={handleAdditionalStatusChange}
+                  onAddItem={handleAddAdditionalWork}
+                />
+              )}
+
+              {activeSection === "history" && <DesignerHistory tasks={completedTasks} />}
             </>
           )}
-
-          {activeSection === "tasks" && (
-            <DesignerTasksBoard
-              tasks={tasks}
-              onStatusChange={handleStatusChange}
-              onReplyToChange={handleReplyToChange}
-            />
-          )}
-
-          {activeSection === "additional" && (
-            <DesignerAdditionalWork
-              items={additionalWork}
-              onStatusChange={handleAdditionalStatusChange}
-              onAddItem={handleAddAdditionalWork}
-            />
-          )}
-
-          {activeSection === "history" && <DesignerHistory tasks={completedTasks} />}
         </div>
       </main>
     </div>
