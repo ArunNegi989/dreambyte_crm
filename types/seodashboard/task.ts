@@ -205,3 +205,32 @@ export interface DashboardStats {
   categoryBreakdown: { category: SeoCategory; count: number }[];
   completionRate: number; // 0-100
 }
+
+
+export interface TaskChange {
+  id: string;
+  changedBy: string;
+  note: string;
+  changedAt: string;
+  resolved: boolean;
+  employeeResponse: string;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  category: SeoCategory;
+  description: string;
+  clientName: string;
+  brandName: string;
+  assignedDate: string;
+  dueDate: string;
+  status: TaskStatus;
+  priority: Priority;
+  remarks?: string;
+  submittedAt?: string | null;
+  completedAt?: string | null;
+  details?: TaskDetails;
+  rejectRemark?: string;      // ← add
+  changes?: TaskChange[];     // ← add
+}

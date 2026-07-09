@@ -16,7 +16,7 @@ const ROLE_DASHBOARDS: Record<AllowedRole, string> = {
 // (and in localStorage as `userDepartment`) exactly, case-sensitive.
 const DEPARTMENT_DASHBOARDS: Record<string, string> = {
   'meta ads':    '/dashboard/metadashboard',
-  'designer':    '/dashboard/designerdashboard',      // ← confirm actual string
+  'graphic':    '/dashboard/designerdashboard',      // ← confirm actual string
   'photography': '/dashboard/photographydashboard',   // ← confirm actual string
   'smm':         '/dashboard/smmdashboard',            // ← confirm actual string
   'seo':         '/dashboard/seodashboard',            // ← confirm actual string

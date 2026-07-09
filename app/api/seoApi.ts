@@ -1,59 +1,14 @@
+import { apiFetch } from './apiClient';
 import { Task, AdditionalTask, TaskStatus, TaskDetails } from '../../types/seodashboard/task';
-import { computeDashboardStats } from '../../data/seodashboard/taskStats';
-import { buildDummyTasks, buildDummyAdditionalTasks } from '../../data/seodashboard/dummyTasks';
 
-// This module stands in for a real backend. Every function returns a Promise
-// with a small artificial delay so the pages behave exactly like they would
-// against a real API (loading states, async updates, etc). Swap the bodies
-// below for real `fetch` calls whenever the SEO endpoints exist — the
-// function signatures are designed to stay the same.
-
-const TASKS_KEY = 'seo_dashboard_tasks_v1';
-const ADDITIONAL_KEY = 'seo_dashboard_additional_tasks_v1';
-const LATENCY_MS = 250;
-
-function delay<T>(value: T): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), LATENCY_MS));
-}
-
-function readTasks(): Task[] {
-  if (typeof window === 'undefined') return [];
-  const raw = window.localStorage.getItem(TASKS_KEY);
-  if (!raw) {
-    const seeded = buildDummyTasks();
-    window.localStorage.setItem(TASKS_KEY, JSON.stringify(seeded));
-    return seeded;
-  }
+function getEmployeeId(): string {
+  if (typeof window === 'undefined') return '';
   try {
-    return JSON.parse(raw) as Task[];
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return user?.id || '';
   } catch {
-    return [];
+    return '';
   }
-}
-
-function writeTasks(tasks: Task[]): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
-}
-
-function readAdditionalTasks(): AdditionalTask[] {
-  if (typeof window === 'undefined') return [];
-  const raw = window.localStorage.getItem(ADDITIONAL_KEY);
-  if (!raw) {
-    const seeded = buildDummyAdditionalTasks();
-    window.localStorage.setItem(ADDITIONAL_KEY, JSON.stringify(seeded));
-    return seeded;
-  }
-  try {
-    return JSON.parse(raw) as AdditionalTask[];
-  } catch {
-    return [];
-  }
-}
-
-function writeAdditionalTasks(items: AdditionalTask[]): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(ADDITIONAL_KEY, JSON.stringify(items));
 }
 
 export interface TaskFilters {
@@ -62,20 +17,17 @@ export interface TaskFilters {
 }
 
 export async function getMyTasks(filters: TaskFilters = {}): Promise<Task[]> {
-  let tasks = readTasks();
-  if (filters.status && filters.status !== 'all') {
-    tasks = tasks.filter((t) => t.status === filters.status);
-  }
-  if (filters.category && filters.category !== 'all') {
-    tasks = tasks.filter((t) => t.category === filters.category);
-  }
-  return delay(tasks);
+  const params = new URLSearchParams({ employeeId: getEmployeeId() });
+  if (filters.status && filters.status !== 'all') params.set('status', filters.status);
+  if (filters.category && filters.category !== 'all') params.set('category', filters.category);
+
+  const res = await apiFetch<{ success: boolean; data: Task[] }>(`/seo/tasks?${params.toString()}`);
+  return res.data;
 }
 
 export async function getDashboardStats() {
-  const tasks = readTasks();
-  const additional = readAdditionalTasks();
-  return delay(computeDashboardStats(tasks, additional.length));
+  const res = await apiFetch<{ success: boolean; data: any }>(`/seo/dashboard-stats?employeeId=${getEmployeeId()}`);
+  return res.data;
 }
 
 export interface UpdateTaskPayload {
@@ -85,51 +37,66 @@ export interface UpdateTaskPayload {
 }
 
 export async function updateTaskWork(taskId: string, payload: UpdateTaskPayload): Promise<Task> {
-  const tasks = readTasks();
-  const idx = tasks.findIndex((t) => t.id === taskId);
-  if (idx === -1) throw new Error('Task not found');
+  const res = await apiFetch<{ success: boolean; data: Task }>(`/seo/tasks/${taskId}`, {
+    method: 'PUT',
+    body: payload,
+  });
+  return res.data;
+}
 
-  const now = new Date().toISOString();
-  const updated: Task = {
-    ...tasks[idx],
-    status: payload.status,
-    remarks: payload.remarks,
-    details: { ...tasks[idx].details, ...payload.details },
-    submittedAt: tasks[idx].submittedAt || now,
-    completedAt: payload.status === 'completed' ? now : tasks[idx].completedAt,
+// ── Additional tasks — reuses the same /additional-work backend as Meta ────
+
+function mapAdditionalTask(item: any): AdditionalTask {
+  return {
+    id: item._id ?? item.id,
+    title: item.title,
+    category: (item.category || 'other') as AdditionalTask['category'],
+    description: item.description,
+    date: item.date,
+    hoursSpent: item.hoursSpent ?? '',
+    outcome: item.outcome || '',
+    createdAt: item.createdAt,
   };
-  tasks[idx] = updated;
-  writeTasks(tasks);
-  return delay(updated);
 }
 
 export async function getAdditionalTasks(): Promise<AdditionalTask[]> {
-  return delay(readAdditionalTasks().slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+  const res = await apiFetch<{ success: boolean; data: any[] }>(`/additional-work?assignedTo=${getEmployeeId()}`);
+  return res.data.map(mapAdditionalTask).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export async function addAdditionalTask(payload: Omit<AdditionalTask, 'id' | 'createdAt'>): Promise<AdditionalTask> {
-  const items = readAdditionalTasks();
-  const created: AdditionalTask = {
-    ...payload,
-    id: `add_${Date.now()}`,
-    createdAt: new Date().toISOString(),
-  };
-  items.unshift(created);
-  writeAdditionalTasks(items);
-  return delay(created);
+  const res = await apiFetch<{ success: boolean; data: any }>(`/additional-work`, {
+    method: 'POST',
+    body: {
+      assignedTo: getEmployeeId(),
+      loggedBy: 'self',
+      title: payload.title,
+      description: payload.description,
+      category: payload.category,
+      date: payload.date,
+      hoursSpent: payload.hoursSpent,
+      outcome: payload.outcome,
+    },
+  });
+  return mapAdditionalTask(res.data);
 }
 
 export async function updateAdditionalTask(id: string, payload: Partial<AdditionalTask>): Promise<AdditionalTask> {
-  const items = readAdditionalTasks();
-  const idx = items.findIndex((i) => i.id === id);
-  if (idx === -1) throw new Error('Additional task not found');
-  items[idx] = { ...items[idx], ...payload };
-  writeAdditionalTasks(items);
-  return delay(items[idx]);
+  const res = await apiFetch<{ success: boolean; data: any }>(`/additional-work/${id}`, {
+    method: 'PUT',
+    body: payload,
+  });
+  return mapAdditionalTask(res.data);
 }
 
 export async function deleteAdditionalTask(id: string): Promise<void> {
-  const items = readAdditionalTasks().filter((i) => i.id !== id);
-  writeAdditionalTasks(items);
-  return delay(undefined);
+  await apiFetch(`/additional-work/${id}`, { method: 'DELETE' });
+}
+
+export async function respondToTaskChange(taskId: string, changeId: string, response: string): Promise<Task> {
+  const res = await apiFetch<{ success: boolean; data: Task }>(`/seo/tasks/${taskId}/respond`, {
+    method: 'POST',
+    body: { changeId, response },
+  });
+  return res.data;
 }
