@@ -106,7 +106,10 @@ export default function AdminDashboard() {
 
   // Tasks that Super Admin assigned directly to this admin (for sidebar badge)
   const adminTaskCount = tasks.filter((t) => {
-    const id = typeof t.assignedTo === "object" ? (t.assignedTo as { _id: string })._id : t.assignedTo;
+    const id =
+      t.assignedTo && typeof t.assignedTo === "object"
+        ? (t.assignedTo as { _id: string })._id
+        : t.assignedTo;
     return (
       id === currentAdminId &&
       t.assignedBy === "super_admin" &&
