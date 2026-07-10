@@ -2,18 +2,19 @@
 
 import { useMemo, useState } from "react";
 import {
-  SMMTask,
-  PostingEntry,
-  TASK_TYPE_META,
+  RawTask,
+  getTaskTypeMeta,
   CONTENT_TYPE_META,
-  TaskType,
   ContentType,
+  getBrandName,
+  colorForBrand,
+  isPostingEntry,
 } from "@/types/smm/SMM";
 import styles from "@/public/assets/styles/dashboard/smmdashboard/Smmhistory.module.css";
 
 interface SMMHistoryProps {
-  completedTasks: SMMTask[];
-  completedPosting: PostingEntry[];
+  completedTasks: RawTask[]; // general (non-posting) tasks, status completed/approved
+  completedPosting: RawTask[]; // posting entries, status completed/approved
 }
 
 type RecordItem = {
@@ -23,6 +24,7 @@ type RecordItem = {
   brandColor: string;
   date: string;
   kind: "task" | "posting";
+  status: RawTask["status"];
   typeLabel: string;
   typeBg: string;
   typeColor: string;
@@ -34,34 +36,42 @@ const monthLabel = (ym: string) => {
   return d.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 };
 
+const completedDate = (t: RawTask) => (t.deliveredAt ?? t.dueDate ?? "").slice(0, 10);
+
 export default function SMMHistory({ completedTasks, completedPosting }: SMMHistoryProps) {
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [kindFilter, setKindFilter] = useState<"all" | "task" | "posting">("all");
 
   const allRecords: RecordItem[] = useMemo(() => {
-    const fromTasks: RecordItem[] = completedTasks.map((t) => {
-      const meta = TASK_TYPE_META[t.taskType as TaskType];
-      return {
-        id: t.id,
-        title: t.title,
-        brand: t.brand,
-        brandColor: t.brandColor,
-        date: t.completedAt ?? t.dueDate,
-        kind: "task",
-        typeLabel: meta.label,
-        typeBg: meta.bg,
-        typeColor: meta.color,
-      };
-    });
+    const fromTasks: RecordItem[] = completedTasks
+      .filter((t) => !isPostingEntry(t))
+      .map((t) => {
+        const meta = getTaskTypeMeta(t.taskType);
+        const brand = getBrandName(t.brandId);
+        return {
+          id: t._id,
+          title: t.title,
+          brand,
+          brandColor: colorForBrand(brand),
+          date: completedDate(t),
+          kind: "task",
+          status: t.status,
+          typeLabel: meta.label,
+          typeBg: meta.bg,
+          typeColor: meta.color,
+        };
+      });
     const fromPosting: RecordItem[] = completedPosting.map((p) => {
-      const meta = CONTENT_TYPE_META[p.contentType as ContentType];
+      const meta = CONTENT_TYPE_META[(p.taskType as ContentType) in CONTENT_TYPE_META ? (p.taskType as ContentType) : "post"];
+      const brand = getBrandName(p.brandId);
       return {
-        id: p.id,
+        id: p._id,
         title: p.title,
-        brand: p.brand,
-        brandColor: p.brandColor,
-        date: p.date,
+        brand,
+        brandColor: colorForBrand(brand),
+        date: completedDate(p),
         kind: "posting",
+        status: p.status,
         typeLabel: `${meta.icon} ${meta.label}`,
         typeBg: meta.bg,
         typeColor: meta.color,
@@ -71,7 +81,7 @@ export default function SMMHistory({ completedTasks, completedPosting }: SMMHist
   }, [completedTasks, completedPosting]);
 
   const months = useMemo(() => {
-    const set = new Set(allRecords.map((r) => r.date.slice(0, 7)));
+    const set = new Set(allRecords.map((r) => r.date.slice(0, 7)).filter(Boolean));
     return Array.from(set).sort().reverse();
   }, [allRecords]);
 
@@ -86,7 +96,7 @@ export default function SMMHistory({ completedTasks, completedPosting }: SMMHist
   const grouped = useMemo(() => {
     const map = new Map<string, RecordItem[]>();
     filtered.forEach((r) => {
-      const key = r.date.slice(0, 7);
+      const key = r.date.slice(0, 7) || "Undated";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(r);
     });
@@ -129,7 +139,9 @@ export default function SMMHistory({ completedTasks, completedPosting }: SMMHist
           <select className={styles.monthSelect} value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
             <option value="all">All Time</option>
             {months.map((m) => (
-              <option key={m} value={m}>{monthLabel(m)}</option>
+              <option key={m} value={m}>
+                {monthLabel(m)}
+              </option>
             ))}
           </select>
         </div>
@@ -163,7 +175,7 @@ export default function SMMHistory({ completedTasks, completedPosting }: SMMHist
         grouped.map(([ym, monthRecords]) => (
           <div key={ym} className={styles.monthGroup}>
             <div className={styles.monthHeader}>
-              <span className={styles.monthLabel}>{monthLabel(ym)}</span>
+              <span className={styles.monthLabel}>{ym === "Undated" ? "Undated" : monthLabel(ym)}</span>
               <span className={styles.monthCount}>{monthRecords.length} completed</span>
               <span className={styles.monthLine} />
             </div>
@@ -181,9 +193,12 @@ export default function SMMHistory({ completedTasks, completedPosting }: SMMHist
                       <span className={styles.recordMeta}>
                         <span className={styles.recordBrandDot} style={{ background: r.brandColor }} />
                         {r.brand} &middot; {r.date}
+                        {r.status === "approved" && " · ✓ Approved"}
                       </span>
                     </div>
-                    <span className={styles.recordDoneTag}>✓ Done</span>
+                    <span className={styles.recordDoneTag}>
+                      {r.status === "approved" ? "✓ Approved" : "✓ Submitted"}
+                    </span>
                   </div>
                 ))}
             </div>

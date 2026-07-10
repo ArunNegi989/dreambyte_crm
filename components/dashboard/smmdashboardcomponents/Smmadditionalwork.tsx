@@ -6,7 +6,7 @@ import styles from "@/public/assets/styles/dashboard/smmdashboard/Smmadditionalw
 
 interface SMMAdditionalWorkProps {
   items: AdditionalWork[];
-  onStatusChange: (id: string, status: "pending" | "completed") => void;
+  onStatusChange: (id: string) => void;
   onAddItem: (title: string, description: string) => void;
 }
 
@@ -18,13 +18,19 @@ export default function SMMAdditionalWork({
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim()) return;
-    onAddItem(title.trim(), description.trim());
-    setTitle("");
-    setDescription("");
-    setShowForm(false);
+    setSaving(true);
+    try {
+      await onAddItem(title.trim(), description.trim());
+      setTitle("");
+      setDescription("");
+      setShowForm(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const pending = items.filter((i) => i.status !== "completed");
@@ -68,11 +74,11 @@ export default function SMMAdditionalWork({
             />
           </div>
           <div className={styles.formActions}>
-            <button className={styles.cancelBtn} onClick={() => setShowForm(false)}>
+            <button className={styles.cancelBtn} onClick={() => setShowForm(false)} disabled={saving}>
               Cancel
             </button>
-            <button className={styles.saveBtn} onClick={handleSubmit}>
-              Add Entry
+            <button className={styles.saveBtn} onClick={handleSubmit} disabled={saving}>
+              {saving ? "Saving…" : "Add Entry"}
             </button>
           </div>
         </div>
@@ -90,16 +96,20 @@ export default function SMMAdditionalWork({
               <span className={styles.sectionLabel}>Pending</span>
               <div className={styles.list}>
                 {pending.map((item) => (
-                  <div key={item.id} className={styles.workItem}>
+                  <div key={item._id} className={styles.workItem}>
                     <div className={styles.workLeft}>
-                      <span className={`${styles.sourceTag} ${item.loggedBy === "admin" ? styles.fromAdmin : styles.fromSelf}`}>
+                      <span
+                        className={`${styles.sourceTag} ${
+                          item.loggedBy === "admin" ? styles.fromAdmin : styles.fromSelf
+                        }`}
+                      >
                         {item.loggedBy === "admin" ? "From Admin" : "Self-logged"}
                       </span>
                       <h4 className={styles.workTitle}>{item.title}</h4>
                       {item.description && <p className={styles.workDesc}>{item.description}</p>}
                       <span className={styles.workDate}>{item.date}</span>
                     </div>
-                    <button className={styles.completeBtn} onClick={() => onStatusChange(item.id, "completed")}>
+                    <button className={styles.completeBtn} onClick={() => onStatusChange(item._id)}>
                       Mark Done
                     </button>
                   </div>
@@ -113,9 +123,13 @@ export default function SMMAdditionalWork({
               <span className={styles.sectionLabel}>Completed</span>
               <div className={styles.list}>
                 {completed.map((item) => (
-                  <div key={item.id} className={`${styles.workItem} ${styles.workItemDone}`}>
+                  <div key={item._id} className={`${styles.workItem} ${styles.workItemDone}`}>
                     <div className={styles.workLeft}>
-                      <span className={`${styles.sourceTag} ${item.loggedBy === "admin" ? styles.fromAdmin : styles.fromSelf}`}>
+                      <span
+                        className={`${styles.sourceTag} ${
+                          item.loggedBy === "admin" ? styles.fromAdmin : styles.fromSelf
+                        }`}
+                      >
                         {item.loggedBy === "admin" ? "From Admin" : "Self-logged"}
                       </span>
                       <h4 className={styles.workTitle}>{item.title}</h4>

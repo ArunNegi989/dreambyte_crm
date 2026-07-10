@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import SMMSidebar, { SMMSection } from "@/components/dashboard/smmdashboardcomponents/Smmsidebar";
 import SMMStatsCards from "@/components/dashboard/smmdashboardcomponents/Smmstatscards";
@@ -8,16 +8,18 @@ import SMMTasksBoard from "@/components/dashboard/smmdashboardcomponents/Smmtask
 import PostingBoard from "@/components/dashboard/smmdashboardcomponents/Postingboard";
 import SMMAdditionalWork from "@/components/dashboard/smmdashboardcomponents/Smmadditionalwork";
 import SMMHistory from "@/components/dashboard/smmdashboardcomponents/Smmhistory";
+import { RawTask, AdditionalWork, isPostingEntry, todayStr } from "@/types/smm/SMM";
 import {
-  mockTasks,
-  mockPostingEntries,
-  mockAdditionalWork,
-  SMMTask,
-  PostingEntry,
-  AdditionalWork,
-  TaskStatus,
-  TODAY,
-} from "@/types/smm/SMM";
+  fetchMyTasks,
+  fetchBrands,
+  BrandOption,
+  startTask,
+  submitTaskForReview,
+  respondToTaskChanges,
+  fetchMyAdditionalWork,
+  addAdditionalWork,
+  markAdditionalWorkDone,
+} from "@/app/api/Smmapi";
 import styles from "@/app/dashboard/smmdashboard/smmdashboard.module.css";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { logout } from "@/app/api/authApi";
@@ -47,62 +49,79 @@ export default function SMMDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [tasks, setTasks] = useState<SMMTask[]>(mockTasks);
-  const [postingEntries, setPostingEntries] = useState<PostingEntry[]>(mockPostingEntries);
-  const [additionalWork, setAdditionalWork] = useState<AdditionalWork[]>(mockAdditionalWork);
+  // ── Live backend data — no mock arrays anywhere below this line ────────
+  const [tasks, setTasks] = useState<RawTask[]>([]);
+  const [brands, setBrands] = useState<BrandOption[]>([]);
+  const [additionalWork, setAdditionalWork] = useState<AdditionalWork[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleTaskStatusChange = (id: string, status: TaskStatus) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? { ...t, status, completedAt: status === "completed" ? new Date().toISOString().split("T")[0] : t.completedAt }
-          : t
-      )
-    );
+  const loadAll = useCallback(async () => {
+    try {
+      setError(null);
+      const [t, w, b] = await Promise.all([
+        fetchMyTasks(),
+        fetchMyAdditionalWork(), // role-filtered server-side → only THIS employee's entries
+        fetchBrands().catch(() => [] as BrandOption[]),
+      ]);
+      setTasks(t);
+      setAdditionalWork(w);
+      setBrands(b);
+    } catch (err) {
+      console.error("Failed to load SMM dashboard data", err);
+      setError("Could not load your dashboard. Please refresh.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
+
+  // ── Split one Task collection into "general tasks" vs "posting entries" ─
+  const generalTasks = useMemo(() => tasks.filter((t) => !isPostingEntry(t)), [tasks]);
+  const postingEntries = useMemo(() => tasks.filter(isPostingEntry), [tasks]);
+
+  // ── Shared task actions — the same start/submit/respond flow works for
+  // BOTH general tasks and posting entries since they're the same
+  // underlying backend Task documents. ────────────────────────────────────
+  const handleStartTask = async (id: string) => {
+    setTasks((prev) => prev.map((t) => (t._id === id ? { ...t, status: "in_progress" } : t)));
+    try {
+      await startTask(id);
+    } finally {
+      loadAll();
+    }
   };
 
-  const handleTaskReply = (taskId: string, changeId: string, response: string) => {
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== taskId) return t;
-        return {
-          ...t,
-          changes: t.changes.map((c) => (c.id === changeId ? { ...c, smmResponse: response, resolved: true } : c)),
-        };
-      })
-    );
+  const handleSubmitTask = async (id: string, note: string) => {
+    const task = tasks.find((t) => t._id === id);
+    await submitTaskForReview(id, note, task?.startedAt ?? undefined);
+    await loadAll();
   };
 
-  const handlePostingStatusChange = (id: string, status: TaskStatus) => {
-    setPostingEntries((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
+  const handleRespondChanges = async (
+    id: string,
+    responses: { id: string; response: string }[]
+  ) => {
+    await respondToTaskChanges(id, responses);
+    await loadAll();
   };
 
-  const handlePostingReply = (entryId: string, changeId: string, response: string) => {
-    setPostingEntries((prev) =>
-      prev.map((p) => {
-        if (p.id !== entryId) return p;
-        return {
-          ...p,
-          changes: p.changes.map((c) => (c.id === changeId ? { ...c, smmResponse: response, resolved: true } : c)),
-        };
-      })
-    );
+  // ── Additional work actions ─────────────────────────────────────────────
+  const handleAdditionalStatusChange = async (id: string) => {
+    setAdditionalWork((prev) => prev.map((w) => (w._id === id ? { ...w, status: "completed" } : w)));
+    try {
+      await markAdditionalWorkDone(id);
+    } finally {
+      loadAll();
+    }
   };
 
-  const handleAdditionalStatusChange = (id: string, status: "pending" | "completed") => {
-    setAdditionalWork((prev) => prev.map((w) => (w.id === id ? { ...w, status } : w)));
-  };
-
-  const handleAddAdditionalWork = (title: string, description: string) => {
-    const entry: AdditionalWork = {
-      id: `smaw_${Date.now()}`,
-      title,
-      description,
-      date: TODAY,
-      status: "pending",
-      loggedBy: "self",
-    };
-    setAdditionalWork((prev) => [entry, ...prev]);
+  const handleAddAdditionalWork = async (title: string, description: string) => {
+    await addAdditionalWork(title, description);
+    await loadAll();
   };
 
   const handleLogout = async () => {
@@ -115,22 +134,33 @@ export default function SMMDashboard() {
     }
   };
 
-  const todayTasks = useMemo(() => tasks.filter((t) => t.dueDate === TODAY), [tasks]);
-  const todayCompleted = todayTasks.filter((t) => t.status === "completed").length;
+  const today = todayStr();
+  const todayGeneralTasks = useMemo(() => generalTasks.filter((t) => t.dueDate === today), [generalTasks, today]);
+  const todayGeneralCompleted = todayGeneralTasks.filter(
+    (t) => t.status === "completed" || t.status === "approved"
+  ).length;
 
-  const todayPosting = useMemo(() => postingEntries.filter((p) => p.date === TODAY), [postingEntries]);
-  const todayPostingCompleted = todayPosting.filter((p) => p.status === "completed").length;
+  const todayPosting = useMemo(() => postingEntries.filter((p) => p.dueDate === today), [postingEntries, today]);
+  const todayPostingCompleted = todayPosting.filter(
+    (p) => p.status === "completed" || p.status === "approved"
+  ).length;
 
-  const needsAttention =
-    tasks.filter((t) => t.status === "rejected" || t.status === "changes_requested").length +
-    postingEntries.filter((p) => p.status === "rejected" || p.status === "changes_requested").length;
+  const needsAttention = tasks.filter(
+    (t) => t.status === "rejected" || t.status === "changes_requested"
+  ).length;
 
   const pendingTasks = tasks.filter((t) => t.status === "pending" || t.status === "in_progress").length;
 
   const additionalPending = additionalWork.filter((w) => w.status !== "completed").length;
 
-  const completedTasks = useMemo(() => tasks.filter((t) => t.status === "completed"), [tasks]);
-  const completedPosting = useMemo(() => postingEntries.filter((p) => p.status === "completed"), [postingEntries]);
+  const completedGeneralTasks = useMemo(
+    () => generalTasks.filter((t) => t.status === "completed" || t.status === "approved"),
+    [generalTasks]
+  );
+  const completedPosting = useMemo(
+    () => postingEntries.filter((p) => p.status === "completed" || p.status === "approved"),
+    [postingEntries]
+  );
 
   const sectionMeta: Record<SMMSection, { title: string; sub: string }> = {
     overview: { title: "Today's Overview", sub: "Your tasks, posting coverage, and extra work at a glance" },
@@ -190,53 +220,73 @@ export default function SMMDashboard() {
         </div>
 
         <div className={styles.content}>
-          {activeSection === "overview" && (
+          {loading ? (
+            <div style={{ padding: 48, textAlign: "center", color: "#64748b" }}>Loading your dashboard…</div>
+          ) : error ? (
+            <div style={{ padding: 48, textAlign: "center", color: "#b91c1c" }}>
+              {error}{" "}
+              <button
+                onClick={loadAll}
+                style={{ textDecoration: "underline", cursor: "pointer", background: "none", border: "none", color: "#b91c1c" }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
             <>
-              <SMMStatsCards
-                todayTasks={todayTasks.length}
-                todayCompleted={todayCompleted}
-                todayPosting={todayPosting.length}
-                todayPostingCompleted={todayPostingCompleted}
-                needsAttention={needsAttention}
-                additionalPending={additionalPending}
-              />
-              <SMMTasksBoard
-                tasks={todayTasks}
-                onStatusChange={handleTaskStatusChange}
-                onReplyToChange={handleTaskReply}
-                showFilters={false}
-                title="Today's Tasks"
-                subtitle="Everything due today across scripting, UGC, research and more"
-              />
+              {activeSection === "overview" && (
+                <>
+                  <SMMStatsCards
+                    todayTasks={todayGeneralTasks.length}
+                    todayCompleted={todayGeneralCompleted}
+                    todayPosting={todayPosting.length}
+                    todayPostingCompleted={todayPostingCompleted}
+                    needsAttention={needsAttention}
+                    additionalPending={additionalPending}
+                  />
+                  <SMMTasksBoard
+                    tasks={todayGeneralTasks}
+                    onStartTask={handleStartTask}
+                    onSubmitTask={handleSubmitTask}
+                    onRespondChanges={handleRespondChanges}
+                    showFilters={false}
+                    title="Today's Tasks"
+                    subtitle="Everything due today across scripting, UGC, research and more"
+                  />
+                </>
+              )}
+
+              {activeSection === "tasks" && (
+                <SMMTasksBoard
+                  tasks={generalTasks}
+                  onStartTask={handleStartTask}
+                  onSubmitTask={handleSubmitTask}
+                  onRespondChanges={handleRespondChanges}
+                />
+              )}
+
+              {activeSection === "posting" && (
+                <PostingBoard
+                  entries={postingEntries}
+                  brands={brands}
+                  onStartTask={handleStartTask}
+                  onSubmitTask={handleSubmitTask}
+                  onRespondChanges={handleRespondChanges}
+                />
+              )}
+
+              {activeSection === "additional" && (
+                <SMMAdditionalWork
+                  items={additionalWork}
+                  onStatusChange={handleAdditionalStatusChange}
+                  onAddItem={handleAddAdditionalWork}
+                />
+              )}
+
+              {activeSection === "history" && (
+                <SMMHistory completedTasks={completedGeneralTasks} completedPosting={completedPosting} />
+              )}
             </>
-          )}
-
-          {activeSection === "tasks" && (
-            <SMMTasksBoard
-              tasks={tasks}
-              onStatusChange={handleTaskStatusChange}
-              onReplyToChange={handleTaskReply}
-            />
-          )}
-
-          {activeSection === "posting" && (
-            <PostingBoard
-              entries={postingEntries}
-              onStatusChange={handlePostingStatusChange}
-              onReplyToChange={handlePostingReply}
-            />
-          )}
-
-          {activeSection === "additional" && (
-            <SMMAdditionalWork
-              items={additionalWork}
-              onStatusChange={handleAdditionalStatusChange}
-              onAddItem={handleAddAdditionalWork}
-            />
-          )}
-
-          {activeSection === "history" && (
-            <SMMHistory completedTasks={completedTasks} completedPosting={completedPosting} />
           )}
         </div>
       </main>

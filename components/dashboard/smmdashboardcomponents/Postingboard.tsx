@@ -2,24 +2,50 @@
 
 import { useMemo, useState } from "react";
 import {
-  PostingEntry,
-  TaskStatus,
+  RawTask,
   ContentType,
   CONTENT_TYPE_META,
-  BRANDS,
+  getBrandName,
+  colorForBrand,
+  getTimeTakenLabel,
+  todayStr,
 } from "@/types/smm/SMM";
+import { BrandOption } from "@/app/api/Smmapi";
 import styles from "@/public/assets/styles/dashboard/smmdashboard/Postingboard.module.css";
 
 interface PostingBoardProps {
-  entries: PostingEntry[];
-  onStatusChange: (id: string, status: TaskStatus) => void;
-  onReplyToChange: (entryId: string, changeId: string, response: string) => void;
+  entries: RawTask[]; // only taskType "post" | "video" | "story"
+  brands: BrandOption[];
+  onStartTask: (id: string) => void;
+  onSubmitTask: (id: string, note: string) => void;
+  onRespondChanges: (id: string, responses: { id: string; response: string }[]) => void;
 }
 
-const statusLabel = (s: TaskStatus) => {
+const statusLabel = (s: RawTask["status"]) => {
   if (s === "in_progress") return "In Progress";
   if (s === "changes_requested") return "Changes Requested";
+  if (s === "completed") return "Submitted — In Review";
+  if (s === "approved") return "Approved";
   return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+const statusColor = (s: RawTask["status"]) => {
+  switch (s) {
+    case "pending":
+      return { bg: "#f1f5f9", color: "#475569" };
+    case "in_progress":
+      return { bg: "#eff6ff", color: "#1d4ed8" };
+    case "completed":
+      return { bg: "#fefce8", color: "#a16207" };
+    case "approved":
+      return { bg: "#f0fdf4", color: "#15803d" };
+    case "rejected":
+      return { bg: "#fef2f2", color: "#b91c1c" };
+    case "changes_requested":
+      return { bg: "#fff7ed", color: "#c2410c" };
+    default:
+      return { bg: "#f1f5f9", color: "#475569" };
+  }
 };
 
 const shiftDate = (dateStr: string, days: number) => {
@@ -28,49 +54,87 @@ const shiftDate = (dateStr: string, days: number) => {
   return d.toISOString().split("T")[0];
 };
 
-export default function PostingBoard({ entries, onStatusChange, onReplyToChange }: PostingBoardProps) {
-  const today = new Date().toISOString().split("T")[0];
+export default function PostingBoard({
+  entries,
+  brands,
+  onStartTask,
+  onSubmitTask,
+  onRespondChanges,
+}: PostingBoardProps) {
+  const today = todayStr();
   const [selectedDate, setSelectedDate] = useState(today);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [submitModal, setSubmitModal] = useState<RawTask | null>(null);
+  const [submitNote, setSubmitNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [resubmitting, setResubmitting] = useState<string | null>(null);
 
-  const dayEntries = useMemo(
-    () => entries.filter((e) => e.date === selectedDate),
-    [entries, selectedDate]
-  );
+  const dayEntries = useMemo(() => entries.filter((e) => e.dueDate === selectedDate), [entries, selectedDate]);
 
-  const coverage = BRANDS.map((brand) => {
-    const brandEntries = dayEntries.filter((e) => e.brand === brand.name);
-    const slots: Record<ContentType, PostingEntry | null> = {
-      post: brandEntries.find((e) => e.contentType === "post") ?? null,
-      video: brandEntries.find((e) => e.contentType === "video") ?? null,
-      story: brandEntries.find((e) => e.contentType === "story") ?? null,
+  // Prefer the real brand list from the backend (/brands) so every brand's
+  // coverage shows even with nothing scheduled today. Fall back to whatever
+  // brand names show up in the entries themselves if that fetch is empty.
+  const brandList = useMemo(() => {
+    if (brands.length > 0) return brands.map((b) => ({ name: b.name, color: colorForBrand(b.name) }));
+    const names = Array.from(new Set(entries.map((e) => getBrandName(e.brandId)).filter((n) => n !== "—")));
+    return names.map((n) => ({ name: n, color: colorForBrand(n) }));
+  }, [brands, entries]);
+
+  const coverage = brandList.map((brand) => {
+    const brandEntries = dayEntries.filter((e) => getBrandName(e.brandId) === brand.name);
+    const slots: Record<ContentType, RawTask | null> = {
+      post: brandEntries.find((e) => e.taskType === "post") ?? null,
+      video: brandEntries.find((e) => e.taskType === "video") ?? null,
+      story: brandEntries.find((e) => e.taskType === "story") ?? null,
     };
     return { brand, slots };
   });
 
   const scheduledCount = dayEntries.length;
-  const completedCount = dayEntries.filter((e) => e.status === "completed").length;
-  const brandsWithActivity = coverage.filter(
-    (c) => c.slots.post || c.slots.video || c.slots.story
-  ).length;
+  const completedCount = dayEntries.filter((e) => e.status === "completed" || e.status === "approved").length;
+  const brandsWithActivity = coverage.filter((c) => c.slots.post || c.slots.video || c.slots.story).length;
 
-  const hasUnresolvedChanges = (entry: PostingEntry) => entry.changes.some((c) => !c.resolved);
+  const openChanges = (entry: RawTask) => entry.changes.filter((c) => !c.resolved);
 
-  const sendReply = (entry: PostingEntry, changeId: string) => {
-    const text = replyDrafts[changeId] ?? "";
-    if (!text.trim()) return;
-    onReplyToChange(entry.id, changeId, text.trim());
-    setReplyDrafts((prev) => ({ ...prev, [changeId]: "" }));
+  const allOpenRepliesFilled = (entry: RawTask) => {
+    const open = openChanges(entry);
+    return open.length > 0 && open.every((c) => (replyDrafts[c._id] ?? "").trim().length > 0);
   };
 
-  const cycleAction = (entry: PostingEntry): { label: string; next: TaskStatus } | null => {
-    if (entry.status === "pending") return { label: "Start", next: "in_progress" };
-    if (entry.status === "in_progress") return { label: "Mark Posted", next: "completed" };
-    if ((entry.status === "rejected" || entry.status === "changes_requested") && !hasUnresolvedChanges(entry)) {
-      return { label: "Repost", next: "completed" };
+  const handleResubmit = async (entry: RawTask) => {
+    const responses = openChanges(entry).map((c) => ({
+      id: c._id,
+      response: (replyDrafts[c._id] ?? "").trim(),
+    }));
+    setResubmitting(entry._id);
+    try {
+      await onRespondChanges(entry._id, responses);
+      setReplyDrafts((prev) => {
+        const next = { ...prev };
+        responses.forEach((r) => delete next[r.id]);
+        return next;
+      });
+    } finally {
+      setResubmitting(null);
     }
-    return null;
+  };
+
+  const openSubmitModal = (entry: RawTask) => {
+    setSubmitModal(entry);
+    setSubmitNote("");
+  };
+
+  const confirmSubmit = async () => {
+    if (!submitModal) return;
+    setSubmitting(true);
+    try {
+      await onSubmitTask(submitModal._id, submitNote.trim());
+      setSubmitModal(null);
+      setSubmitNote("");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const dateLabelText = (dateStr: string) => {
@@ -121,139 +185,248 @@ export default function PostingBoard({ entries, onStatusChange, onReplyToChange 
       {/* ── Coverage summary strip ── */}
       <div className={styles.summaryStrip}>
         <div className={styles.summaryItem}>
-          <span className={styles.summaryValue}>{brandsWithActivity}/{BRANDS.length}</span>
+          <span className={styles.summaryValue}>
+            {brandsWithActivity}/{brandList.length}
+          </span>
           <span className={styles.summaryLabel}>Brands with activity</span>
         </div>
         <div className={styles.summaryDivider} />
         <div className={styles.summaryItem}>
-          <span className={styles.summaryValue}>{completedCount}/{scheduledCount}</span>
+          <span className={styles.summaryValue}>
+            {completedCount}/{scheduledCount}
+          </span>
           <span className={styles.summaryLabel}>Content posted</span>
         </div>
       </div>
 
       {/* ── Brand coverage grid ── */}
-      <div className={styles.brandGrid}>
-        {coverage.map(({ brand, slots }) => {
-          const anyActivity = slots.post || slots.video || slots.story;
-          return (
-            <div key={brand.name} className={styles.brandCard}>
-              <div className={styles.brandHeader}>
-                <span className={styles.brandDot} style={{ background: brand.color }} />
-                <span className={styles.brandName}>{brand.name}</span>
-                {!anyActivity && <span className={styles.noneTag}>Nothing scheduled</span>}
-              </div>
+      {brandList.length === 0 ? (
+        <div className={styles.summaryStrip} style={{ justifyContent: "center", color: "#64748b" }}>
+          No brands found yet — ask your Super Admin to add one.
+        </div>
+      ) : (
+        <div className={styles.brandGrid}>
+          {coverage.map(({ brand, slots }) => {
+            const anyActivity = slots.post || slots.video || slots.story;
+            return (
+              <div key={brand.name} className={styles.brandCard}>
+                <div className={styles.brandHeader}>
+                  <span className={styles.brandDot} style={{ background: brand.color }} />
+                  <span className={styles.brandName}>{brand.name}</span>
+                  {!anyActivity && <span className={styles.noneTag}>Nothing scheduled</span>}
+                </div>
 
-              <div className={styles.slotList}>
-                {(["post", "video", "story"] as ContentType[]).map((ct) => {
-                  const entry = slots[ct];
-                  const meta = CONTENT_TYPE_META[ct];
+                <div className={styles.slotList}>
+                  {(["post", "video", "story"] as ContentType[]).map((ct) => {
+                    const entry = slots[ct];
+                    const meta = CONTENT_TYPE_META[ct];
 
-                  if (!entry) {
+                    if (!entry) {
+                      return (
+                        <div key={ct} className={styles.slotEmpty}>
+                          <span className={styles.slotIcon}>{meta.icon}</span>
+                          <span className={styles.slotLabel}>{meta.label}</span>
+                          <span className={styles.slotEmptyTag}>Not scheduled</span>
+                        </div>
+                      );
+                    }
+
+                    const isExpanded = expandedId === entry._id;
+                    const needsAttention = entry.status === "rejected" || entry.status === "changes_requested";
+                    const sColor = statusColor(entry.status);
+                    const open = openChanges(entry);
+                    const timeTaken = getTimeTakenLabel(entry.startedAt, entry.deliveredAt);
+
                     return (
-                      <div key={ct} className={styles.slotEmpty}>
-                        <span className={styles.slotIcon}>{meta.icon}</span>
-                        <span className={styles.slotLabel}>{meta.label}</span>
-                        <span className={styles.slotEmptyTag}>Not scheduled</span>
+                      <div
+                        key={entry._id}
+                        className={styles.slotFilled}
+                        style={{ borderLeft: `3px solid ${sColor.color}` }}
+                      >
+                        <div className={styles.slotTop}>
+                          <span className={styles.slotIconTag} style={{ background: meta.bg, color: meta.color }}>
+                            {meta.icon} {meta.label}
+                          </span>
+                          <span className={styles.statusPill} style={{ background: sColor.bg, color: sColor.color }}>
+                            {statusLabel(entry.status)}
+                          </span>
+                        </div>
+
+                        <p className={styles.slotTitle}>{entry.title}</p>
+                        <span className={styles.slotAssignedBy}>
+                          by {entry.assignedBy === "super_admin" ? "Super Admin" : "Admin"}
+                        </span>
+
+                        {timeTaken && (
+                          <div style={{ fontSize: 11, color: "#64748b", margin: "2px 0" }}>
+                            ⏱ {timeTaken}
+                            {!entry.deliveredAt && entry.status === "in_progress" && " (running)"}
+                          </div>
+                        )}
+
+                        {needsAttention && entry.rejectRemark && (
+                          <div className={styles.remarkBanner}>
+                            <span className={styles.remarkIcon}>⚠️</span>
+                            <p className={styles.remarkText}>{entry.rejectRemark}</p>
+                          </div>
+                        )}
+
+                        {entry.changes.length > 0 && (
+                          <button
+                            className={`${styles.changeToggle} ${needsAttention ? styles.changeToggleAlert : ""}`}
+                            onClick={() => setExpandedId(isExpanded ? null : entry._id)}
+                          >
+                            <span className={styles.changeBubble}>{entry.changes.length}</span>
+                            Change Log {isExpanded ? "▲" : "▼"}
+                          </button>
+                        )}
+
+                        {isExpanded && (
+                          <div className={styles.changeList}>
+                            {entry.changes.map((ch) => (
+                              <div key={ch._id} className={styles.changeItem}>
+                                <div className={styles.changeTop}>
+                                  <span className={styles.changeBy}>{ch.changedBy}</span>
+                                  <span className={styles.changeDate}>{ch.changedAt}</span>
+                                  {ch.resolved && <span className={styles.resolvedBadge}>✓ Resolved</span>}
+                                </div>
+                                <p className={styles.changeNote}>{ch.note}</p>
+
+                                {ch.employeeResponse && (
+                                  <div className={styles.smmResponse}>
+                                    <span className={styles.smmResponseLabel}>💬 Your Reply</span>
+                                    <p className={styles.smmResponseText}>{ch.employeeResponse}</p>
+                                  </div>
+                                )}
+
+                                {!ch.resolved && !ch.employeeResponse && (
+                                  <div className={styles.replyBox}>
+                                    <textarea
+                                      className={styles.replyInput}
+                                      rows={2}
+                                      placeholder="Write your reply after making the fix…"
+                                      value={replyDrafts[ch._id] ?? ""}
+                                      onChange={(e) =>
+                                        setReplyDrafts((prev) => ({ ...prev, [ch._id]: e.target.value }))
+                                      }
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+
+                            {open.length > 0 && (
+                              <button
+                                className={styles.replyBtn}
+                                disabled={!allOpenRepliesFilled(entry) || resubmitting === entry._id}
+                                onClick={() => handleResubmit(entry)}
+                                style={{ opacity: allOpenRepliesFilled(entry) ? 1 : 0.5 }}
+                              >
+                                {resubmitting === entry._id ? "Resubmitting…" : `Resubmit (${open.length})`}
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        <div className={styles.slotFooter}>
+                          {entry.status === "pending" && (
+                            <button className={styles.actionBtn} onClick={() => onStartTask(entry._id)}>
+                              Start
+                            </button>
+                          )}
+                          {entry.status === "in_progress" && (
+                            <button className={styles.actionBtn} onClick={() => openSubmitModal(entry)}>
+                              Mark Posted
+                            </button>
+                          )}
+                          {(entry.status === "rejected" || entry.status === "changes_requested") && (
+                            <span className={styles.waitingTag}>
+                              {open.length > 0 ? "Reply to resubmit" : "Ready to repost"}
+                            </span>
+                          )}
+                          {entry.status === "completed" && (
+                            <span className={styles.waitingTag}>Awaiting review</span>
+                          )}
+                          {entry.status === "approved" && <span className={styles.doneTag}>✓ Approved</span>}
+                        </div>
                       </div>
                     );
-                  }
-
-                  const isExpanded = expandedId === entry.id;
-                  const needsAttention = entry.status === "rejected" || entry.status === "changes_requested";
-                  const action = cycleAction(entry);
-
-                  return (
-                    <div key={entry.id} className={`${styles.slotFilled} ${styles[`slotBorder_${entry.status}`]}`}>
-                      <div className={styles.slotTop}>
-                        <span className={styles.slotIconTag} style={{ background: meta.bg, color: meta.color }}>
-                          {meta.icon} {meta.label}
-                        </span>
-                        <span className={`${styles.statusPill} ${styles[`pill_${entry.status}`]}`}>
-                          {statusLabel(entry.status)}
-                        </span>
-                      </div>
-
-                      <p className={styles.slotTitle}>{entry.title}</p>
-                      <span className={styles.slotAssignedBy}>by {entry.assignedBy}</span>
-
-                      {needsAttention && entry.rejectRemark && (
-                        <div className={styles.remarkBanner}>
-                          <span className={styles.remarkIcon}>⚠️</span>
-                          <p className={styles.remarkText}>{entry.rejectRemark}</p>
-                        </div>
-                      )}
-
-                      {entry.changes.length > 0 && (
-                        <button
-                          className={`${styles.changeToggle} ${needsAttention ? styles.changeToggleAlert : ""}`}
-                          onClick={() => setExpandedId(isExpanded ? null : entry.id)}
-                        >
-                          <span className={styles.changeBubble}>{entry.changes.length}</span>
-                          Change Log {isExpanded ? "▲" : "▼"}
-                        </button>
-                      )}
-
-                      {isExpanded && (
-                        <div className={styles.changeList}>
-                          {entry.changes.map((ch) => (
-                            <div key={ch.id} className={styles.changeItem}>
-                              <div className={styles.changeTop}>
-                                <span className={styles.changeBy}>{ch.changedBy}</span>
-                                <span className={styles.changeDate}>{ch.changedAt}</span>
-                                {ch.resolved && <span className={styles.resolvedBadge}>✓ Resolved</span>}
-                              </div>
-                              <p className={styles.changeNote}>{ch.note}</p>
-
-                              {ch.smmResponse && (
-                                <div className={styles.smmResponse}>
-                                  <span className={styles.smmResponseLabel}>💬 Your Reply</span>
-                                  <p className={styles.smmResponseText}>{ch.smmResponse}</p>
-                                </div>
-                              )}
-
-                              {!ch.resolved && !ch.smmResponse && (
-                                <div className={styles.replyBox}>
-                                  <textarea
-                                    className={styles.replyInput}
-                                    rows={2}
-                                    placeholder="Write your reply after making the fix…"
-                                    value={replyDrafts[ch.id] ?? ""}
-                                    onChange={(e) =>
-                                      setReplyDrafts((prev) => ({ ...prev, [ch.id]: e.target.value }))
-                                    }
-                                  />
-                                  <button className={styles.replyBtn} onClick={() => sendReply(entry, ch.id)}>
-                                    Send Reply
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className={styles.slotFooter}>
-                        {action ? (
-                          <button
-                            className={`${styles.actionBtn} ${styles[`action_${entry.status}`]}`}
-                            onClick={() => onStatusChange(entry.id, action.next)}
-                          >
-                            {action.label}
-                          </button>
-                        ) : entry.status === "completed" ? (
-                          <span className={styles.doneTag}>✓ Posted</span>
-                        ) : (
-                          <span className={styles.waitingTag}>Reply to resubmit</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                  })}
+                </div>
               </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Mark Posted modal ── */}
+      {submitModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+          }}
+          onClick={() => !submitting && setSubmitModal(null)}
+        >
+          <div
+            style={{ background: "#fff", borderRadius: 12, padding: 24, width: 420, maxWidth: "90vw" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, marginBottom: 4 }}>Mark as Posted</h3>
+            <p style={{ margin: 0, marginBottom: 12, color: "#64748b", fontSize: 13 }}>{submitModal.title}</p>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Note (optional)</label>
+            <textarea
+              rows={4}
+              value={submitNote}
+              onChange={(e) => setSubmitNote(e.target.value)}
+              placeholder="Post link, caption notes, etc…"
+              style={{
+                width: "100%",
+                marginTop: 4,
+                marginBottom: 16,
+                padding: 8,
+                borderRadius: 8,
+                border: "1px solid #e2e8f0",
+                fontFamily: "inherit",
+              }}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                onClick={() => setSubmitModal(null)}
+                disabled={submitting}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid #e2e8f0",
+                  background: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSubmit}
+                disabled={submitting}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#4338ca",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                {submitting ? "Submitting…" : "Submit"}
+              </button>
             </div>
-          );
-        })}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
