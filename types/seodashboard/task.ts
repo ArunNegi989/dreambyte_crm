@@ -192,6 +192,8 @@ export interface Task {
   details?: TaskDetails;
   rejectRemark?: string;
   changes?: TaskChange[];
+  startedAt?: string | null;
+  deliveredAt?: string | null;
 }
 
 export interface AdditionalTask {
@@ -215,4 +217,16 @@ export interface DashboardStats {
   additionalTasksLogged: number;
   categoryBreakdown: { category: SeoCategory; count: number }[];
   completionRate: number; // 0-100
+}
+
+export function getTimeTakenLabel(startedAt?: string | null, deliveredAt?: string | null): string | null {
+  if (!startedAt) return null;
+  const start = new Date(startedAt).getTime();
+  const end = deliveredAt ? new Date(deliveredAt).getTime() : Date.now();
+  const diffMs = end - start;
+  if (diffMs < 0) return null;
+  const mins = Math.floor(diffMs / 60000);
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return hrs > 0 ? `${hrs}h ${remMins}m` : `${mins}m`;
 }

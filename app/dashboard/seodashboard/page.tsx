@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Task, DashboardStats, TaskStatus } from '../../../types/seodashboard/task';
 import { groupTasksByDueDate } from '../../../data/seodashboard/taskStats';
@@ -30,6 +30,10 @@ const ICONS = {
   ),
 };
 
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function SeoDashboardPage() {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -38,6 +42,11 @@ export default function SeoDashboardPage() {
   const [error, setError] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  // ── Date filter: lets the employee jump back to any previous date's
+  // tasks right from the dashboard, without leaving the page. ──────────
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr());
+  const isToday = selectedDate === todayStr();
 
   const fetchData = useCallback(async () => {
     try {
@@ -60,6 +69,18 @@ export default function SeoDashboardPage() {
     fetchData();
   };
 
+  // ── Start Task: called directly from the table row, not the modal.
+  // Sends a minimal status update; backend stamps startedAt the first
+  // time a task moves into "in_progress". ────────────────────────────
+  const handleStartTask = async (task: Task) => {
+    await updateTaskWork(task.id, {
+      status: 'in_progress',
+      remarks: task.remarks || '',
+      details: task.details || {},
+    });
+    fetchData();
+  };
+
   const handleLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -70,7 +91,14 @@ export default function SeoDashboardPage() {
     }
   };
 
-  const groups = groupTasksByDueDate(tasks);
+  // When a specific past date is picked, show just that date's tasks;
+  // otherwise fall back to the normal "grouped by due date" view.
+  const dateFilteredTasks = useMemo(
+    () => (isToday ? tasks : tasks.filter((t) => t.dueDate === selectedDate)),
+    [tasks, selectedDate, isToday]
+  );
+
+  const groups = groupTasksByDueDate(dateFilteredTasks);
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
@@ -80,14 +108,49 @@ export default function SeoDashboardPage() {
           <h1 className={styles.title}>Dashboard</h1>
           <p className={styles.subtitle}>{today}</p>
         </div>
-        <button type="button" className={styles.logoutBtn} onClick={handleLogout} disabled={loggingOut}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-          {loggingOut ? 'Signing out…' : 'Logout'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <input
+              type="date"
+              value={selectedDate}
+              max={todayStr()}
+              onChange={(e) => setSelectedDate(e.target.value || todayStr())}
+              title="Check tasks from a previous date"
+              style={{ border: 'none', background: 'transparent', fontSize: 12, cursor: 'pointer', colorScheme: 'light' }}
+            />
+            {!isToday && (
+              <button
+                type="button"
+                onClick={() => setSelectedDate(todayStr())}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  textDecoration: 'underline',
+                  color: 'inherit',
+                  padding: 0,
+                }}
+              >
+                Today
+              </button>
+            )}
+          </div>
+          <button type="button" className={styles.logoutBtn} onClick={handleLogout} disabled={loggingOut}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            {loggingOut ? 'Signing out…' : 'Logout'}
+          </button>
+        </div>
       </header>
 
       {loading ? (
@@ -137,9 +200,13 @@ export default function SeoDashboardPage() {
           </div>
 
           <section className={styles.tasksSection}>
-            <h2 className={styles.sectionTitle}>Tasks by date</h2>
+            <h2 className={styles.sectionTitle}>
+              {isToday ? 'Tasks by date' : `Tasks — ${selectedDate}`}
+            </h2>
             {groups.length === 0 ? (
-              <p className={styles.emptyText}>Nothing assigned right now.</p>
+              <p className={styles.emptyText}>
+                {isToday ? 'Nothing assigned right now.' : 'No tasks due on this date.'}
+              </p>
             ) : (
               groups.map((group) => (
                 <div key={group.dateKey} className={styles.dateGroup}>
@@ -147,7 +214,7 @@ export default function SeoDashboardPage() {
                     <h3 className={styles.dateGroupLabel}>{group.label}</h3>
                     <span className={styles.dateGroupCount}>{group.tasks.length}</span>
                   </div>
-                  <TaskTable tasks={group.tasks} onOpen={setSelectedTask} />
+                  <TaskTable tasks={group.tasks} onOpen={setSelectedTask} onStartTask={handleStartTask} />
                 </div>
               ))
             )}
@@ -156,7 +223,8 @@ export default function SeoDashboardPage() {
       )}
 
       {selectedTask && (
-        <TaskModal task={selectedTask} onClose={() => setSelectedTask(null)} onSave={handleSaveTask} onRespond={fetchData} />      )}
+        <TaskModal task={selectedTask} onClose={() => setSelectedTask(null)} onSave={handleSaveTask} onRespond={fetchData} />
+      )}
     </div>
   );
 }
