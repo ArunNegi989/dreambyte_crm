@@ -160,8 +160,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onSubmitTask, onSu
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <SubtaskManager taskId={task.id} variant="full" />
-        </div>
+        <SubtaskManager key={task.id} taskId={task.id} subtasks={task.subtasks} variant="full" />        </div>
 
         {history.length > 0 && (
           <div className={styles.changesSection}>
