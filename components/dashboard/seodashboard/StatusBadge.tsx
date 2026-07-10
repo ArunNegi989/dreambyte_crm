@@ -7,6 +7,7 @@ const LABELS: Record<TaskStatus, string> = {
   in_progress: 'In progress',
   completed: 'Completed',
   blocked: 'Blocked',
+  rejected: 'Rejected',
 };
 
 const CLASS_MAP: Record<TaskStatus, string> = {
@@ -14,6 +15,7 @@ const CLASS_MAP: Record<TaskStatus, string> = {
   in_progress: 'inProgress',
   completed: 'completed',
   blocked: 'blocked',
+  rejected: 'rejected',
 };
 
 export default function StatusBadge({ status }: { status: TaskStatus }) {

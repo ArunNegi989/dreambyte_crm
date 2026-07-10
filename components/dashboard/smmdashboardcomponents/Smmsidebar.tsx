@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { JSX } from "react";
 import styles from "@/public/assets/styles/dashboard/smmdashboard/Smmsidebar.module.css";
 
 export type SMMSection = "overview" | "tasks" | "posting" | "additional" | "history";

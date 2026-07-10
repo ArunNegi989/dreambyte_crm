@@ -16,7 +16,10 @@
   border-radius: 50%;
   background: currentColor;
 }
-
+.rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
 .pending {
   background: var(--seo-surface-alt);
   color: var(--seo-text-muted);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { JSX } from "react";
 import styles from "@/public/assets/styles/dashboard/designerdashboard/Designersidebar.module.css";
 
 export type DesignerSection = "overview" | "tasks" | "additional" | "history";

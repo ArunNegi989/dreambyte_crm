@@ -17,7 +17,7 @@ export type SeoCategory =
   | 'off_page_seo'
   | 'technical_seo';
 
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'blocked';
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'blocked' | 'rejected';
 export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
 export interface CategoryMeta {
@@ -166,6 +166,15 @@ export interface TaskDetails {
   technical_seo?: TechnicalSeoDetail;
 }
 
+export interface TaskChange {
+  id: string;
+  changedBy: string;
+  note: string;
+  changedAt: string;
+  resolved: boolean;
+  employeeResponse: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -181,6 +190,8 @@ export interface Task {
   submittedAt?: string | null;
   completedAt?: string | null;
   details?: TaskDetails;
+  rejectRemark?: string;
+  changes?: TaskChange[];
 }
 
 export interface AdditionalTask {
@@ -204,33 +215,4 @@ export interface DashboardStats {
   additionalTasksLogged: number;
   categoryBreakdown: { category: SeoCategory; count: number }[];
   completionRate: number; // 0-100
-}
-
-
-export interface TaskChange {
-  id: string;
-  changedBy: string;
-  note: string;
-  changedAt: string;
-  resolved: boolean;
-  employeeResponse: string;
-}
-
-export interface Task {
-  id: string;
-  title: string;
-  category: SeoCategory;
-  description: string;
-  clientName: string;
-  brandName: string;
-  assignedDate: string;
-  dueDate: string;
-  status: TaskStatus;
-  priority: Priority;
-  remarks?: string;
-  submittedAt?: string | null;
-  completedAt?: string | null;
-  details?: TaskDetails;
-  rejectRemark?: string;      // ← add
-  changes?: TaskChange[];     // ← add
 }

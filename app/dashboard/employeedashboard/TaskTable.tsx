@@ -118,7 +118,7 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onOpen, expanded, onToggleExpan
       {expanded && (
         <tr className={styles.row}>
           <td className={styles.td} colSpan={8} style={{ background: '#fcfcfa' }}>
-            <SubtaskManager taskId={task.id} variant="compact" />
+           <SubtaskManager taskId={task.id} subtasks={task.subtasks} variant="compact" />
           </td>
         </tr>
       )}

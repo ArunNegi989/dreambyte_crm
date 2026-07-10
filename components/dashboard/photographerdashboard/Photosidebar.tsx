@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { JSX } from "react";
 import styles from "@/public/assets/styles/dashboard/photographer-dashboard/Photosidebar.module.css";
 
 export type PhotoSection = "overview" | "shoots" | "edits" | "additional";
