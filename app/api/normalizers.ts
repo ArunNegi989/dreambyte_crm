@@ -1,4 +1,4 @@
-import { Task, TaskStatus, DeliveryState, TaskChangeRequest } from '../../types/employee/task';
+import { Task, TaskStatus, DeliveryState, TaskChangeRequest, Subtask } from '../../types/employee/task';
 
 // ── Raw backend task shape ────────────────────────────────────────────────────
 export interface BackendTask {
@@ -28,6 +28,13 @@ export interface BackendTask {
     changedAt: string;
     resolved?: boolean;
     employeeResponse?: string;
+  }[];
+  // ── Subtasks (employee checklist, also visible to admin/SA) ────────────
+  subtasks?: {
+    _id: string;
+    title: string;
+    status: 'pending' | 'completed';
+    createdAt?: string;
   }[];
   createdAt: string;
   updatedAt: string;
@@ -68,6 +75,15 @@ export function normalizeTask(raw: BackendTask): Task {
       resolved:         c.resolved ?? false,
     }));
 
+  // ── Subtasks: employee-managed checklist, echoed straight from backend ──
+  const subtasks: Subtask[] = Array.isArray(raw.subtasks)
+    ? raw.subtasks.map((s) => ({
+        id:     s._id,
+        title:  s.title,
+        status: s.status,
+      }))
+    : [];
+
   return {
     id:           raw._id,
     title:        raw.title || '',
@@ -94,6 +110,7 @@ export function normalizeTask(raw: BackendTask): Task {
         ? raw.updatedAt?.slice(0, 10) ?? null
         : null,
     changeRequests,
+    subtasks,
   };
 }
 

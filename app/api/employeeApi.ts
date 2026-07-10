@@ -130,3 +130,32 @@ export async function respondToChanges(
   );
   return normalizeTask(data.data);
 }
+
+// ── Subtasks ──────────────────────────────────────────────────────────────────
+
+// Route: POST /api/employee/tasks/:id/subtasks
+export async function addSubtask(taskId: string, title: string): Promise<Task> {
+  const data = await apiFetch<{ success: boolean; data: BackendTask }>(
+    `/employee/tasks/${taskId}/subtasks`,
+    { method: 'POST', body: { title } }
+  );
+  return normalizeTask(data.data);
+}
+
+// Route: PATCH /api/employee/tasks/:id/subtasks/:subtaskId
+export async function toggleSubtask(taskId: string, subtaskId: string): Promise<Task> {
+  const data = await apiFetch<{ success: boolean; data: BackendTask }>(
+    `/employee/tasks/${taskId}/subtasks/${subtaskId}`,
+    { method: 'PATCH' }
+  );
+  return normalizeTask(data.data);
+}
+
+// Route: DELETE /api/employee/tasks/:id/subtasks/:subtaskId
+export async function removeSubtask(taskId: string, subtaskId: string): Promise<Task> {
+  const data = await apiFetch<{ success: boolean; data: BackendTask }>(
+    `/employee/tasks/${taskId}/subtasks/${subtaskId}`,
+    { method: 'DELETE' }
+  );
+  return normalizeTask(data.data);
+}

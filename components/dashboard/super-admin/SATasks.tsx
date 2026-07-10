@@ -539,8 +539,11 @@ export default function SATasks({
                 taskType?: string;
                 startedAt?: string | null;
                 deliveredAt?: string | null;
+                subtasks?: { _id: string; title: string; status: "pending" | "completed" }[];
               };
               const colSpanFull = isAdminOrSA ? 11 : 10;
+              const subtaskCount = taskAny.subtasks?.length ?? 0;
+              const subtaskDone = taskAny.subtasks?.filter((s) => s.status === "completed").length ?? 0;
 
               return (
                 <>
@@ -555,6 +558,12 @@ export default function SATasks({
                             <>
                               {" "}
                               &middot; {taskAny.completedCount ?? 0}/{taskAny.totalCount} edited
+                            </>
+                          )}
+                          {subtaskCount > 0 && (
+                            <>
+                              {" "}
+                              &middot; {subtaskDone}/{subtaskCount} subtasks
                             </>
                           )}
                         </span>
@@ -670,11 +679,11 @@ export default function SATasks({
                       </span>
                     </td>
 
-                    {/* Changes toggle */}
+                    {/* Changes toggle — also drives the subtasks panel below */}
                     <td>
                       <button
                         className={`${styles.changeToggle} ${
-                          task.changes.length > 0 ? styles.hasCh : ""
+                          task.changes.length > 0 || subtaskCount > 0 ? styles.hasCh : ""
                         }`}
                         onClick={() =>
                           setExpandedId(isExpanded ? null : tid)
@@ -864,6 +873,33 @@ export default function SATasks({
                   {isExpanded && (
                     <tr key={`${tid}-changes`} className={styles.changeRow}>
                       <td colSpan={colSpanFull}>
+                        {/* ── Subtasks — read-only view of the employee's own checklist ── */}
+                        {subtaskCount > 0 && (
+                          <div className={styles.changeDropdown} style={{ marginBottom: 12 }}>
+                            <div className={styles.changeHeader}>
+                              Subtasks — <strong>{task.title}</strong>
+                              <span style={{ marginLeft: 8, fontWeight: 400, color: "#64748b" }}>
+                                {subtaskDone}/{subtaskCount} completed
+                              </span>
+                            </div>
+                            <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                              {taskAny.subtasks!.map((s) => (
+                                <li
+                                  key={s._id}
+                                  style={{
+                                    fontSize: 13,
+                                    lineHeight: 1.8,
+                                    color: s.status === "completed" ? "#10b981" : "#334155",
+                                    textDecoration: s.status === "completed" ? "line-through" : "none",
+                                  }}
+                                >
+                                  {s.status === "completed" ? "✓" : "○"} {s.title}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
                         <div className={styles.changeDropdown}>
                           <div className={styles.changeHeader}>
                             Change Log —{" "}

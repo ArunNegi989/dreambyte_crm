@@ -22,6 +22,8 @@ export interface Task {
   dueDate: string;
   assignedAt: string;
   submittedAt: string | null;
+  // inside Task interface:
+subtasks: Subtask[];
   // Employee-entered: when they say they actually started working on the task.
   // Filled in by the employee at submit time (not auto-captured).
   // Never overwritten on reject→fix→resubmit cycles — always original start.
@@ -56,3 +58,10 @@ export interface DashboardStats {
   thisWeek: PeriodStats;
   thisMonth: PeriodStats;
 }
+
+export interface Subtask {
+  id: string;
+  title: string;
+  status: 'pending' | 'completed';
+}
+

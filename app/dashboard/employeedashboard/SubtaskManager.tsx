@@ -2,28 +2,36 @@
 
 import React, { useState } from 'react';
 import { useSubtasks } from '../../../hooks/employee/useSubtasks';
+import { Subtask } from '../../../types/employee/task';
 import styles from '../../../assets/styles/employeedashboard/SubtaskManager.module.css';
 
 interface SubtaskManagerProps {
   taskId: string;
+  // The task's current subtasks, coming from the parent's Task object —
+  // this is what makes the list persist across refetches/navigation
+  // instead of resetting to empty every time this component mounts.
+  subtasks: Subtask[];
   // 'compact' is used inline in the task table (tighter spacing),
   // 'full' is used inside the task modal.
   variant?: 'compact' | 'full';
 }
 
-const SubtaskManager: React.FC<SubtaskManagerProps> = ({ taskId, variant = 'full' }) => {
-  const { subtasks, addSubtask, toggleSubtask, removeSubtask } = useSubtasks(taskId);
+const SubtaskManager: React.FC<SubtaskManagerProps> = ({ taskId, subtasks: initialSubtasks, variant = 'full' }) => {
+  const { subtasks, addSubtask, toggleSubtask, removeSubtask, error } = useSubtasks(taskId, initialSubtasks);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const completedCount = subtasks.filter((s) => s.status === 'completed').length;
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!draft.trim()) {
       setAdding(false);
       return;
     }
-    addSubtask(draft);
+    setSaving(true);
+    await addSubtask(draft);
+    setSaving(false);
     setDraft('');
     setAdding(false);
   };
@@ -49,6 +57,8 @@ const SubtaskManager: React.FC<SubtaskManagerProps> = ({ taskId, variant = 'full
         )}
       </div>
 
+      {error && <p className={styles.errorText}>{error}</p>}
+
       {adding && (
         <div className={styles.addRow}>
           <input
@@ -58,6 +68,7 @@ const SubtaskManager: React.FC<SubtaskManagerProps> = ({ taskId, variant = 'full
             placeholder="e.g. Wire up the login API"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            disabled={saving}
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleAdd();
               if (e.key === 'Escape') {
@@ -66,8 +77,8 @@ const SubtaskManager: React.FC<SubtaskManagerProps> = ({ taskId, variant = 'full
               }
             }}
           />
-          <button type="button" className={styles.saveBtn} onClick={handleAdd}>
-            Save
+          <button type="button" className={styles.saveBtn} onClick={handleAdd} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
           </button>
           <button
             type="button"
@@ -76,6 +87,7 @@ const SubtaskManager: React.FC<SubtaskManagerProps> = ({ taskId, variant = 'full
               setAdding(false);
               setDraft('');
             }}
+            disabled={saving}
           >
             Cancel
           </button>
