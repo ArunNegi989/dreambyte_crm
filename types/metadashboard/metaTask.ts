@@ -27,5 +27,7 @@ export interface Task {
   details: Record<string, string>;
   deliveryStatus: 'delivered' | 'not_delivered';
   rejectRemark: string;
+  startedAt?: string;
+  deliveredAt?: string;
   changes: TaskChange[];
 }

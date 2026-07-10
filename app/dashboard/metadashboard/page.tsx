@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { CATEGORY_META } from '../../../data/metadashboard/dummyData';
 import { Task } from '../../../types/metadashboard/metaTask';
 import TaskModal from '../../../components/dashboard/metadashboard/TaskModal';
-import { fetchMyTasks, fetchDashboardStats, MetaStats } from '../../api/metaApi';
+import { fetchMyTasks, fetchDashboardStats, setTaskInProgress, MetaStats } from '../../api/metaApi';
 import { logout } from '../../api/authApi';
 
 const STAT_ICONS = {
@@ -33,9 +33,6 @@ const DATE_FILTERS: { value: DateFilter; label: string }[] = [
   { value: 'custom', label: 'Custom range' },
 ];
 
-// Real statuses -> the CSS badge class they visually reuse.
-// (.md-status only has pending/in-progress/completed/blocked style rules —
-// this maps the extra real statuses onto the closest existing look.)
 const STATUS_BADGE_CLASS: Record<string, string> = {
   pending: 'pending',
   approved: 'pending',
@@ -100,6 +97,31 @@ function groupByCategory(tasks: Task[]) {
   return Array.from(byCat.entries()).map(([category, tasks]) => ({ category, tasks }));
 }
 
+// ── Time-taken helpers (inlined — no shared util file) ──
+function formatDuration(ms: number): string {
+  if (ms <= 0) return '0m';
+  const totalMinutes = Math.floor(ms / 60000);
+  const hrs = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (hrs > 0) return `${hrs}h ${mins}m`;
+  return `${mins}m`;
+}
+
+function getTimeTakenLabel(startedAt?: string, deliveredAt?: string, now: number = Date.now()): string | null {
+  if (!startedAt) return null;
+  const start = new Date(startedAt).getTime();
+  if (Number.isNaN(start)) return null;
+  const end = deliveredAt ? new Date(deliveredAt).getTime() : now;
+  return formatDuration(Math.max(0, end - start));
+}
+
+// A task can be started directly from the list when it's pending and has
+// no open admin notes waiting on a reply (those still go through the modal).
+function canStartFromList(t: Task) {
+  const hasOpenChanges = t.changes?.some((c) => !c.resolved) ?? false;
+  return t.status === 'pending' && !hasOpenChanges;
+}
+
 export default function MetaDashboardPage() {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -110,6 +132,14 @@ export default function MetaDashboardPage() {
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customRange, setCustomRange] = useState({ from: '', to: '' });
   const [loggingOut, setLoggingOut] = useState(false);
+  const [startingId, setStartingId] = useState<string | null>(null);
+
+  // Ticks every 30s so any running "time taken" cell stays live.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const [employeeId, setEmployeeId] = useState<string>('');
   useEffect(() => {
@@ -145,6 +175,23 @@ export default function MetaDashboardPage() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  const handleStart = useCallback(
+    async (e: React.MouseEvent, taskId: string) => {
+      e.stopPropagation(); // don't also open the row's modal
+      if (startingId) return;
+      setStartingId(taskId);
+      try {
+        await setTaskInProgress(taskId);
+        await loadAll();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to start task');
+      } finally {
+        setStartingId(null);
+      }
+    },
+    [loadAll, startingId]
+  );
 
   const todayIso = new Date().toISOString().slice(0, 10);
   const filteredTasks = useMemo(
@@ -309,18 +356,40 @@ export default function MetaDashboardPage() {
                             <th>Task</th>
                             <th>Priority</th>
                             <th>Status</th>
+                            <th>Time taken</th>
                             <th>Due</th>
+                            <th></th>
                           </tr>
                         </thead>
                         <tbody>
-                          {group.tasks.map((t) => (
-                            <tr key={t.id} className="clickable" onClick={() => setSelectedTask(t)}>
-                              <td className="md-task-title">{t.title}</td>
-                              <td><span className={`md-badge ${t.priority}`}>{t.priority}</span></td>
-                              <td><span className={`md-status ${STATUS_BADGE_CLASS[t.status] ?? 'pending'}`}>{STATUS_DISPLAY[t.status] ?? t.status}</span></td>
-                              <td className={`md-due ${isOverdue(t, todayIso) ? 'overdue' : ''}`}>{t.dueDate || '—'}</td>
-                            </tr>
-                          ))}
+                          {group.tasks.map((t) => {
+                            const timeTaken = getTimeTakenLabel(t.startedAt, t.deliveredAt, now);
+                            const isRunning = t.status === 'in_progress' && !t.deliveredAt;
+                            return (
+                              <tr key={t.id} className="clickable" onClick={() => setSelectedTask(t)}>
+                                <td className="md-task-title">{t.title}</td>
+                                <td><span className={`md-badge ${t.priority}`}>{t.priority}</span></td>
+                                <td><span className={`md-status ${STATUS_BADGE_CLASS[t.status] ?? 'pending'}`}>{STATUS_DISPLAY[t.status] ?? t.status}</span></td>
+                                <td className="md-due">
+                                  {timeTaken ? `${timeTaken}${isRunning ? ' ⏱' : ''}` : '—'}
+                                </td>
+                                <td className={`md-due ${isOverdue(t, todayIso) ? 'overdue' : ''}`}>{t.dueDate || '—'}</td>
+                                <td onClick={(e) => e.stopPropagation()}>
+                                  {canStartFromList(t) && (
+                                    <button
+                                      type="button"
+                                      className="md-btn-secondary"
+                                      style={{ padding: '4px 10px', fontSize: 12 }}
+                                      disabled={startingId === t.id}
+                                      onClick={(e) => handleStart(e, t.id)}
+                                    >
+                                      {startingId === t.id ? 'Starting…' : 'Start'}
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

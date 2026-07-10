@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CATEGORY_META } from '../../../data/metadashboard/dummyData';
 import { Task } from '../../../types/metadashboard/metaTask';
-import { setTaskInProgress, submitTaskWork, respondToTaskChanges } from '../../../app/api/metaApi';
+import { submitTaskWork, respondToTaskChanges } from '../../../app/api/metaApi';
 
 interface TaskModalProps {
   task: Task;
@@ -20,34 +20,46 @@ const STATUS_LABELS: Record<string, string> = {
   changes_requested: 'Changes requested',
 };
 
+// ── Time-taken helpers (inlined — no shared util file) ──
+function formatDuration(ms: number): string {
+  if (ms <= 0) return '0m';
+  const totalMinutes = Math.floor(ms / 60000);
+  const hrs = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (hrs > 0) return `${hrs}h ${mins}m`;
+  return `${mins}m`;
+}
+
+function getTimeTakenLabel(startedAt?: string, deliveredAt?: string, now: number = Date.now()): string | null {
+  if (!startedAt) return null;
+  const start = new Date(startedAt).getTime();
+  if (Number.isNaN(start)) return null;
+  const end = deliveredAt ? new Date(deliveredAt).getTime() : now;
+  return formatDuration(Math.max(0, end - start));
+}
+
 export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
   const [note, setNote] = useState('');
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Ticks every 30s so a running timer stays live while the modal is open.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const cat = CATEGORY_META[task.category as keyof typeof CATEGORY_META];
   const openChanges = task.changes.filter((c) => !c.resolved);
   const resolvedChanges = task.changes.filter((c) => c.resolved);
   const hasOpenChanges = openChanges.length > 0;
 
-  // "approved" means an admin/super admin has signed off on behalf of the
-  // client — the task is done and closed, same as "completed". No further
-  // action (start working / submit / reply) makes sense once approved.
   const isDone = task.status === 'completed' || task.status === 'approved';
 
-  const handleStartWork = async () => {
-    try {
-      setSaving(true);
-      setError('');
-      await setTaskInProgress(task.id);
-      onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update status');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const timeTaken = getTimeTakenLabel(task.startedAt, task.deliveredAt, now);
+  const isRunning = task.status === 'in_progress' && !task.deliveredAt;
 
   const handleSubmitWork = async () => {
     try {
@@ -118,6 +130,14 @@ export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
               <span className="md-detail-key">Delivery</span>
               <span className="md-detail-val">{task.deliveryStatus === 'delivered' ? 'Delivered' : 'Not delivered'}</span>
             </div>
+            {timeTaken && (
+              <div className="md-detail-item">
+                <span className="md-detail-key">Time taken</span>
+                <span className="md-detail-val">
+                  {timeTaken}{isRunning ? ' (running)' : ''}
+                </span>
+              </div>
+            )}
             {Object.entries(task.details).map(([key, value]) => (
               <div className="md-detail-item" key={key}>
                 <span className="md-detail-key">{key}</span>
@@ -126,12 +146,19 @@ export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
             ))}
           </div>
 
-          {/* Approved is a closed, client-signed-off state — no open notes,
-              no reply flow, no submit button. Just show a plain confirmation. */}
           {task.status === 'approved' && (
             <div className="md-field">
               <p style={{ fontSize: 12.5, color: 'var(--md-text-muted)' }}>
                 ✓ This task has been approved. No further action is needed.
+              </p>
+            </div>
+          )}
+
+          {task.status === 'pending' && (
+            <div className="md-field">
+              <p style={{ fontSize: 12.5, color: 'var(--md-text-muted)' }}>
+                Use the <strong>Start</strong> button on the task list to begin work — that's what
+                kicks off the time-taken clock.
               </p>
             </div>
           )}
@@ -167,7 +194,7 @@ export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
             </div>
           )}
 
-          {!isDone && (
+          {!isDone && task.status !== 'pending' && (
             <div className="md-field">
               <label className="md-field-label">
                 {hasOpenChanges ? 'Note for admin (optional)' : 'Delivery note (optional)'}
@@ -187,17 +214,11 @@ export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
         <div className="md-modal-footer">
           <button type="button" className="md-btn-secondary" onClick={onClose}>Close</button>
 
-          {!isDone && !hasOpenChanges && task.status !== 'in_progress' && (
-            <button type="button" className="md-btn-secondary" onClick={handleStartWork} disabled={saving}>
-              Start working
-            </button>
-          )}
-
           {!isDone && hasOpenChanges ? (
             <button type="button" className="md-btn-primary" onClick={handleRespond} disabled={saving}>
               {saving ? 'Sending…' : 'Send replies & resubmit'}
             </button>
-          ) : !isDone ? (
+          ) : !isDone && task.status !== 'pending' ? (
             <button type="button" className="md-btn-primary" onClick={handleSubmitWork} disabled={saving}>
               {saving ? 'Submitting…' : 'Mark as done'}
             </button>
