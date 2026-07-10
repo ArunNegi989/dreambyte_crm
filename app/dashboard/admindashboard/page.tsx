@@ -136,6 +136,11 @@ export default function AdminDashboard() {
     }
   };
 
+  // ── Assign task — mirrors SATasks' basePayload shape so admin-created
+  // tasks carry the same department-specific (photography) fields that
+  // Super Admin can set. `taskType`, `location`, `time`, `mediaType`, and
+  // `totalCount` are all optional/omitted for non-photography work types,
+  // exactly like the super admin flow. ────────────────────────────────────
   const handleAssignTask = async (data: {
     title: string;
     description: string;
@@ -143,14 +148,30 @@ export default function AdminDashboard() {
     brandId: string;
     frequency: TaskFrequency;
     dueDate: string;
+    taskType?: string;
+    location?: string;
+    time?: string;
+    mediaType?: "photo" | "video" | "both";
+    totalCount?: string;
   }) => {
     try {
       const res = await api.post("/tasks", {
-        ...data,
+        title: data.title,
+        description: data.description,
+        assignedTo: data.assignedTo,
+        brandId: data.brandId || undefined,
+        frequency: data.frequency,
+        dueDate: data.dueDate,
         assignedBy: "admin",
         status: "pending",
         deliveryStatus: "not_delivered",
         changes: [],
+        // ── photography extras — harmless no-ops for non-photography tasks ──
+        taskType: data.taskType,
+        location: data.location,
+        time: data.time,
+        mediaType: data.mediaType,
+        totalCount: data.totalCount,
       });
       setTasks((prev) => [res.data.data, ...prev]);
     } catch (err) {

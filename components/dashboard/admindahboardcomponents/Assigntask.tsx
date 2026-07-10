@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Employee, TaskFrequency ,Brand  } from "@/types/admin/Crm";
+import { Employee, TaskFrequency, Brand } from "@/types/admin/Crm";
 import { getTasksForDepartment } from "@/data/superadmin/departmentTasks";
 import styles from "@/public/assets/styles/dashboard/admindashboard/Assigntask.module.css";
 
@@ -15,18 +15,37 @@ interface AssignTaskProps {
     assignedTo: string;
     frequency: TaskFrequency;
     dueDate: string;
+    // ── Photography-specific (only sent to backend when relevant) ──
+    taskType?: string;
+    location?: string;
+    time?: string;
+    mediaType?: "photo" | "video" | "both";
+    totalCount?: string;
   }) => void;
 }
 
+// Work types that need the Shoots-specific fields (location/time/media type)
+const SHOOT_WORK_TYPES = ["Shoots"];
+// Work types that need a "how many to edit" count
+const EDIT_COUNT_WORK_TYPES = ["Photo Edit"];
+
+const emptyForm = {
+  title: "",
+  description: "",
+  assignedTo: "",
+  brandId: "",
+  frequency: "weekly" as TaskFrequency,
+  dueDate: "",
+  // ── Photography-specific ──
+  location: "",
+  time: "",
+  mediaType: "" as "" | "photo" | "video" | "both",
+  totalCount: "",
+};
+
 export default function AssignTask({ employees, brands, onAssign }: AssignTaskProps) {
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    assignedTo: "",
-     brandId: "",
-    frequency: "weekly" as TaskFrequency,
-    dueDate: "",
-  });
+  const [form, setForm] = useState(emptyForm);
+  const [workType, setWorkType] = useState(""); // separate from form.title so the dropdown stays controlled
   const [success, setSuccess] = useState(false);
 
   // Admin can only assign tasks to plain employees — never to another
@@ -40,29 +59,64 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
   // department and a department-specific work-type dropdown.
   const selectedEmployee = assignableEmployees.find((e) => e._id === form.assignedTo);
   const departmentTasks = getTasksForDepartment(selectedEmployee?.department);
-  // Keeps the Work Type <select> controlled: if the current title matches
+  // Keeps the Work Type <select> controlled: if the current workType matches
   // one of this department's task options, show it selected; otherwise
-  // blank (e.g. admin typed a custom title).
-  const workTypeValue = departmentTasks.includes(form.title) ? form.title : "";
+  // blank (e.g. admin cleared it out or picked a new employee).
+  const workTypeValue = departmentTasks.includes(workType) ? workType : "";
 
-  // When the employee changes, the department (and therefore the work-type
-  // list) changes too. Clear the title only if it no longer belongs to the
-  // new department's task list, so admin doesn't accidentally submit a
-  // mismatched title.
+  const isShootWork = SHOOT_WORK_TYPES.includes(workType);
+  const isEditCountWork = EDIT_COUNT_WORK_TYPES.includes(workType);
+
+  // When the employee changes, department (and its work-type list) changes.
+  // Clear the work type / title / photography fields since they belonged
+  // to the previous department and would otherwise silently carry over.
   const handleAssignedToChange = (empId: string) => {
-    const newEmp = assignableEmployees.find((e) => e._id === empId);
-    const newDeptTasks = getTasksForDepartment(newEmp?.department);
     setForm((prev) => ({
       ...prev,
       assignedTo: empId,
-      title: newDeptTasks.includes(prev.title) ? prev.title : "",
+      title: "",
+      location: "",
+      time: "",
+      mediaType: "",
+      totalCount: "",
+    }));
+    setWorkType("");
+  };
+
+  const handleWorkTypeChange = (wt: string) => {
+    setWorkType(wt);
+    setForm((prev) => ({
+      ...prev,
+      title: wt,
+      // Reset photography fields when switching between work types so a
+      // stale count/location from a different type can't slip through.
+      location: SHOOT_WORK_TYPES.includes(wt) ? prev.location : "",
+      time: SHOOT_WORK_TYPES.includes(wt) ? prev.time : "",
+      mediaType: SHOOT_WORK_TYPES.includes(wt) ? prev.mediaType : "",
+      totalCount: EDIT_COUNT_WORK_TYPES.includes(wt) ? prev.totalCount : "",
     }));
   };
 
   const handleSubmit = () => {
-    if (!form.title || !form.assignedTo ||!form.brandId || !form.dueDate) return;
-    onAssign(form);
-    setForm({ title: "", description: "", assignedTo: "", brandId: "", frequency: "weekly", dueDate: "" });
+    if (!form.title || !form.assignedTo || !form.brandId || !form.dueDate) return;
+
+    onAssign({
+      title: form.title,
+      description: form.description,
+      assignedTo: form.assignedTo,
+      brandId: form.brandId,
+      frequency: form.frequency,
+      dueDate: form.dueDate,
+      // ── photography extras — harmless no-ops for non-photography tasks ──
+      taskType: workType || undefined,
+      location: isShootWork ? form.location : undefined,
+      time: isShootWork ? form.time : undefined,
+      mediaType: isShootWork && form.mediaType ? form.mediaType : undefined,
+      totalCount: isEditCountWork && form.totalCount ? form.totalCount : undefined,
+    });
+
+    setForm(emptyForm);
+    setWorkType("");
     setSuccess(true);
     setTimeout(() => setSuccess(false), 3000);
   };
@@ -104,7 +158,6 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
             >
               <option value="">Select Employee</option>
               {assignableEmployees.map((emp) => (
-                // ← _id use ho raha hai
                 <option key={emp._id} value={emp._id}>
                   {emp.name} — {emp.role}
                 </option>
@@ -126,31 +179,33 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
           )}
 
           <div className={styles.field}>
-  <label className={styles.label}>Brand *</label>
-  <select
-    className={styles.input}
-    value={form.brandId}
-    onChange={(e) =>
-      setForm({ ...form, brandId: e.target.value })
-    }
-  >
-    <option value="">Select Brand</option>
+            <label className={styles.label}>Brand *</label>
+            <select
+              className={styles.input}
+              value={form.brandId}
+              onChange={(e) => setForm({ ...form, brandId: e.target.value })}
+            >
+              <option value="">Select Brand</option>
+              {brands.map((brand) => (
+                <option key={brand._id} value={brand._id}>
+                  {brand.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-    {brands.map((brand) => (
-      <option key={brand._id} value={brand._id}>
-        {brand.name}
-      </option>
-    ))}
-  </select>
-</div>
-{selectedEmployee && departmentTasks.length > 0 && (
+        {/* Work Type — department-specific dropdown, only shown when the
+            department has a known task list. Selecting an option fills the
+            Task Title below; admin can still edit it further. */}
+        {selectedEmployee && departmentTasks.length > 0 && (
           <div className={styles.row}>
             <div className={styles.field}>
               <label className={styles.label}>Work Type *</label>
               <select
                 className={styles.input}
                 value={workTypeValue}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                onChange={(e) => handleWorkTypeChange(e.target.value)}
               >
                 <option value="">Select work type</option>
                 {departmentTasks.map((wt) => (
@@ -162,12 +217,62 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
             </div>
           </div>
         )}
-        </div>
 
-        {/* Work Type — department-specific dropdown, only shown when the
-            department has a known task list. Selecting an option fills the
-            Task Title below; admin can still edit it further. */}
-        
+        {/* ── Photography: Shoots-specific fields ── */}
+        {isShootWork && (
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label className={styles.label}>Shoot Location</label>
+              <input
+                className={styles.input}
+                placeholder="e.g. Rishikesh Riverside Studio"
+                value={form.location}
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
+              />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label}>Shoot Time</label>
+              <input
+                className={styles.input}
+                placeholder="e.g. 10:30 AM"
+                value={form.time}
+                onChange={(e) => setForm({ ...form, time: e.target.value })}
+              />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label}>Media Type</label>
+              <select
+                className={styles.input}
+                value={form.mediaType}
+                onChange={(e) =>
+                  setForm({ ...form, mediaType: e.target.value as "" | "photo" | "video" | "both" })
+                }
+              >
+                <option value="">Select type</option>
+                <option value="photo">Photo</option>
+                <option value="video">Video</option>
+                <option value="both">Both</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* ── Photography: Edit-count field ── */}
+        {isEditCountWork && (
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label className={styles.label}>Total Photos to Edit *</label>
+              <input
+                type="number"
+                min={1}
+                className={styles.input}
+                placeholder="e.g. 40"
+                value={form.totalCount}
+                onChange={(e) => setForm({ ...form, totalCount: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
 
         <div className={styles.field}>
           <label className={styles.label}>Task Title *</label>
@@ -181,10 +286,10 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
         </div>
 
         <div className={styles.field}>
-          <label className={styles.label}>Description</label>
+          <label className={styles.label}>Description {isShootWork ? "/ Notes" : ""}</label>
           <textarea
             className={`${styles.input} ${styles.textarea}`}
-            placeholder="Describe the task in detail..."
+            placeholder={isShootWork ? "Any notes for the shoot…" : "Describe the task in detail..."}
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             rows={3}
