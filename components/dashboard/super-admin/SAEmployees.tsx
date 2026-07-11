@@ -6,6 +6,7 @@ import { Employee, Task, Brand } from "@/types/superadmin/superAdmin";
 import SACreateEmployeeModal from "./SACreateEmployeeModal";
 import SAAssignRoleModal from "./SAAssignRoleModal";
 import SAEmployeeDetailModal from "./SAEmployeeDetailModal";
+import SAEmployeeProgressModal from "./Saemployeeprogressmodal";
 import styles from "@/public/assets/styles/dashboard/super-admin-dashboard/Saemployees.module.css";
 
 interface SAEmployeesProps {
@@ -23,6 +24,7 @@ export default function SAEmployees({ tasks, brands, onCreated, onDeleted, onRol
 
   const [showCreate, setShowCreate]       = useState(false);
   const [viewEmp, setViewEmp]             = useState<Employee | null>(null);
+  const [progressEmp, setProgressEmp]     = useState<Employee | null>(null);
   const [roleEmp, setRoleEmp]             = useState<Employee | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleting, setDeleting]           = useState<string | null>(null);
@@ -238,6 +240,20 @@ export default function SAEmployees({ tasks, brands, onCreated, onDeleted, onRol
                           </svg>
                         </button>
 
+                        {/* Progress Report */}
+                        <button
+                          className={styles.assignBtn}
+                          onClick={() => setProgressEmp(emp)}
+                          title="View progress report"
+                          disabled={deleting === emp._id}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 20V10" />
+                            <path d="M12 20V4" />
+                            <path d="M6 20v-6" />
+                          </svg>
+                        </button>
+
                         {/* Assign Role */}
                         <button
                           className={styles.assignBtn}
@@ -321,6 +337,15 @@ export default function SAEmployees({ tasks, brands, onCreated, onDeleted, onRol
           tasks={tasks}
           brands={brands}
           onClose={() => setViewEmp(null)}
+        />
+      )}
+
+      {progressEmp && (
+        <SAEmployeeProgressModal
+          employee={progressEmp}
+          tasks={tasks}
+          brands={brands}
+          onClose={() => setProgressEmp(null)}
         />
       )}
 
