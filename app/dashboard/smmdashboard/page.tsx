@@ -24,6 +24,71 @@ import styles from "@/app/dashboard/smmdashboard/smmdashboard.module.css";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { logout } from "@/app/api/authApi";
 
+const PAGE_SIZE = 10;
+
+// ── Pagination helpers (inlined — no shared util file) ──────────────────
+function paginateList<T>(items: T[], page: number, pageSize = PAGE_SIZE) {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pageItems = items.slice((safePage - 1) * pageSize, safePage * pageSize);
+  return { pageItems, totalPages, safePage };
+}
+
+function Pagination({
+  page,
+  totalPages,
+  totalItems,
+  onPrev,
+  onNext,
+}: {
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "14px 0 4px" }}>
+      <button
+        type="button"
+        onClick={onPrev}
+        disabled={page <= 1}
+        style={{
+          padding: "4px 10px",
+          fontSize: 12,
+          borderRadius: 6,
+          border: "1px solid #e2e8f0",
+          background: "#fff",
+          cursor: page <= 1 ? "not-allowed" : "pointer",
+          opacity: page <= 1 ? 0.5 : 1,
+        }}
+      >
+        Prev
+      </button>
+      <span style={{ fontSize: 12.5, color: "#64748b" }}>
+        Page {page} of {totalPages} · {totalItems} items
+      </span>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={page >= totalPages}
+        style={{
+          padding: "4px 10px",
+          fontSize: 12,
+          borderRadius: 6,
+          border: "1px solid #e2e8f0",
+          background: "#fff",
+          cursor: page >= totalPages ? "not-allowed" : "pointer",
+          opacity: page >= totalPages ? 0.5 : 1,
+        }}
+      >
+        Next
+      </button>
+    </div>
+  );
+}
+
 export default function SMMDashboard() {
   const router = useRouter();
   const [activeSection, setActiveSectionState] = useState<SMMSection>("overview");
@@ -56,6 +121,11 @@ export default function SMMDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Pagination state — one page number per list, keyed by list name ────
+  const [pageMap, setPageMap] = useState<Record<string, number>>({});
+  const getPage = (key: string) => pageMap[key] || 1;
+  const setPage = (key: string, p: number) => setPageMap((prev) => ({ ...prev, [key]: p }));
+
   const loadAll = useCallback(async () => {
     try {
       setError(null);
@@ -78,6 +148,11 @@ export default function SMMDashboard() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  // Reset pagination whenever the underlying data actually changes shape.
+  useEffect(() => {
+    setPageMap({});
+  }, [tasks.length, additionalWork.length]);
 
   // ── Split one Task collection into "general tasks" vs "posting entries" ─
   const generalTasks = useMemo(() => tasks.filter((t) => !isPostingEntry(t)), [tasks]);
@@ -162,6 +237,15 @@ export default function SMMDashboard() {
     [postingEntries]
   );
 
+  // ── Paginated slices — one per list that's actually rendered as a table ─
+  const overviewGeneralPage = paginateList(todayGeneralTasks, getPage("overviewGeneral"));
+  const overviewPostingPage = paginateList(todayPosting, getPage("overviewPosting"));
+  const tasksPage = paginateList(generalTasks, getPage("tasks"));
+  const postingPage = paginateList(postingEntries, getPage("posting"));
+  const additionalPage = paginateList(additionalWork, getPage("additional"));
+  const historyGeneralPage = paginateList(completedGeneralTasks, getPage("historyGeneral"));
+  const historyPostingPage = paginateList(completedPosting, getPage("historyPosting"));
+
   const sectionMeta: Record<SMMSection, { title: string; sub: string }> = {
     overview: { title: "Today's Overview", sub: "Your tasks, posting coverage, and extra work at a glance" },
     tasks: { title: "My Tasks", sub: "Scripting, UGC, references, pitch decks, research & calendars" },
@@ -245,7 +329,7 @@ export default function SMMDashboard() {
                     additionalPending={additionalPending}
                   />
                   <SMMTasksBoard
-                    tasks={todayGeneralTasks}
+                    tasks={overviewGeneralPage.pageItems}
                     onStartTask={handleStartTask}
                     onSubmitTask={handleSubmitTask}
                     onRespondChanges={handleRespondChanges}
@@ -253,38 +337,88 @@ export default function SMMDashboard() {
                     title="Today's Tasks"
                     subtitle="Everything due today across scripting, UGC, research and more"
                   />
+                  <Pagination
+                    page={overviewGeneralPage.safePage}
+                    totalPages={overviewGeneralPage.totalPages}
+                    totalItems={todayGeneralTasks.length}
+                    onPrev={() => setPage("overviewGeneral", overviewGeneralPage.safePage - 1)}
+                    onNext={() => setPage("overviewGeneral", overviewGeneralPage.safePage + 1)}
+                  />
                 </>
               )}
 
               {activeSection === "tasks" && (
-                <SMMTasksBoard
-                  tasks={generalTasks}
-                  onStartTask={handleStartTask}
-                  onSubmitTask={handleSubmitTask}
-                  onRespondChanges={handleRespondChanges}
-                />
+                <>
+                  <SMMTasksBoard
+                    tasks={tasksPage.pageItems}
+                    onStartTask={handleStartTask}
+                    onSubmitTask={handleSubmitTask}
+                    onRespondChanges={handleRespondChanges}
+                  />
+                  <Pagination
+                    page={tasksPage.safePage}
+                    totalPages={tasksPage.totalPages}
+                    totalItems={generalTasks.length}
+                    onPrev={() => setPage("tasks", tasksPage.safePage - 1)}
+                    onNext={() => setPage("tasks", tasksPage.safePage + 1)}
+                  />
+                </>
               )}
 
               {activeSection === "posting" && (
-                <PostingBoard
-                  entries={postingEntries}
-                  brands={brands}
-                  onStartTask={handleStartTask}
-                  onSubmitTask={handleSubmitTask}
-                  onRespondChanges={handleRespondChanges}
-                />
+                <>
+                  <PostingBoard
+                    entries={postingPage.pageItems}
+                    brands={brands}
+                    onStartTask={handleStartTask}
+                    onSubmitTask={handleSubmitTask}
+                    onRespondChanges={handleRespondChanges}
+                  />
+                  <Pagination
+                    page={postingPage.safePage}
+                    totalPages={postingPage.totalPages}
+                    totalItems={postingEntries.length}
+                    onPrev={() => setPage("posting", postingPage.safePage - 1)}
+                    onNext={() => setPage("posting", postingPage.safePage + 1)}
+                  />
+                </>
               )}
 
               {activeSection === "additional" && (
-                <SMMAdditionalWork
-                  items={additionalWork}
-                  onStatusChange={handleAdditionalStatusChange}
-                  onAddItem={handleAddAdditionalWork}
-                />
+                <>
+                  <SMMAdditionalWork
+                    items={additionalPage.pageItems}
+                    onStatusChange={handleAdditionalStatusChange}
+                    onAddItem={handleAddAdditionalWork}
+                  />
+                  <Pagination
+                    page={additionalPage.safePage}
+                    totalPages={additionalPage.totalPages}
+                    totalItems={additionalWork.length}
+                    onPrev={() => setPage("additional", additionalPage.safePage - 1)}
+                    onNext={() => setPage("additional", additionalPage.safePage + 1)}
+                  />
+                </>
               )}
 
               {activeSection === "history" && (
-                <SMMHistory completedTasks={completedGeneralTasks} completedPosting={completedPosting} />
+                <>
+                  <SMMHistory completedTasks={historyGeneralPage.pageItems} completedPosting={historyPostingPage.pageItems} />
+                  <Pagination
+                    page={historyGeneralPage.safePage}
+                    totalPages={historyGeneralPage.totalPages}
+                    totalItems={completedGeneralTasks.length}
+                    onPrev={() => setPage("historyGeneral", historyGeneralPage.safePage - 1)}
+                    onNext={() => setPage("historyGeneral", historyGeneralPage.safePage + 1)}
+                  />
+                  <Pagination
+                    page={historyPostingPage.safePage}
+                    totalPages={historyPostingPage.totalPages}
+                    totalItems={completedPosting.length}
+                    onPrev={() => setPage("historyPosting", historyPostingPage.safePage - 1)}
+                    onNext={() => setPage("historyPosting", historyPostingPage.safePage + 1)}
+                  />
+                </>
               )}
             </>
           )}

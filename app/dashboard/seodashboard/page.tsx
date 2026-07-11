@@ -30,6 +30,8 @@ const ICONS = {
   ),
 };
 
+const PAGE_SIZE = 10;
+
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -47,6 +49,24 @@ export default function SeoDashboardPage() {
   // tasks right from the dashboard, without leaving the page. ──────────
   const [selectedDate, setSelectedDate] = useState<string>(todayStr());
   const isToday = selectedDate === todayStr();
+
+  // ── Logged-in employee's display name, read from the same localStorage
+  // blob the rest of the app uses for auth state. ──────────────────────
+  const [employeeName, setEmployeeName] = useState<string>('');
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('user');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setEmployeeName(parsed?.name || parsed?.fullName || parsed?.employeeName || '');
+      }
+    } catch {
+      setEmployeeName('');
+    }
+  }, []);
+
+  // Single page number across the whole filtered task list.
+  const [page, setPage] = useState(1);
 
   const fetchData = useCallback(async () => {
     try {
@@ -98,7 +118,21 @@ export default function SeoDashboardPage() {
     [tasks, selectedDate, isToday]
   );
 
-  const groups = groupTasksByDueDate(dateFilteredTasks);
+  const totalPages = Math.max(1, Math.ceil(dateFilteredTasks.length / PAGE_SIZE));
+
+  // Reset to page 1 whenever the filtered set changes.
+  useEffect(() => {
+    setPage(1);
+  }, [selectedDate, tasks.length]);
+
+  const safePage = Math.min(page, totalPages);
+  const pagedTasks = useMemo(
+    () => dateFilteredTasks.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [dateFilteredTasks, safePage]
+  );
+
+  // Group only the current page's slice, so headers reflect what's actually shown.
+  const groups = groupTasksByDueDate(pagedTasks);
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
@@ -109,6 +143,36 @@ export default function SeoDashboardPage() {
           <p className={styles.subtitle}>{today}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {employeeName && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 12px 6px 6px',
+                borderRadius: 999,
+                background: '#f1f5f9',
+              }}
+            >
+              <span
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  background: '#3b82f6',
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {employeeName.charAt(0).toUpperCase()}
+              </span>
+              <span style={{ fontSize: 13.5, fontWeight: 500, color: '#1e293b' }}>{employeeName}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -201,22 +265,72 @@ export default function SeoDashboardPage() {
 
           <section className={styles.tasksSection}>
             <h2 className={styles.sectionTitle}>
-              {isToday ? 'Tasks by date' : `Tasks — ${selectedDate}`}
+              {isToday ? 'Tasks by date' : `Tasks — ${selectedDate}`} ({dateFilteredTasks.length})
             </h2>
             {groups.length === 0 ? (
               <p className={styles.emptyText}>
                 {isToday ? 'Nothing assigned right now.' : 'No tasks due on this date.'}
               </p>
             ) : (
-              groups.map((group) => (
-                <div key={group.dateKey} className={styles.dateGroup}>
-                  <div className={styles.dateGroupHeader}>
-                    <h3 className={styles.dateGroupLabel}>{group.label}</h3>
-                    <span className={styles.dateGroupCount}>{group.tasks.length}</span>
+              <>
+                {groups.map((group) => (
+                  <div key={group.dateKey} className={styles.dateGroup}>
+                    <div className={styles.dateGroupHeader}>
+                      <h3 className={styles.dateGroupLabel}>{group.label}</h3>
+                      <span className={styles.dateGroupCount}>{group.tasks.length}</span>
+                    </div>
+                    <TaskTable tasks={group.tasks} onOpen={setSelectedTask} onStartTask={handleStartTask} />
                   </div>
-                  <TaskTable tasks={group.tasks} onOpen={setSelectedTask} onStartTask={handleStartTask} />
-                </div>
-              ))
+                ))}
+
+                {totalPages > 1 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 12,
+                      padding: '16px 0 4px',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setPage(safePage - 1)}
+                      disabled={safePage <= 1}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        borderRadius: 6,
+                        border: '1px solid #e2e8f0',
+                        background: '#fff',
+                        cursor: safePage <= 1 ? 'not-allowed' : 'pointer',
+                        opacity: safePage <= 1 ? 0.5 : 1,
+                      }}
+                    >
+                      Prev
+                    </button>
+                    <span style={{ fontSize: 12.5, color: '#64748b' }}>
+                      Page {safePage} of {totalPages} · {dateFilteredTasks.length} tasks
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPage(safePage + 1)}
+                      disabled={safePage >= totalPages}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        borderRadius: 6,
+                        border: '1px solid #e2e8f0',
+                        background: '#fff',
+                        cursor: safePage >= totalPages ? 'not-allowed' : 'pointer',
+                        opacity: safePage >= totalPages ? 0.5 : 1,
+                      }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </section>
         </>

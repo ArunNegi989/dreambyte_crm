@@ -51,6 +51,8 @@ const STATUS_DISPLAY: Record<string, string> = {
   changes_requested: 'Changes requested',
 };
 
+const PAGE_SIZE = 10;
+
 function isOverdue(t: Task, today: string) {
   return t.status !== 'completed' && !!t.dueDate && t.dueDate < today;
 }
@@ -134,6 +136,9 @@ export default function MetaDashboardPage() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [startingId, setStartingId] = useState<string | null>(null);
 
+  // Single page number for the whole "Your tasks" list (10 tasks/page overall).
+  const [page, setPage] = useState(1);
+
   // Ticks every 30s so any running "time taken" cell stays live.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -142,15 +147,18 @@ export default function MetaDashboardPage() {
   }, []);
 
   const [employeeId, setEmployeeId] = useState<string>('');
+  const [employeeName, setEmployeeName] = useState<string>('');
   useEffect(() => {
     try {
       const raw = localStorage.getItem('user');
       if (raw) {
         const parsed = JSON.parse(raw);
         setEmployeeId(parsed?._id || parsed?.id || '');
+        setEmployeeName(parsed?.name || parsed?.fullName || parsed?.employeeName || '');
       }
     } catch {
       setEmployeeId('');
+      setEmployeeName('');
     }
   }, []);
 
@@ -198,7 +206,24 @@ export default function MetaDashboardPage() {
     () => filterByDate(tasks, dateFilter, todayIso, customRange),
     [tasks, dateFilter, todayIso, customRange]
   );
-  const groups = useMemo(() => groupByCategory(filteredTasks), [filteredTasks]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / PAGE_SIZE));
+
+  // Reset to page 1 whenever the filtered set changes (filter change, reload, etc.)
+  useEffect(() => {
+    setPage(1);
+  }, [dateFilter, customRange.from, customRange.to, tasks.length]);
+
+  // Clamp in case the current page no longer exists (e.g. filter shrinks the list).
+  const safePage = Math.min(page, totalPages);
+  const pagedTasks = useMemo(
+    () => filteredTasks.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredTasks, safePage]
+  );
+
+  // Group only the current page's slice — group headers just reflect
+  // whichever categories happen to appear on this page.
+  const groups = useMemo(() => groupByCategory(pagedTasks), [pagedTasks]);
   const maxCat = Math.max(1, ...(stats?.categoryBreakdown.map((c) => c.count) ?? [1]));
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -219,14 +244,22 @@ export default function MetaDashboardPage() {
           <h1 className="md-title">Dashboard</h1>
           <p className="md-subtitle">{today}</p>
         </div>
-        <button type="button" className="md-logout-btn" onClick={handleLogout} disabled={loggingOut}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-          {loggingOut ? 'Signing out…' : 'Logout'}
-        </button>
+        <div className="md-header-right">
+          {employeeName && (
+            <div className="md-user-chip">
+              <span className="md-user-avatar">{employeeName.charAt(0).toUpperCase()}</span>
+              <span className="md-user-name">{employeeName}</span>
+            </div>
+          )}
+          <button type="button" className="md-logout-btn" onClick={handleLogout} disabled={loggingOut}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            {loggingOut ? 'Signing out…' : 'Logout'}
+          </button>
+        </div>
       </header>
 
       {loading && <p className="md-empty-text">Loading your tasks…</p>}
@@ -300,7 +333,10 @@ export default function MetaDashboardPage() {
           </div>
 
           <section>
-            <h2 className="md-section-title" style={{ marginBottom: 14 }}>Your tasks</h2>
+            <div className="md-date-group-header" style={{ marginBottom: 14 }}>
+              <h2 className="md-section-title" style={{ margin: 0 }}>Your tasks</h2>
+              <span className="md-date-group-count">{filteredTasks.length}</span>
+            </div>
 
             <div className="md-filter-row">
               {DATE_FILTERS.map((f) => (
@@ -339,63 +375,91 @@ export default function MetaDashboardPage() {
                 <p className="md-empty-text">No tasks match this date filter right now.</p>
               </div>
             ) : (
-              groups.map((group) => {
-                const meta = CATEGORY_META[group.category as keyof typeof CATEGORY_META];
-                return (
-                  <div className="md-date-group" key={group.category}>
-                    <div className="md-date-group-header">
-                      <span className="md-chip" style={meta ? { color: meta.color, background: `${meta.color}1a` } : undefined}>
-                        {meta?.label ?? group.category}
-                      </span>
-                      <span className="md-date-group-count">{group.tasks.length}</span>
+              <>
+                {groups.map((group) => {
+                  const meta = CATEGORY_META[group.category as keyof typeof CATEGORY_META];
+                  return (
+                    <div className="md-date-group" key={group.category}>
+                      <div className="md-date-group-header">
+                        <span className="md-chip" style={meta ? { color: meta.color, background: `${meta.color}1a` } : undefined}>
+                          {meta?.label ?? group.category}
+                        </span>
+                        <span className="md-date-group-count">{group.tasks.length}</span>
+                      </div>
+                      <div className="md-table-wrap">
+                        <table className="md-table">
+                          <thead>
+                            <tr>
+                              <th>Task</th>
+                              <th>Priority</th>
+                              <th>Status</th>
+                              <th>Time taken</th>
+                              <th>Due</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.tasks.map((t) => {
+                              const timeTaken = getTimeTakenLabel(t.startedAt, t.deliveredAt, now);
+                              const isRunning = t.status === 'in_progress' && !t.deliveredAt;
+                              return (
+                                <tr key={t.id} className="clickable" onClick={() => setSelectedTask(t)}>
+                                  <td className="md-task-title">{t.title}</td>
+                                  <td><span className={`md-badge ${t.priority}`}>{t.priority}</span></td>
+                                  <td><span className={`md-status ${STATUS_BADGE_CLASS[t.status] ?? 'pending'}`}>{STATUS_DISPLAY[t.status] ?? t.status}</span></td>
+                                  <td className="md-due">
+                                    {timeTaken ? `${timeTaken}${isRunning ? ' ⏱' : ''}` : '—'}
+                                  </td>
+                                  <td className={`md-due ${isOverdue(t, todayIso) ? 'overdue' : ''}`}>{t.dueDate || '—'}</td>
+                                  <td onClick={(e) => e.stopPropagation()}>
+                                    {canStartFromList(t) && (
+                                      <button
+                                        type="button"
+                                        className="md-btn-secondary"
+                                        style={{ padding: '4px 10px', fontSize: 12 }}
+                                        disabled={startingId === t.id}
+                                        onClick={(e) => handleStart(e, t.id)}
+                                      >
+                                        {startingId === t.id ? 'Starting…' : 'Start'}
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                    <div className="md-table-wrap">
-                      <table className="md-table">
-                        <thead>
-                          <tr>
-                            <th>Task</th>
-                            <th>Priority</th>
-                            <th>Status</th>
-                            <th>Time taken</th>
-                            <th>Due</th>
-                            <th></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {group.tasks.map((t) => {
-                            const timeTaken = getTimeTakenLabel(t.startedAt, t.deliveredAt, now);
-                            const isRunning = t.status === 'in_progress' && !t.deliveredAt;
-                            return (
-                              <tr key={t.id} className="clickable" onClick={() => setSelectedTask(t)}>
-                                <td className="md-task-title">{t.title}</td>
-                                <td><span className={`md-badge ${t.priority}`}>{t.priority}</span></td>
-                                <td><span className={`md-status ${STATUS_BADGE_CLASS[t.status] ?? 'pending'}`}>{STATUS_DISPLAY[t.status] ?? t.status}</span></td>
-                                <td className="md-due">
-                                  {timeTaken ? `${timeTaken}${isRunning ? ' ⏱' : ''}` : '—'}
-                                </td>
-                                <td className={`md-due ${isOverdue(t, todayIso) ? 'overdue' : ''}`}>{t.dueDate || '—'}</td>
-                                <td onClick={(e) => e.stopPropagation()}>
-                                  {canStartFromList(t) && (
-                                    <button
-                                      type="button"
-                                      className="md-btn-secondary"
-                                      style={{ padding: '4px 10px', fontSize: 12 }}
-                                      disabled={startingId === t.id}
-                                      onClick={(e) => handleStart(e, t.id)}
-                                    >
-                                      {startingId === t.id ? 'Starting…' : 'Start'}
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                  );
+                })}
+
+                {totalPages > 1 && (
+                  <div className="md-pagination">
+                    <button
+                      type="button"
+                      className="md-btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: 12 }}
+                      disabled={safePage <= 1}
+                      onClick={() => setPage(safePage - 1)}
+                    >
+                      Prev
+                    </button>
+                    <span className="md-pagination-label">
+                      Page {safePage} of {totalPages} · {filteredTasks.length} tasks
+                    </span>
+                    <button
+                      type="button"
+                      className="md-btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: 12 }}
+                      disabled={safePage >= totalPages}
+                      onClick={() => setPage(safePage + 1)}
+                    >
+                      Next
+                    </button>
                   </div>
-                );
-              })
+                )}
+              </>
             )}
           </section>
         </>

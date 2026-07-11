@@ -32,6 +32,8 @@ import styles from "@/app/dashboard/photographydashboard/Photographerdashboard.m
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { logout } from "@/app/api/authApi";
 
+const PAGE_SIZE = 10;
+
 // ── Date helpers for the Overview date navigator ───────────────────────────
 const shiftDate = (dateStr: string, days: number) => {
   const d = new Date(dateStr);
@@ -51,6 +53,69 @@ const overviewDateLabel = (dateStr: string) => {
     month: "short",
   });
 };
+
+// ── Pagination helpers (inlined — no shared util file) ──────────────────
+function paginateList<T>(items: T[], page: number, pageSize = PAGE_SIZE) {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pageItems = items.slice((safePage - 1) * pageSize, safePage * pageSize);
+  return { pageItems, totalPages, safePage };
+}
+
+function Pagination({
+  page,
+  totalPages,
+  totalItems,
+  onPrev,
+  onNext,
+}: {
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "14px 0 4px" }}>
+      <button
+        type="button"
+        onClick={onPrev}
+        disabled={page <= 1}
+        style={{
+          padding: "4px 10px",
+          fontSize: 12,
+          borderRadius: 6,
+          border: "1px solid #e2e8f0",
+          background: "#fff",
+          cursor: page <= 1 ? "not-allowed" : "pointer",
+          opacity: page <= 1 ? 0.5 : 1,
+        }}
+      >
+        Prev
+      </button>
+      <span style={{ fontSize: 12.5, color: "#64748b" }}>
+        Page {page} of {totalPages} · {totalItems} items
+      </span>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={page >= totalPages}
+        style={{
+          padding: "4px 10px",
+          fontSize: 12,
+          borderRadius: 6,
+          border: "1px solid #e2e8f0",
+          background: "#fff",
+          cursor: page >= totalPages ? "not-allowed" : "pointer",
+          opacity: page >= totalPages ? 0.5 : 1,
+        }}
+      >
+        Next
+      </button>
+    </div>
+  );
+}
 
 export default function PhotographerDashboard() {
   useAuthGuard(['employee', 'admin', 'super_admin'], ['photography']); // ⚠️ confirm matches DB value
@@ -113,6 +178,11 @@ export default function PhotographerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Pagination state — one page number per list, keyed by list name ────
+  const [pageMap, setPageMap] = useState<Record<string, number>>({});
+  const getPage = (key: string) => pageMap[key] || 1;
+  const setPage = (key: string, p: number) => setPageMap((prev) => ({ ...prev, [key]: p }));
+
   const loadAll = useCallback(async () => {
     if (!employeeId) return;
     try {
@@ -135,6 +205,11 @@ export default function PhotographerDashboard() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  // Reset pagination whenever the underlying data (or overview date) changes shape.
+  useEffect(() => {
+    setPageMap({});
+  }, [rawTasks.length, additionalWork.length, overviewDate]);
 
   // ── Derived view-shapes ──────────────────────────────────────────────────
   const shoots: Shoot[] = useMemo(
@@ -211,6 +286,13 @@ export default function PhotographerDashboard() {
   const pendingShoots = shoots.filter((s) => !isDone(s.status)).length;
   const pendingEdits = edits.filter((e) => !isDone(e.status)).length;
   const additionalPending = additionalWork.filter((w) => w.status !== "completed").length;
+
+  // ── Paginated slices ─────────────────────────────────────────────────────
+  const overviewShootsPage = paginateList(overviewShoots, getPage("overviewShoots"));
+  const overviewEditsPage = paginateList(overviewEdits, getPage("overviewEdits"));
+  const shootsPage = paginateList(shoots, getPage("shoots"));
+  const editsPage = paginateList(edits, getPage("edits"));
+  const additionalPage = paginateList(additionalWork, getPage("additional"));
 
   const sectionMeta: Record<PhotoSection, { title: string; sub: string }> = {
     overview: {
@@ -418,34 +500,79 @@ export default function PhotographerDashboard() {
                     additionalPending={additionalPending}
                   />
                   <div className={styles.overviewGrid}>
-                    <ShootsBoard
-                      shoots={overviewShoots}
-                      onStatusChange={handleShootStatusChange}
-                      onResubmit={handleResubmit}
-                    />
-                    <EditsBoard
-                      edits={overviewEdits}
-                      onProgressChange={handleEditProgressChange}
-                      onResubmit={handleResubmit}
-                    />
+                    <div>
+                      <ShootsBoard
+                        shoots={overviewShootsPage.pageItems}
+                        onStatusChange={handleShootStatusChange}
+                        onResubmit={handleResubmit}
+                      />
+                      <Pagination
+                        page={overviewShootsPage.safePage}
+                        totalPages={overviewShootsPage.totalPages}
+                        totalItems={overviewShoots.length}
+                        onPrev={() => setPage("overviewShoots", overviewShootsPage.safePage - 1)}
+                        onNext={() => setPage("overviewShoots", overviewShootsPage.safePage + 1)}
+                      />
+                    </div>
+                    <div>
+                      <EditsBoard
+                        edits={overviewEditsPage.pageItems}
+                        onProgressChange={handleEditProgressChange}
+                        onResubmit={handleResubmit}
+                      />
+                      <Pagination
+                        page={overviewEditsPage.safePage}
+                        totalPages={overviewEditsPage.totalPages}
+                        totalItems={overviewEdits.length}
+                        onPrev={() => setPage("overviewEdits", overviewEditsPage.safePage - 1)}
+                        onNext={() => setPage("overviewEdits", overviewEditsPage.safePage + 1)}
+                      />
+                    </div>
                   </div>
                 </>
               )}
 
               {activeSection === "shoots" && (
-                <ShootsBoard shoots={shoots} onStatusChange={handleShootStatusChange} onResubmit={handleResubmit} />
+                <>
+                  <ShootsBoard shoots={shootsPage.pageItems} onStatusChange={handleShootStatusChange} onResubmit={handleResubmit} />
+                  <Pagination
+                    page={shootsPage.safePage}
+                    totalPages={shootsPage.totalPages}
+                    totalItems={shoots.length}
+                    onPrev={() => setPage("shoots", shootsPage.safePage - 1)}
+                    onNext={() => setPage("shoots", shootsPage.safePage + 1)}
+                  />
+                </>
               )}
 
               {activeSection === "edits" && (
-                <EditsBoard edits={edits} onProgressChange={handleEditProgressChange} onResubmit={handleResubmit} />
+                <>
+                  <EditsBoard edits={editsPage.pageItems} onProgressChange={handleEditProgressChange} onResubmit={handleResubmit} />
+                  <Pagination
+                    page={editsPage.safePage}
+                    totalPages={editsPage.totalPages}
+                    totalItems={edits.length}
+                    onPrev={() => setPage("edits", editsPage.safePage - 1)}
+                    onNext={() => setPage("edits", editsPage.safePage + 1)}
+                  />
+                </>
               )}
 
               {activeSection === "additional" && (
-                <AdditionalWorkBoard
-                  items={additionalWork}
-                  onStatusChange={handleAdditionalStatusChange}
-                  onAddItem={handleAddAdditionalWork}
-                />
+                <>
+                  <AdditionalWorkBoard
+                    items={additionalPage.pageItems}
+                    onStatusChange={handleAdditionalStatusChange}
+                    onAddItem={handleAddAdditionalWork}
+                  />
+                  <Pagination
+                    page={additionalPage.safePage}
+                    totalPages={additionalPage.totalPages}
+                    totalItems={additionalWork.length}
+                    onPrev={() => setPage("additional", additionalPage.safePage - 1)}
+                    onNext={() => setPage("additional", additionalPage.safePage + 1)}
+                  />
+                </>
               )}
             </>
           )}
