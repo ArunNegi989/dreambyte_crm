@@ -21,6 +21,71 @@ import styles from "@/public/assets/styles/dashboard/designerdashboard/Designerd
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { logout } from "@/app/api/authApi";
 
+const PAGE_SIZE = 10;
+
+// ── Pagination helpers (inlined — no shared util file) ──────────────────
+function paginateList<T>(items: T[], page: number, pageSize = PAGE_SIZE) {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pageItems = items.slice((safePage - 1) * pageSize, safePage * pageSize);
+  return { pageItems, totalPages, safePage };
+}
+
+function Pagination({
+  page,
+  totalPages,
+  totalItems,
+  onPrev,
+  onNext,
+}: {
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "14px 0 4px" }}>
+      <button
+        type="button"
+        onClick={onPrev}
+        disabled={page <= 1}
+        style={{
+          padding: "4px 10px",
+          fontSize: 12,
+          borderRadius: 6,
+          border: "1px solid #e2e8f0",
+          background: "#fff",
+          cursor: page <= 1 ? "not-allowed" : "pointer",
+          opacity: page <= 1 ? 0.5 : 1,
+        }}
+      >
+        Prev
+      </button>
+      <span style={{ fontSize: 12.5, color: "#64748b" }}>
+        Page {page} of {totalPages} · {totalItems} items
+      </span>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={page >= totalPages}
+        style={{
+          padding: "4px 10px",
+          fontSize: 12,
+          borderRadius: 6,
+          border: "1px solid #e2e8f0",
+          background: "#fff",
+          cursor: page >= totalPages ? "not-allowed" : "pointer",
+          opacity: page >= totalPages ? 0.5 : 1,
+        }}
+      >
+        Next
+      </button>
+    </div>
+  );
+}
+
 export default function DesignerDashboard() {
   const router = useRouter();
   const [activeSection, setActiveSectionState] = useState<DesignerSection>("overview");
@@ -58,6 +123,11 @@ export default function DesignerDashboard() {
   const [selectedDate, setSelectedDate] = useState<string>(todayStr());
   const isToday = selectedDate === todayStr();
 
+  // ── Pagination state — one page number per list, keyed by list name ────
+  const [pageMap, setPageMap] = useState<Record<string, number>>({});
+  const getPage = (key: string) => pageMap[key] || 1;
+  const setPage = (key: string, p: number) => setPageMap((prev) => ({ ...prev, [key]: p }));
+
   const loadAll = useCallback(async () => {
     try {
       setError(null);
@@ -75,6 +145,11 @@ export default function DesignerDashboard() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  // Reset pagination whenever the underlying data (or selected date) changes shape.
+  useEffect(() => {
+    setPageMap({});
+  }, [tasks.length, additionalWork.length, selectedDate]);
 
   // ── Task actions — each hits the backend then re-syncs from server so
   // the UI always reflects the real source of truth (esp. important since
@@ -151,6 +226,12 @@ export default function DesignerDashboard() {
     () => tasks.filter((t) => t.status === "completed" || t.status === "approved"),
     [tasks]
   );
+
+  // ── Paginated slices ─────────────────────────────────────────────────────
+  const overviewPage = paginateList(todayTasks, getPage("overview"));
+  const tasksPage = paginateList(tasks, getPage("tasks"));
+  const additionalPage = paginateList(additionalWork, getPage("additional"));
+  const historyPage = paginateList(completedTasks, getPage("history"));
 
   const sectionMeta: Record<DesignerSection, { title: string; sub: string }> = {
     overview: { title: "Today's Overview", sub: "Your tasks, changes, and extra work at a glance" },
@@ -268,7 +349,7 @@ export default function DesignerDashboard() {
                     additionalPending={additionalPending}
                   />
                   <DesignerTasksBoard
-                    tasks={todayTasks}
+                    tasks={overviewPage.pageItems}
                     onStartTask={handleStartTask}
                     onSubmitTask={handleSubmitTask}
                     onRespondChanges={handleRespondChanges}
@@ -276,27 +357,63 @@ export default function DesignerDashboard() {
                     title={isToday ? "Today's Tasks" : `Tasks — ${selectedDate}`}
                     subtitle="Everything due on this date across all task types"
                   />
+                  <Pagination
+                    page={overviewPage.safePage}
+                    totalPages={overviewPage.totalPages}
+                    totalItems={todayTasks.length}
+                    onPrev={() => setPage("overview", overviewPage.safePage - 1)}
+                    onNext={() => setPage("overview", overviewPage.safePage + 1)}
+                  />
                 </>
               )}
 
               {activeSection === "tasks" && (
-                <DesignerTasksBoard
-                  tasks={tasks}
-                  onStartTask={handleStartTask}
-                  onSubmitTask={handleSubmitTask}
-                  onRespondChanges={handleRespondChanges}
-                />
+                <>
+                  <DesignerTasksBoard
+                    tasks={tasksPage.pageItems}
+                    onStartTask={handleStartTask}
+                    onSubmitTask={handleSubmitTask}
+                    onRespondChanges={handleRespondChanges}
+                  />
+                  <Pagination
+                    page={tasksPage.safePage}
+                    totalPages={tasksPage.totalPages}
+                    totalItems={tasks.length}
+                    onPrev={() => setPage("tasks", tasksPage.safePage - 1)}
+                    onNext={() => setPage("tasks", tasksPage.safePage + 1)}
+                  />
+                </>
               )}
 
               {activeSection === "additional" && (
-                <DesignerAdditionalWork
-                  items={additionalWork}
-                  onStatusChange={handleAdditionalStatusChange}
-                  onAddItem={handleAddAdditionalWork}
-                />
+                <>
+                  <DesignerAdditionalWork
+                    items={additionalPage.pageItems}
+                    onStatusChange={handleAdditionalStatusChange}
+                    onAddItem={handleAddAdditionalWork}
+                  />
+                  <Pagination
+                    page={additionalPage.safePage}
+                    totalPages={additionalPage.totalPages}
+                    totalItems={additionalWork.length}
+                    onPrev={() => setPage("additional", additionalPage.safePage - 1)}
+                    onNext={() => setPage("additional", additionalPage.safePage + 1)}
+                  />
+                </>
               )}
 
-              {activeSection === "history" && <DesignerHistory tasks={completedTasks} />}
+              {activeSection === "history" && (
+                <>
+                  <DesignerHistory tasks={historyPage.pageItems} />
+                  <Pagination
+                    page={historyPage.safePage}
+                    totalPages={historyPage.totalPages}
+                    totalItems={completedTasks.length}
+                    onPrev={() => setPage("history", historyPage.safePage - 1)}
+                    onNext={() => setPage("history", historyPage.safePage + 1)}
+                  />
+                </>
+              )}
             </>
           )}
         </div>
