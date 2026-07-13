@@ -31,9 +31,17 @@ export default function AdditionalTaskModal({ initial, onClose, onSave }: Additi
     setSaving(true);
     setError('');
     try {
-      await onSave({ title: title.trim(), category, description: description.trim(), date, hoursSpent, outcome: outcome.trim() });
-      onClose();
-    } finally {
+  await onSave({
+    title: title.trim(),
+    category,
+    description: description.trim(),
+    date,
+    hoursSpent,
+    outcome: outcome.trim(),
+    status: initial?.status ?? 'pending',
+  });
+  onClose();
+}finally {
       setSaving(false);
     }
   };
