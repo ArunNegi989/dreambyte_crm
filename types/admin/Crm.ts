@@ -1,5 +1,5 @@
 export type EmployeeRole = "employee" | "admin" | "super_admin";
-export type TaskStatus = "pending" | "approved" | "rejected" | "completed";
+export type TaskStatus = "pending" | "approved" | "rejected" | "completed" | "changes_requested" | "in_progress";
 export type TaskFrequency = "weekly" | "monthly" | "one_time";
 export type DeliveryStatus = "delivered" | "not_delivered";
 
@@ -39,13 +39,16 @@ export interface Task {
   status: TaskStatus;
   deliveryStatus: DeliveryStatus;
   deliveryNote?: string;
-  deliveredAt?: string;
+  startedAt?: string | null;
+  deliveredAt?: string | null;
   rejectRemark?: string;
   changes: TaskChange[];
   createdAt: string;
   updatedAt: string;
   parentTaskId?: string | null;
-hasSubtasks?: boolean;
+  hasSubtasks?: boolean;
+  department?: string;
+  taskType?: string;
 }
 
 export interface EmployeeWithStats extends Employee {
@@ -62,7 +65,10 @@ export interface DashboardStats {
   pendingTasks: number;
   approvedTasks: number;
   rejectedTasks: number;
+  // ── NEW: count of tasks Super Admin assigned directly to this admin ──
+  adminTasks: number;
 }
+
 export interface Brand {
   _id: string;
   name: string;

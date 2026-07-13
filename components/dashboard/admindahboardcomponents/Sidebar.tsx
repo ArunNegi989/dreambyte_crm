@@ -3,12 +3,13 @@
 import { useState } from "react";
 import styles from "@/public/assets/styles/dashboard/admindashboard/Sidebar.module.css";
 
-type ActiveSection = "dashboard" | "employees" | "tasks" | "assign" | "admin_tasks";
+type ActiveSection = "dashboard" | "employees" | "tasks" | "assign" | "admin_tasks" | "self_tasks";
 
 interface SidebarProps {
   activeSection: ActiveSection;
   onSectionChange: (section: ActiveSection) => void;
   adminTaskCount?: number;
+  selfTaskCount?: number;
 }
 
 const navItems = [
@@ -33,6 +34,16 @@ const navItems = [
         <path d="M14 17H5" />
         <circle cx="17" cy="17" r="3" />
         <circle cx="7" cy="7" r="3" />
+      </svg>
+    ),
+  },
+  {
+    id: "self_tasks" as ActiveSection,
+    label: "My Tasks",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21c0-4 3.5-7 8-7s8 3 8 7" />
       </svg>
     ),
   },
@@ -71,7 +82,12 @@ const navItems = [
   },
 ];
 
-export default function Sidebar({ activeSection, onSectionChange, adminTaskCount = 0 }: SidebarProps) {
+export default function Sidebar({
+  activeSection,
+  onSectionChange,
+  adminTaskCount = 0,
+  selfTaskCount = 0,
+}: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -93,7 +109,11 @@ export default function Sidebar({ activeSection, onSectionChange, adminTaskCount
 
       <nav className={styles.nav}>
         {navItems.map((item) => {
-          const showBadge = item.id === "admin_tasks" && adminTaskCount > 0;
+          const showBadge =
+            (item.id === "admin_tasks" && adminTaskCount > 0) ||
+            (item.id === "self_tasks" && selfTaskCount > 0);
+          const badgeCount = item.id === "admin_tasks" ? adminTaskCount : selfTaskCount;
+
           return (
             <button
               key={item.id}
@@ -104,7 +124,7 @@ export default function Sidebar({ activeSection, onSectionChange, adminTaskCount
               <span className={styles.navIcon}>{item.icon}</span>
               {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
               {showBadge && (
-                <span className={styles.navBadge}>{adminTaskCount}</span>
+                <span className={styles.navBadge}>{badgeCount}</span>
               )}
               {activeSection === item.id && !collapsed && (
                 <span className={styles.activeIndicator} />

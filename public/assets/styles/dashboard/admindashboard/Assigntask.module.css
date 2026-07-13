@@ -158,6 +158,12 @@
   transform: translateY(0);
 }
 
+.submitBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
 @media (max-width: 600px) {
   .row {
     grid-template-columns: 1fr;

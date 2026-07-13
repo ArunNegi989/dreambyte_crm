@@ -1,0 +1,438 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.title {
+  font-size: 19px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.sub {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 2px 0 0;
+}
+
+.filterWrap {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  background: #f3f4f6;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.filterBtn {
+  border: none;
+  background: transparent;
+  padding: 7px 13px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.filterBtn:hover { color: #111827; }
+
+.filterActive {
+  background: #ffffff;
+  color: #2563eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ── Empty State ── */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  background: #f9fafb;
+  border-radius: 16px;
+  border: 1px dashed #e5e7eb;
+  color: #9ca3af;
+  text-align: center;
+}
+.emptyIcon { font-size: 32px; margin-bottom: 8px; }
+
+/* ── Day groups ── */
+.dayGroup { display: flex; flex-direction: column; gap: 12px; }
+
+.dayHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dayLabel {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.dayCount {
+  font-size: 11.5px;
+  color: #9ca3af;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dayLine {
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+/* ── Task cards grid ── */
+.tasksGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.taskCard {
+  background: #ffffff;
+  border: 1px solid #eef1f6;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.taskCard:hover {
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+  transform: translateY(-2px);
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.freqTag {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.taskTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.taskDesc {
+  font-size: 12.5px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.metaRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.brandRow {
+  font-size: 11.5px;
+  color: #2563eb;
+  font-weight: 600;
+  background: #eff6ff;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+
+.dueRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.timeRow {
+  font-size: 12px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Rejection / change-request banner ── */
+.remarkBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #fef2f2;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.remarkIcon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+.remarkTitle {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #b91c1c;
+  margin-bottom: 3px;
+}
+.remarkText { font-size: 12.5px; color: #7f1d1d; margin: 0; line-height: 1.4; }
+
+/* ── Change log toggle ── */
+.changeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #6b7280;
+  padding: 6px 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.changeToggle:hover { background: #f9fafb; }
+.changeToggleAlert { border-color: #fca5a5; color: #b91c1c; }
+
+.changeBubble {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.changeToggleAlert .changeBubble { background: #dc2626; }
+
+/* ── Change list ── */
+.changeList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f9fafb;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.changeItem {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 9px 11px;
+}
+
+.changeTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+.changeBy { font-size: 11.5px; font-weight: 700; color: #2563eb; }
+.changeDate { font-size: 10.5px; color: #9ca3af; }
+.resolvedBadge {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #166534;
+  background: #f0fdf4;
+  padding: 2px 7px;
+  border-radius: 20px;
+  margin-left: auto;
+}
+.changeNote { font-size: 12.5px; color: #374151; margin: 0; line-height: 1.5; }
+
+.myResponse {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px dashed #e5e7eb;
+}
+.myResponseLabel { font-size: 10.5px; font-weight: 700; color: #2563eb; }
+.myResponseText { font-size: 12.5px; color: #374151; margin: 4px 0 0; line-height: 1.5; }
+
+.replyBox { margin-top: 8px; }
+.replyInput {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  color: #111827;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.replyInput:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+
+.replyBtn {
+  width: 100%;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.replyBtn:hover:not(:disabled) { opacity: 0.9; }
+.replyBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Card footer / actions ── */
+.cardFooter {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.actionBtn {
+  border: none;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.actionBtn:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
+.actionBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.waitingTag {
+  font-size: 11.5px;
+  color: #b45309;
+  font-weight: 600;
+}
+
+.doneTag {
+  font-size: 12px;
+  color: #15803d;
+  font-weight: 700;
+}
+
+/* ── Submit modal ── */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 14px;
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.modalTitle { margin: 0 0 4px; font-size: 17px; font-weight: 700; color: #111827; }
+.modalSub { margin: 0 0 14px; color: #6b7280; font-size: 13px; }
+.modalLabel { font-size: 12px; font-weight: 600; color: #334155; }
+
+.modalTextarea {
+  width: 100%;
+  margin-top: 6px;
+  margin-bottom: 18px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid #e5e7eb;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+.modalTextarea:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modalCancelBtn {
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.modalCancelBtn:hover { background: #f9fafb; }
+
+.modalSubmitBtn {
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: none;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.modalSubmitBtn:hover:not(:disabled) { opacity: 0.9; }
+.modalSubmitBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .tasksGrid { grid-template-columns: 1fr; }
+  .header { flex-direction: column; align-items: flex-start; }
+}

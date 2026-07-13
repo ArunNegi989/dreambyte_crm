@@ -15,7 +15,7 @@ interface AssignTaskProps {
     assignedTo: string;
     frequency: TaskFrequency;
     dueDate: string;
-    // ── Photography-specific (only sent to backend when relevant) ──
+    department?: string;
     taskType?: string;
     location?: string;
     time?: string;
@@ -24,9 +24,7 @@ interface AssignTaskProps {
   }) => void;
 }
 
-// Work types that need the Shoots-specific fields (location/time/media type)
 const SHOOT_WORK_TYPES = ["Shoots"];
-// Work types that need a "how many to edit" count
 const EDIT_COUNT_WORK_TYPES = ["Photo Edit"];
 
 const emptyForm = {
@@ -36,7 +34,6 @@ const emptyForm = {
   brandId: "",
   frequency: "weekly" as TaskFrequency,
   dueDate: "",
-  // ── Photography-specific ──
   location: "",
   time: "",
   mediaType: "" as "" | "photo" | "video" | "both",
@@ -45,31 +42,18 @@ const emptyForm = {
 
 export default function AssignTask({ employees, brands, onAssign }: AssignTaskProps) {
   const [form, setForm] = useState(emptyForm);
-  const [workType, setWorkType] = useState(""); // separate from form.title so the dropdown stays controlled
+  const [workType, setWorkType] = useState("");
   const [success, setSuccess] = useState(false);
 
-  // Admin can only assign tasks to plain employees — never to another
-  // admin, and never to a super admin. Guarded with `?? []` because on
-  // first render (before the parent's fetch resolves) `employees` can
-  // still be undefined.
   const assignableEmployees = (employees ?? []).filter((emp) => emp.role === "employee");
 
-  // ── Department-aware "Assign To" ─────────────────────────────────────────
-  // Looks up the currently selected employee so we can show their
-  // department and a department-specific work-type dropdown.
   const selectedEmployee = assignableEmployees.find((e) => e._id === form.assignedTo);
   const departmentTasks = getTasksForDepartment(selectedEmployee?.department);
-  // Keeps the Work Type <select> controlled: if the current workType matches
-  // one of this department's task options, show it selected; otherwise
-  // blank (e.g. admin cleared it out or picked a new employee).
   const workTypeValue = departmentTasks.includes(workType) ? workType : "";
 
   const isShootWork = SHOOT_WORK_TYPES.includes(workType);
   const isEditCountWork = EDIT_COUNT_WORK_TYPES.includes(workType);
 
-  // When the employee changes, department (and its work-type list) changes.
-  // Clear the work type / title / photography fields since they belonged
-  // to the previous department and would otherwise silently carry over.
   const handleAssignedToChange = (empId: string) => {
     setForm((prev) => ({
       ...prev,
@@ -88,8 +72,6 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
     setForm((prev) => ({
       ...prev,
       title: wt,
-      // Reset photography fields when switching between work types so a
-      // stale count/location from a different type can't slip through.
       location: SHOOT_WORK_TYPES.includes(wt) ? prev.location : "",
       time: SHOOT_WORK_TYPES.includes(wt) ? prev.time : "",
       mediaType: SHOOT_WORK_TYPES.includes(wt) ? prev.mediaType : "",
@@ -107,7 +89,7 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
       brandId: form.brandId,
       frequency: form.frequency,
       dueDate: form.dueDate,
-      // ── photography extras — harmless no-ops for non-photography tasks ──
+      department: selectedEmployee?.department,
       taskType: workType || undefined,
       location: isShootWork ? form.location : undefined,
       time: isShootWork ? form.time : undefined,
@@ -120,6 +102,8 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
     setSuccess(true);
     setTimeout(() => setSuccess(false), 3000);
   };
+
+  const canSubmit = Boolean(form.title && form.assignedTo && form.brandId && form.dueDate);
 
   return (
     <div className={styles.container}>
@@ -159,22 +143,16 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
               <option value="">Select Employee</option>
               {assignableEmployees.map((emp) => (
                 <option key={emp._id} value={emp._id}>
-                  {emp.name} — {emp.role}
+                  {emp.name} — {emp.department}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Department — auto-filled, read-only, only shown once an employee is picked */}
           {selectedEmployee && (
             <div className={styles.field}>
               <label className={styles.label}>Department</label>
-              <input
-                className={styles.input}
-                value={selectedEmployee.department}
-                disabled
-                readOnly
-              />
+              <input className={styles.input} value={selectedEmployee.department} disabled readOnly />
             </div>
           )}
 
@@ -195,9 +173,6 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
           </div>
         </div>
 
-        {/* Work Type — department-specific dropdown, only shown when the
-            department has a known task list. Selecting an option fills the
-            Task Title below; admin can still edit it further. */}
         {selectedEmployee && departmentTasks.length > 0 && (
           <div className={styles.row}>
             <div className={styles.field}>
@@ -218,7 +193,6 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
           </div>
         )}
 
-        {/* ── Photography: Shoots-specific fields ── */}
         {isShootWork && (
           <div className={styles.row}>
             <div className={styles.field}>
@@ -257,7 +231,6 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
           </div>
         )}
 
-        {/* ── Photography: Edit-count field ── */}
         {isEditCountWork && (
           <div className={styles.row}>
             <div className={styles.field}>
@@ -327,7 +300,7 @@ export default function AssignTask({ employees, brands, onAssign }: AssignTaskPr
           </div>
         </div>
 
-        <button className={styles.submitBtn} onClick={handleSubmit}>
+        <button className={styles.submitBtn} onClick={handleSubmit} disabled={!canSubmit}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="8" x2="12" y2="16" />

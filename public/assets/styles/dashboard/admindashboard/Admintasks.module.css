@@ -4,7 +4,6 @@
   gap: 20px;
 }
 
-/* ── Header ── */
 .header {
   display: flex;
   align-items: center;
@@ -56,7 +55,6 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-/* ── Empty State ── */
 .emptyState {
   display: flex;
   flex-direction: column;
@@ -74,7 +72,6 @@
   margin-bottom: 8px;
 }
 
-/* ── Cards Grid ── */
 .cardsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -137,7 +134,6 @@
   font-weight: 500;
 }
 
-/* ── Badges ── */
 .statusBadge {
   display: inline-flex;
   align-items: center;
@@ -169,7 +165,6 @@
 .freq_monthly { background: #fdf2f8; color: #be185d; }
 .freq_one_time { background: #f0fdfa; color: #0f766e; }
 
-/* ── Progress bar ── */
 .progressWrap {
   display: flex;
   flex-direction: column;
@@ -198,7 +193,6 @@
   font-weight: 600;
 }
 
-/* ── Card Actions ── */
 .cardActions {
   display: flex;
   gap: 8px;
@@ -246,7 +240,6 @@
   transform: translateY(-1px);
 }
 
-/* ── Sub-task list (inside card) ── */
 .subList {
   margin-top: 6px;
   padding-top: 10px;
@@ -301,7 +294,6 @@
   color: #94a3b8;
 }
 
-/* ── Modal ── */
 .overlay {
   position: fixed;
   inset: 0;
@@ -522,7 +514,6 @@
   cursor: not-allowed;
 }
 
-/* ── Responsive ── */
 @media (max-width: 640px) {
   .cardsGrid {
     grid-template-columns: 1fr;
@@ -534,4 +525,72 @@
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+.deptBadge {
+  align-self: flex-start;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #4338ca;
+  background: #eef2ff;
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin-top: -4px;
+}
+
+.deptLockNotice {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+/* ── Employee vs Myself toggle (inside Split modal) ── */
+.selfToggleWrap {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.selfToggleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.selfToggleBtn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.selfActive {
+  background: #eef2ff;
+  border-color: #6366f1;
+  color: #4338ca;
+}
+
+.selfNote {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 9px 12px;
+  border-radius: 9px;
+  margin-bottom: 4px;
 }

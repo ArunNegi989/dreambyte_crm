@@ -10,7 +10,9 @@ interface AdminTasksProps {
   tasks: Task[];
   employees: Employee[];
   adminId: string;
+  adminName?: string;
   onRefresh: () => void;
+  onSelfAssigned?: () => void;
 }
 
 type SubtaskRow = {
@@ -19,6 +21,7 @@ type SubtaskRow = {
   assignedTo: string;
   dueDate: string;
   frequency: TaskFrequency;
+  selfAssign: boolean;
 };
 
 const emptyRow = (): SubtaskRow => ({
@@ -27,6 +30,7 @@ const emptyRow = (): SubtaskRow => ({
   assignedTo: "",
   dueDate: "",
   frequency: "one_time",
+  selfAssign: false,
 });
 
 const getId = (val: string | { _id: string } | null | undefined): string => {
@@ -38,7 +42,9 @@ export default function AdminTasks({
   tasks,
   employees,
   adminId,
+  adminName,
   onRefresh,
+  onSelfAssigned,
 }: AdminTasksProps) {
   const [splitTarget, setSplitTarget] = useState<Task | null>(null);
   const [rows, setRows] = useState<SubtaskRow[]>([emptyRow()]);
@@ -52,7 +58,12 @@ export default function AdminTasks({
     [employees]
   );
 
-  // Top-level tasks the Super Admin assigned directly to THIS admin
+  const splitTargetDept = (splitTarget as unknown as { department?: string })?.department || "";
+  const eligibleEmployeesForSplit = useMemo(() => {
+    if (!splitTargetDept) return onlyEmployees;
+    return onlyEmployees.filter((e) => e.department === splitTargetDept);
+  }, [onlyEmployees, splitTargetDept]);
+
   const myTasksFromSA = useMemo(
     () =>
       tasks.filter(
@@ -69,8 +80,10 @@ export default function AdminTasks({
       (t) => (t as unknown as { parentTaskId?: string | null }).parentTaskId === parentId
     );
 
-  const getEmpName = (id: string) =>
-    onlyEmployees.find((e) => e._id === id)?.name ?? "Unknown";
+  const getEmpName = (id: string) => {
+    if (id === adminId) return adminName ? `${adminName} (You)` : "You";
+    return onlyEmployees.find((e) => e._id === id)?.name ?? "Unknown";
+  };
 
   const filteredTasks = useMemo(() => {
     if (filter === "all") return myTasksFromSA;
@@ -78,7 +91,6 @@ export default function AdminTasks({
       return myTasksFromSA.filter((t) => t.status === "completed");
     if (filter === "pending")
       return myTasksFromSA.filter((t) => getSubtasks(t._id).length === 0);
-    // in_progress = split but not all done
     return myTasksFromSA.filter((t) => {
       const subs = getSubtasks(t._id);
       return subs.length > 0 && t.status !== "completed";
@@ -98,10 +110,6 @@ export default function AdminTasks({
     );
   };
 
-  // When a row's employee changes, look up their department and clear the
-  // row's title only if it no longer belongs to the new department's task
-  // list — same guard used in AssignTask / SATasks so a stale title from a
-  // different department can't slip through.
   const updateRowAssignee = (i: number, empId: string) => {
     const newEmp = onlyEmployees.find((e) => e._id === empId);
     const newDeptTasks = getTasksForDepartment(newEmp?.department);
@@ -118,24 +126,66 @@ export default function AdminTasks({
     );
   };
 
+  const toggleRowSelf = (i: number, self: boolean) => {
+    setRows((prev) =>
+      prev.map((r, idx) =>
+        idx === i
+          ? {
+              ...r,
+              selfAssign: self,
+              assignedTo: self ? adminId : "",
+            }
+          : r
+      )
+    );
+  };
+
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
   const removeRow = (i: number) =>
     setRows((prev) => prev.filter((_, idx) => idx !== i));
 
   const submitSplit = async () => {
     if (!splitTarget) return;
-    const valid = rows.filter((r) => r.title.trim() && r.assignedTo);
+    const valid = rows.filter((r) => r.title.trim() && (r.selfAssign || r.assignedTo));
     if (valid.length === 0) {
-      setSplitError("Add at least one sub-task with a title and an assigned employee.");
+      setSplitError("Add at least one sub-task with a title, and either an assigned employee or 'Myself'.");
       return;
+    }
+
+    if (splitTargetDept) {
+      const invalid = valid.some((r) => {
+        if (r.selfAssign) return false;
+        const emp = onlyEmployees.find((e) => e._id === r.assignedTo);
+        return emp && emp.department !== splitTargetDept;
+      });
+      if (invalid) {
+        setSplitError(
+          `This task belongs to ${splitTargetDept}. You can only assign it to ${splitTargetDept} employees (or yourself).`
+        );
+        return;
+      }
     }
 
     try {
       setSaving(true);
       setSplitError(null);
-      await api.post(`/tasks/${splitTarget._id}/split`, { subtasks: valid });
+      const payload = valid.map((r) => ({
+        title: r.title,
+        description: r.description,
+        assignedTo: r.assignedTo,
+        dueDate: r.dueDate,
+        frequency: r.frequency,
+      }));
+      await api.post(`/tasks/${splitTarget._id}/split`, { subtasks: payload });
+
+      const hasSelfRow = valid.some((r) => r.selfAssign);
+
       setSplitTarget(null);
       onRefresh();
+
+      if (hasSelfRow && onSelfAssigned) {
+        onSelfAssigned();
+      }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
       setSplitError(axiosErr?.response?.data?.message ?? "Failed to split task. Try again.");
@@ -149,7 +199,6 @@ export default function AdminTasks({
 
   return (
     <div className={styles.container}>
-      {/* ── Header ── */}
       <div className={styles.header}>
         <div>
           <h2 className={styles.title}>Tasks from Super Admin</h2>
@@ -170,7 +219,6 @@ export default function AdminTasks({
         </div>
       </div>
 
-      {/* ── Cards Grid ── */}
       {filteredTasks.length === 0 ? (
         <div className={styles.emptyState}>
           <div className={styles.emptyIcon}>📭</div>
@@ -183,6 +231,7 @@ export default function AdminTasks({
             const doneCount = subs.filter((s) => s.status === "completed").length;
             const progressPct = subs.length > 0 ? Math.round((doneCount / subs.length) * 100) : 0;
             const isExpanded = expanded === task._id;
+            const taskDept = (task as unknown as { department?: string }).department;
 
             return (
               <div key={task._id} className={styles.taskCard}>
@@ -194,6 +243,8 @@ export default function AdminTasks({
                     {task.frequency.replace("_", " ")}
                   </span>
                 </div>
+
+                {taskDept && <span className={styles.deptBadge}>🏷 {taskDept}</span>}
 
                 <h3 className={styles.cardTitle}>{task.title}</h3>
                 {task.description && (
@@ -212,7 +263,6 @@ export default function AdminTasks({
                   </span>
                 </div>
 
-                {/* Progress bar */}
                 {subs.length > 0 && (
                   <div className={styles.progressWrap}>
                     <div className={styles.progressBarBg}>
@@ -271,7 +321,6 @@ export default function AdminTasks({
         </div>
       )}
 
-      {/* ── Split Modal ── */}
       {splitTarget && (
         <div className={styles.overlay} onClick={() => setSplitTarget(null)}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -285,11 +334,24 @@ export default function AdminTasks({
               </button>
             </div>
 
+            {splitTargetDept && (
+              <div className={styles.deptLockNotice}>
+                🔒 This task belongs to <strong>{splitTargetDept}</strong> — only {splitTargetDept} employees
+                (or you, via "Assign to Myself") can be assigned below.
+              </div>
+            )}
+            {!splitTargetDept && (
+              <div className={styles.deptLockNotice}>
+                ⚠️ This task has no department set — showing all employees. Ask the Super Admin to set a
+                department on it for safer splitting.
+              </div>
+            )}
+
             {splitError && <p className={styles.formError}>⚠️ {splitError}</p>}
 
             <div className={styles.rowsWrap}>
               {rows.map((row, i) => {
-                const rowEmp = onlyEmployees.find((e) => e._id === row.assignedTo);
+                const rowEmp = eligibleEmployeesForSplit.find((e) => e._id === row.assignedTo);
                 const rowDeptTasks = getTasksForDepartment(rowEmp?.department);
                 const rowWorkTypeValue = rowDeptTasks.includes(row.title) ? row.title : "";
 
@@ -303,51 +365,86 @@ export default function AdminTasks({
                         </button>
                       )}
                     </div>
-                    <div className={styles.rowGrid}>
-                      <div className={styles.field}>
-                        <label>Assign To *</label>
-                        <select
-                          className={styles.input}
-                          value={row.assignedTo}
-                          onChange={(e) => updateRowAssignee(i, e.target.value)}
-                        >
-                          <option value="">Select Employee</option>
-                          {onlyEmployees.map((e) => (
-                            <option key={e._id} value={e._id}>
-                              {e.name} — {e.department}
-                            </option>
-                          ))}
-                        </select>
+
+                    <div className={styles.selfToggleWrap}>
+                      <button
+                        type="button"
+                        className={`${styles.selfToggleBtn} ${!row.selfAssign ? styles.selfActive : ""}`}
+                        onClick={() => toggleRowSelf(i, false)}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                        </svg>
+                        Employee
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.selfToggleBtn} ${row.selfAssign ? styles.selfActive : ""}`}
+                        onClick={() => toggleRowSelf(i, true)}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="8" r="4" />
+                          <path d="M4 21c0-4 3.5-7 8-7s8 3 8 7" />
+                        </svg>
+                        Assign to Myself{adminName ? ` (${adminName})` : ""}
+                      </button>
+                    </div>
+
+                    {row.selfAssign ? (
+                      <div className={styles.selfNote}>
+                        ✓ This sub-task will be added to <strong>your own "My Tasks"</strong> queue.
                       </div>
-
-                      {/* Department — auto-filled, read-only, only shown once an employee is picked */}
-                      {rowEmp && (
+                    ) : (
+                      <div className={styles.rowGrid}>
                         <div className={styles.field}>
-                          <label>Department</label>
-                          <input className={styles.input} value={rowEmp.department} disabled readOnly />
-                        </div>
-                      )}
-
-                      {/* Work Type — department-specific dropdown; selecting
-                          an option fills this row's Title below. */}
-                      {rowEmp && rowDeptTasks.length > 0 && (
-                        <div className={styles.field}>
-                          <label>Work Type *</label>
+                          <label>Assign To *</label>
                           <select
                             className={styles.input}
-                            value={rowWorkTypeValue}
-                            onChange={(e) => updateRow(i, "title", e.target.value)}
+                            value={row.assignedTo}
+                            onChange={(e) => updateRowAssignee(i, e.target.value)}
                           >
-                            <option value="">Select work type</option>
-                            {rowDeptTasks.map((wt) => (
-                              <option key={wt} value={wt}>
-                                {wt}
+                            <option value="">
+                              {eligibleEmployeesForSplit.length === 0
+                                ? `No ${splitTargetDept || ""} employees found`
+                                : "Select Employee"}
+                            </option>
+                            {eligibleEmployeesForSplit.map((e) => (
+                              <option key={e._id} value={e._id}>
+                                {e.name} — {e.department}
                               </option>
                             ))}
                           </select>
                         </div>
-                      )}
 
+                        {rowEmp && (
+                          <div className={styles.field}>
+                            <label>Department</label>
+                            <input className={styles.input} value={rowEmp.department} disabled readOnly />
+                          </div>
+                        )}
+
+                        {rowEmp && rowDeptTasks.length > 0 && (
+                          <div className={styles.field}>
+                            <label>Work Type *</label>
+                            <select
+                              className={styles.input}
+                              value={rowWorkTypeValue}
+                              onChange={(e) => updateRow(i, "title", e.target.value)}
+                            >
+                              <option value="">Select work type</option>
+                              {rowDeptTasks.map((wt) => (
+                                <option key={wt} value={wt}>
+                                  {wt}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className={styles.rowGrid} style={{ marginTop: 10 }}>
                       <div className={styles.field}>
                         <label>Title *</label>
                         <input

@@ -10,11 +10,12 @@ import TaskTable from "@/components/dashboard/admindahboardcomponents/Tasktable"
 import EmployeeList from "@/components/dashboard/admindahboardcomponents/Employeelist";
 import AssignTask from "@/components/dashboard/admindahboardcomponents/Assigntask";
 import AdminTasks from "@/components/dashboard/admindahboardcomponents/Admintasks";
+import AdminSelfTasksBoard from "@/components/dashboard/admindahboardcomponents/Adminselftasksboard";
 import { Employee, Task, TaskStatus, TaskFrequency, DashboardStats, Brand, } from "@/types/admin/Crm";
 import styles from "@/public/assets/styles/dashboard/admindashboard/admindashboard.module.css";
 import { useAuthGuard } from '../../../hooks/useAuthGuard';
 
-type ActiveSection = "dashboard" | "employees" | "tasks" | "assign" | "admin_tasks";
+type ActiveSection = "dashboard" | "employees" | "tasks" | "assign" | "admin_tasks" | "self_tasks";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -27,10 +28,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const validSections: ActiveSection[] = ["dashboard", "employees", "tasks", "assign", "admin_tasks"];
+  const validSections: ActiveSection[] = ["dashboard", "employees", "tasks", "assign", "admin_tasks", "self_tasks"];
 
-  // Wraps setActiveSection so every change is also persisted — this is
-  // what makes the active tab survive a page refresh.
   const setActiveSection = (section: ActiveSection) => {
     setActiveSectionState(section);
     try {
@@ -40,7 +39,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // On mount, restore whichever tab was open before the refresh.
   useEffect(() => {
     try {
       const saved = localStorage.getItem("adminActiveSection") as ActiveSection | null;
@@ -53,10 +51,8 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Current logged-in admin's id ─────────────────────────────────────────
-  // Adjust this if your login flow stores the user differently. Common
-  // patterns: localStorage "user" JSON blob, or a decoded JWT payload.
   const [currentAdminId, setCurrentAdminId] = useState<string>("");
+  const [currentAdminName, setCurrentAdminName] = useState<string>("");
 
   useEffect(() => {
     try {
@@ -64,13 +60,13 @@ export default function AdminDashboard() {
       if (raw) {
         const parsed = JSON.parse(raw);
         setCurrentAdminId(parsed?._id || parsed?.id || "");
+        setCurrentAdminName(parsed?.name || "");
       }
     } catch {
       setCurrentAdminId("");
     }
   }, []);
 
-  // ── Load Data ─────────────────────────────────────────────────────────────
   const loadAll = useCallback(async () => {
     try {
       setLoading(true);
@@ -95,29 +91,40 @@ export default function AdminDashboard() {
     loadAll();
   }, [loadAll]);
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
+  const getAssignedId = (assignedTo: Task["assignedTo"]): string => {
+    if (assignedTo && typeof assignedTo === "object") return (assignedTo as { _id: string })._id;
+    return assignedTo as string;
+  };
+
+  // Tasks Super Admin assigned directly to this admin (top-level, not a
+  // sub-task) — used for sidebar badge AND the new "Admin Tasks" stats card.
+  const adminTasksList = tasks.filter((t) => {
+    return (
+      getAssignedId(t.assignedTo) === currentAdminId &&
+      t.assignedBy === "super_admin" &&
+      !(t as unknown as { parentTaskId?: string | null }).parentTaskId
+    );
+  });
+  const adminTaskCount = adminTasksList.length;
+
   const stats: DashboardStats = {
     totalEmployees: employees.length,
     totalTasks: tasks.length,
     pendingTasks: tasks.filter((t) => t.status === "pending").length,
     approvedTasks: tasks.filter((t) => t.status === "approved").length,
     rejectedTasks: tasks.filter((t) => t.status === "rejected").length,
+    adminTasks: adminTaskCount,
   };
 
-  // Tasks that Super Admin assigned directly to this admin (for sidebar badge)
-  const adminTaskCount = tasks.filter((t) => {
-    const id =
-      t.assignedTo && typeof t.assignedTo === "object"
-        ? (t.assignedTo as { _id: string })._id
-        : t.assignedTo;
-    return (
-      id === currentAdminId &&
-      t.assignedBy === "super_admin" &&
-      !(t as unknown as { parentTaskId?: string | null }).parentTaskId
-    );
-  }).length;
+  // Self-assigned tasks: assignedTo is this admin, assignedBy is "admin"
+  // (created via the Admin Task split modal's "Assign to Myself" option).
+  const selfAssignedTasks = tasks.filter(
+    (t) => getAssignedId(t.assignedTo) === currentAdminId && t.assignedBy === "admin"
+  );
+  const selfTaskCount = selfAssignedTasks.filter(
+    (t) => t.status === "pending" || t.status === "rejected" || t.status === "changes_requested"
+  ).length;
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleStatusChange = async (
     taskId: string,
     status: TaskStatus,
@@ -136,11 +143,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // ── Assign task — mirrors SATasks' basePayload shape so admin-created
-  // tasks carry the same department-specific (photography) fields that
-  // Super Admin can set. `taskType`, `location`, `time`, `mediaType`, and
-  // `totalCount` are all optional/omitted for non-photography work types,
-  // exactly like the super admin flow. ────────────────────────────────────
   const handleAssignTask = async (data: {
     title: string;
     description: string;
@@ -148,6 +150,7 @@ export default function AdminDashboard() {
     brandId: string;
     frequency: TaskFrequency;
     dueDate: string;
+    department?: string;
     taskType?: string;
     location?: string;
     time?: string;
@@ -166,7 +169,7 @@ export default function AdminDashboard() {
         status: "pending",
         deliveryStatus: "not_delivered",
         changes: [],
-        // ── photography extras — harmless no-ops for non-photography tasks ──
+        department: data.department,
         taskType: data.taskType,
         location: data.location,
         time: data.time,
@@ -179,8 +182,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Same flow as the employee dashboard: hit the logout endpoint, clear
-  // local storage regardless of outcome, then bounce to login.
   const handleLogout = async () => {
     try {
       await logout("admin");
@@ -196,9 +197,9 @@ export default function AdminDashboard() {
     tasks: "Task Management",
     assign: "Assign Task",
     admin_tasks: "Tasks from Super Admin",
+    self_tasks: "My Tasks",
   };
 
-  // ── Loading / Error ───────────────────────────────────────────────────────
   const renderContent = () => {
     if (loading) {
       return (
@@ -221,7 +222,12 @@ export default function AdminDashboard() {
     return (
       <>
         {(activeSection === "dashboard" || activeSection === "tasks") && (
-          <StatsCards stats={stats} />
+          <StatsCards
+            stats={stats}
+            tasks={tasks}
+            employees={employees}
+            adminTasksList={adminTasksList}
+          />
         )}
 
         {activeSection === "dashboard" && (
@@ -231,12 +237,12 @@ export default function AdminDashboard() {
               employees={employees}
               onStatusChange={handleStatusChange}
             />
-            <EmployeeList employees={employees} tasks={tasks} />
+            <EmployeeList employees={employees} tasks={tasks} brands={brands} />
           </>
         )}
 
         {activeSection === "employees" && (
-          <EmployeeList employees={employees} tasks={tasks} />
+          <EmployeeList employees={employees} tasks={tasks} brands={brands} />
         )}
 
         {activeSection === "tasks" && (
@@ -248,7 +254,11 @@ export default function AdminDashboard() {
         )}
 
         {activeSection === "assign" && (
-          <AssignTask employees={employees} brands={brands} onAssign={handleAssignTask} />
+          <AssignTask
+            employees={employees}
+            brands={brands}
+            onAssign={handleAssignTask}
+          />
         )}
 
         {activeSection === "admin_tasks" && (
@@ -256,6 +266,16 @@ export default function AdminDashboard() {
             tasks={tasks}
             employees={employees}
             adminId={currentAdminId}
+            adminName={currentAdminName}
+            onRefresh={loadAll}
+            onSelfAssigned={() => setActiveSection("self_tasks")}
+          />
+        )}
+
+        {activeSection === "self_tasks" && (
+          <AdminSelfTasksBoard
+            tasks={selfAssignedTasks}
+            brands={brands}
             onRefresh={loadAll}
           />
         )}
@@ -269,10 +289,10 @@ export default function AdminDashboard() {
         activeSection={activeSection}
         onSectionChange={(s) => setActiveSection(s)}
         adminTaskCount={adminTaskCount}
+        selfTaskCount={selfTaskCount}
       />
 
       <main className={styles.main}>
-        {/* Top Bar */}
         <div className={styles.topBar}>
           <div>
             <h1 className={styles.pageTitle}>{sectionTitles[activeSection]}</h1>
@@ -308,7 +328,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Content */}
         <div className={styles.content}>{renderContent()}</div>
       </main>
     </div>
