@@ -245,6 +245,45 @@ export default function MetaDashboardPage() {
           <p className="md-subtitle">{today}</p>
         </div>
         <div className="md-header-right">
+          {/* ── Date filter — moved up here from the tasks section, same
+              chip treatment as the other dashboards' top-bar date pill. ── */}
+          <div className="md-date-filter-chip">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <select
+              className="md-date-filter-select"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value as DateFilter)}
+              title="Filter tasks by due date"
+            >
+              {DATE_FILTERS.map((f) => (
+                <option key={f.value} value={f.value}>{f.label}</option>
+              ))}
+            </select>
+
+            {dateFilter === 'custom' && (
+              <>
+                <input
+                  type="date"
+                  className="md-date-filter-input"
+                  value={customRange.from}
+                  onChange={(e) => setCustomRange((prev) => ({ ...prev, from: e.target.value }))}
+                />
+                <span style={{ color: 'var(--md-text-faint)', fontSize: 12 }}>to</span>
+                <input
+                  type="date"
+                  className="md-date-filter-input"
+                  value={customRange.to}
+                  onChange={(e) => setCustomRange((prev) => ({ ...prev, to: e.target.value }))}
+                />
+              </>
+            )}
+          </div>
+
           {employeeName && (
             <div className="md-user-chip">
               <span className="md-user-avatar">{employeeName.charAt(0).toUpperCase()}</span>
@@ -337,37 +376,6 @@ export default function MetaDashboardPage() {
               <h2 className="md-section-title" style={{ margin: 0 }}>Your tasks</h2>
               <span className="md-date-group-count">{filteredTasks.length}</span>
             </div>
-
-            <div className="md-filter-row">
-              {DATE_FILTERS.map((f) => (
-                <button
-                  key={f.value}
-                  type="button"
-                  className={`md-filter-btn ${dateFilter === f.value ? 'active' : ''}`}
-                  onClick={() => setDateFilter(f.value)}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-
-            {dateFilter === 'custom' && (
-              <div className="md-filter-row" style={{ alignItems: 'center', marginTop: -6 }}>
-                <input
-                  type="date"
-                  className="md-input"
-                  value={customRange.from}
-                  onChange={(e) => setCustomRange((prev) => ({ ...prev, from: e.target.value }))}
-                />
-                <span style={{ color: 'var(--md-text-faint)', fontSize: 12.5 }}>to</span>
-                <input
-                  type="date"
-                  className="md-input"
-                  value={customRange.to}
-                  onChange={(e) => setCustomRange((prev) => ({ ...prev, to: e.target.value }))}
-                />
-              </div>
-            )}
 
             {groups.length === 0 ? (
               <div className="md-empty">
