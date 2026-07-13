@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import api from "@/lib/api";
-import { Employee, Task, Brand } from "@/types/superadmin/superAdmin";
+import { Employee, Task, Brand } from "@/types/admin/Crm";
 import {
   computeEmployeeProgressStats,
   getTasksForEmployee,
@@ -10,34 +10,33 @@ import {
   getTimeTakenMinutes,
   formatMinutes,
   AdditionalWorkEntry,
-} from "@/data/superadmin/employeeProgressHelpers";
+} from "@/data/admindashboard/Employeeprogresshelpers";
 import PieChartSVG from "./charts/Piechartsvg";
 import BarChartSVG from "./charts/Barchartsvg";
 import LineChartSVG from "./charts/Linechartsvg";
-import styles from "@/public/assets/styles/dashboard/super-admin-dashboard/Saemployeeprogressmodal.module.css";
+import styles from "@/public/assets/styles/dashboard/admindashboard/Adminemployeeprogressmodal.module.css";
 
-interface SAEmployeeProgressModalProps {
+interface AdminEmployeeProgressModalProps {
   employee: Employee;
   tasks: Task[];
-  brands: Brand[];
+  brands?: Brand[];
   onClose: () => void;
 }
 
 type RangeTab = "weekly" | "monthly";
 
-export default function SAEmployeeProgressModal({
+export default function AdminEmployeeProgressModal({
   employee,
   tasks,
-  brands,
+  brands = [],
   onClose,
-}: SAEmployeeProgressModalProps) {
+}: AdminEmployeeProgressModalProps) {
   const [range, setRange] = useState<RangeTab>("weekly");
   const [additionalWork, setAdditionalWork] = useState<AdditionalWorkEntry[]>([]);
   const [awLoading, setAwLoading] = useState(true);
   const [awError, setAwError] = useState<string | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
-  // ── Animated score ring ────────────────────────────────────────────────
   const RING_RADIUS = 44;
   const RING_CIRC = 2 * Math.PI * RING_RADIUS;
   const [ringOffset, setRingOffset] = useState(RING_CIRC);
@@ -82,25 +81,34 @@ export default function SAEmployeeProgressModal({
     return brands.find((b) => b._id === brandId)?.name ?? "—";
   };
 
-  // ── Weekly / monthly bar-chart data (Assigned vs Completed) ──────────────
+  const scoreColor =
+    stats.progress.score >= 80 ? "#10b981" : stats.progress.score >= 50 ? "#f59e0b" : "#ef4444";
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setRingOffset(RING_CIRC - (stats.progress.score / 100) * RING_CIRC);
+    }, 150);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats.progress.score]);
+
   const barData =
     range === "weekly"
       ? stats.weekly.map((w) => ({
           label: w.label,
           values: [
-            { key: "assigned", value: w.assigned, color: "#c7d2fe" },
+            { key: "assigned", value: w.assigned, color: "#bfdbfe" },
             { key: "completed", value: w.completed, color: "#10b981" },
           ],
         }))
       : stats.monthly.map((m) => ({
           label: m.label,
           values: [
-            { key: "assigned", value: m.assigned, color: "#c7d2fe" },
+            { key: "assigned", value: m.assigned, color: "#bfdbfe" },
             { key: "completed", value: m.completed, color: "#10b981" },
           ],
         }));
 
-  // ── Weekly / monthly line-chart data (completion rate trend) ─────────────
   const lineData =
     range === "weekly"
       ? stats.weekly.map((w) => ({
@@ -112,7 +120,6 @@ export default function SAEmployeeProgressModal({
           value: m.assigned === 0 ? 0 : Math.round((m.completed / m.assigned) * 100),
         }));
 
-  // ── "kitne task ek din mai" — average tasks completed per day ────────────
   const last = range === "weekly" ? stats.weekly[stats.weekly.length - 1] : stats.monthly[stats.monthly.length - 1];
   const perDayAvg =
     range === "weekly"
@@ -127,17 +134,6 @@ export default function SAEmployeeProgressModal({
     range === "weekly"
       ? stats.weekly.reduce((s, w) => s + w.rejected, 0)
       : stats.monthly.reduce((s, m) => s + m.rejected, 0);
-
-  const scoreColor =
-    stats.progress.score >= 80 ? "#10b981" : stats.progress.score >= 50 ? "#f59e0b" : "#ef4444";
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setRingOffset(RING_CIRC - (stats.progress.score / 100) * RING_CIRC);
-    }, 150);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stats.progress.score]);
 
   const statusStyles: Record<string, string> = {
     completed: styles.sCompleted,
@@ -164,18 +160,15 @@ export default function SAEmployeeProgressModal({
           <div className={styles.profileInfo}>
             <h2 className={styles.name}>{employee.name}</h2>
             <p className={styles.roleText}>
-              <span className={`${styles.rolePill} ${styles[`role_${employee.role}`]}`}>
-                {employee.role === "super_admin" ? "Super Admin" : employee.role === "admin" ? "Admin" : "Employee"}
-              </span>
+              <span className={styles.rolePill}>{employee.role}</span>
               <span className={styles.dot}>·</span>
               {employee.department}
-              <span className={styles.dot}>·</span>
-              {employee.employeeId}
             </p>
           </div>
+
           <div className={styles.scoreRingWrap}>
             <svg width="104" height="104" viewBox="0 0 104 104">
-              <circle cx="52" cy="52" r={RING_RADIUS} fill="none" stroke="#f1f5f9" strokeWidth="9" />
+              <circle cx="52" cy="52" r={RING_RADIUS} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="9" />
               <circle
                 cx="52"
                 cy="52"
@@ -217,17 +210,16 @@ export default function SAEmployeeProgressModal({
             <span className={styles.statNum} style={{ color: "#ef4444" }}>{stats.rejectedTasks}</span>
             <span className={styles.statLabel}>Rejected</span>
           </div>
-          <div className={styles.statBox} style={{ background: "#f5f3ff" }}>
-            <span className={styles.statNum} style={{ color: "#6d28d9" }}>{stats.totalRejectionCycles}</span>
+          <div className={styles.statBox} style={{ background: "#eff6ff" }}>
+            <span className={styles.statNum} style={{ color: "#1d4ed8" }}>{stats.totalRejectionCycles}</span>
             <span className={styles.statLabel}>Reject → Redo Cycles</span>
           </div>
-          <div className={styles.statBox} style={{ background: "#eff6ff" }}>
-            <span className={styles.statNum} style={{ color: "#1d4ed8" }}>{stats.avgTimeTakenLabel}</span>
+          <div className={styles.statBox} style={{ background: "#eef2ff" }}>
+            <span className={styles.statNum} style={{ color: "#4338ca" }}>{stats.avgTimeTakenLabel}</span>
             <span className={styles.statLabel}>Avg. Time / Task</span>
           </div>
         </div>
 
-        {/* ── Progress score breakdown note ── */}
         <div className={styles.scoreNote}>
           <span>
             Score = <strong>{stats.progress.completionRate}%</strong> completion rate
@@ -288,7 +280,6 @@ export default function SAEmployeeProgressModal({
           </div>
 
           <div className={styles.chartGrid}>
-            {/* Bar chart — assigned vs completed */}
             <div className={styles.chartCard}>
               <h4 className={styles.chartTitle}>
                 {range === "weekly" ? "Weekly" : "Monthly"} — Assigned vs Completed
@@ -296,29 +287,22 @@ export default function SAEmployeeProgressModal({
               <BarChartSVG
                 data={barData}
                 legend={[
-                  { key: "assigned", label: "Assigned", color: "#c7d2fe" },
+                  { key: "assigned", label: "Assigned", color: "#bfdbfe" },
                   { key: "completed", label: "Completed", color: "#10b981" },
                 ]}
               />
             </div>
 
-            {/* Line chart — completion rate trend */}
             <div className={styles.chartCard}>
               <h4 className={styles.chartTitle}>Completion Rate Trend</h4>
-              <LineChartSVG data={lineData} color="#6366f1" />
+              <LineChartSVG data={lineData} color="#2563eb" />
             </div>
 
-            {/* Pie chart — status breakdown */}
             <div className={styles.chartCard}>
               <h4 className={styles.chartTitle}>Task Status Breakdown</h4>
-              <PieChartSVG
-                data={stats.statusBreakdown}
-                centerValue={stats.totalTasks}
-                centerLabel="Total"
-              />
+              <PieChartSVG data={stats.statusBreakdown} centerValue={stats.totalTasks} centerLabel="Total" />
             </div>
 
-            {/* Pie chart — delivered vs not delivered */}
             <div className={styles.chartCard}>
               <h4 className={styles.chartTitle}>Delivery Status</h4>
               <PieChartSVG
@@ -368,7 +352,7 @@ export default function SAEmployeeProgressModal({
                         <div>
                           <div className={styles.taskDetailTitle}>{task.title}</div>
                           <div className={styles.taskDetailMeta}>
-                            {getBrandName(task.brandId ?? undefined)} &middot; Due {task.dueDate || "—"}
+                            {getBrandName((task as unknown as { brandId?: string | { _id: string; name: string } | null }).brandId)} &middot; Due {task.dueDate || "—"}
                           </div>
                         </div>
                       </div>

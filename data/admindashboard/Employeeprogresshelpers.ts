@@ -1,4 +1,4 @@
-import { Task } from "@/types/superadmin/superAdmin";
+import { Task } from "@/types/admin/Crm";
 
 // ── Additional Work (matches AdditionalWork model / additionalWorkController) ─
 export interface AdditionalWorkEntry {
@@ -22,7 +22,7 @@ export interface WeekBucket {
   rangeEnd: Date;
   assigned: number;
   completed: number;
-  rejected: number; // rejection cycles that happened on tasks touched this week
+  rejected: number;
 }
 
 export interface MonthBucket {
@@ -33,9 +33,9 @@ export interface MonthBucket {
 }
 
 export interface ProgressScoreResult {
-  score: number; // 0-100, higher is better
-  completionRate: number; // 0-100
-  rejectionPenalty: number; // points deducted
+  score: number;
+  completionRate: number;
+  rejectionPenalty: number;
   totalRejections: number;
 }
 
@@ -44,11 +44,11 @@ export interface EmployeeProgressStats {
   completedTasks: number;
   pendingTasks: number;
   approvedTasks: number;
-  rejectedTasks: number; // currently sitting in "rejected" status
+  rejectedTasks: number;
   inProgressTasks: number;
   deliveredCount: number;
   notDeliveredCount: number;
-  totalRejectionCycles: number; // cumulative, across all tasks' full history
+  totalRejectionCycles: number;
   avgTimeTakenMinutes: number | null;
   avgTimeTakenLabel: string;
   fastestTaskLabel: string;
@@ -58,8 +58,6 @@ export interface EmployeeProgressStats {
   monthly: MonthBucket[];
   statusBreakdown: { label: string; value: number; color: string }[];
 }
-
-// ── Shared small utilities ───────────────────────────────────────────────────
 
 export const getAssigneeId = (
   assignedTo: string | { _id: string; name: string } | null | undefined
@@ -73,15 +71,14 @@ export const getTasksForEmployee = (tasks: Task[], employeeId: string): Task[] =
 
 // Every time an admin/SA rejects a task, taskController pushes a change log
 // entry whose note starts with "Rejected by ...". Counting those gives the
-// true number of reject → redo cycles a task went through, even after it's
-// since been approved/completed.
+// true number of reject → redo cycles a task went through.
 export const countRejectionCycles = (task: Task): number =>
   task.changes.filter((c) => c.note?.startsWith("Rejected by")).length;
 
 // "approved" and "completed" are both terminal, successful states in this
-// workflow — an admin/SA marking a task "approved" means the work is done
-// and signed off, same as "completed". Everywhere progress is measured
-// (top stat card, weekly/monthly charts, score), both statuses count as
+// workflow — an admin marking a task "approved" means the work is done and
+// signed off, same as "completed". Everywhere progress is measured (top
+// stat card, weekly/monthly charts, score), both statuses count as
 // finished so an approved task doesn't look unfinished in the report.
 const DONE_STATUSES = new Set(["completed", "approved"]);
 export const isDoneStatus = (status: string): boolean => DONE_STATUSES.has(status);
@@ -107,13 +104,15 @@ export const formatMinutes = (mins: number | null): string => {
 };
 
 const dateOf = (t: Task): Date | null => {
-  const raw = (t as unknown as { deliveredAt?: string | null }).deliveredAt || t.dueDate || t.createdAt;
+  const raw =
+    (t as unknown as { deliveredAt?: string | null; createdAt?: string }).deliveredAt ||
+    t.dueDate ||
+    (t as unknown as { createdAt?: string }).createdAt;
   if (!raw) return null;
   const d = new Date(raw);
   return isNaN(d.getTime()) ? null : d;
 };
 
-// ── Weekly buckets: last N weeks (oldest → newest), Mon-ish 7-day windows ───
 export const buildWeeklyBuckets = (tasks: Task[], weeksBack = 8): WeekBucket[] => {
   const now = new Date();
   const buckets: WeekBucket[] = [];
@@ -149,7 +148,6 @@ export const buildWeeklyBuckets = (tasks: Task[], weeksBack = 8): WeekBucket[] =
   return buckets;
 };
 
-// ── Monthly buckets: last N months (oldest → newest) ────────────────────────
 export const buildMonthlyBuckets = (tasks: Task[], monthsBack = 6): MonthBucket[] => {
   const now = new Date();
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -179,12 +177,6 @@ export const buildMonthlyBuckets = (tasks: Task[], monthsBack = 6): MonthBucket[
   return buckets;
 };
 
-// Progress score formula (out of 100):
-//   base       = % of assigned tasks that reached "completed"
-//   penalty    = 5 pts per reject→redo cycle across all tasks, capped at 40
-//   score      = clamp(base - penalty, 0, 100)
-// This means an employee who finishes everything but only after repeated
-// rejections still scores lower than one who finishes cleanly first try.
 export const computeProgressScore = (tasks: Task[]): ProgressScoreResult => {
   const total = tasks.length;
   const completed = tasks.filter((t) => isDoneStatus(t.status)).length;
@@ -198,7 +190,6 @@ export const computeProgressScore = (tasks: Task[]): ProgressScoreResult => {
   return { score, completionRate, rejectionPenalty, totalRejections };
 };
 
-// ── Master aggregator: everything the progress modal needs, in one call ─────
 export const computeEmployeeProgressStats = (
   allTasks: Task[],
   employeeId: string

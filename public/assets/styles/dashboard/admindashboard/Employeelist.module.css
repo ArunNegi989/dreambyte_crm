@@ -195,3 +195,38 @@
     display: none;
   }
 }
+/* ── ADD THESE TO Employeelist.module.css ── */
+
+.actionCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.progressBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border: 1px solid #e8eaed;
+  border-radius: 7px;
+  background: #fff;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.progressBtn:hover {
+  background: #eff6ff;
+  border-color: #2563eb;
+}
+
+@media (max-width: 640px) {
+  .actionCell {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}

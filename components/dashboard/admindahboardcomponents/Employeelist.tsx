@@ -1,17 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Employee, Task, EmployeeWithStats } from "@/types/admin/Crm";
+import { Employee, Task, EmployeeWithStats, Brand } from "@/types/admin/Crm";
 import EmployeeModal from "@/components/dashboard/admindahboardcomponents/Employeemodal";
+import AdminEmployeeProgressModal from "@/components/dashboard/admindahboardcomponents/Adminemployeeprogressmodal";
 import styles from "@/public/assets/styles/dashboard/admindashboard/Employeelist.module.css";
 
 interface EmployeeListProps {
   employees: Employee[];
   tasks: Task[];
+  brands?: Brand[];
 }
 
-export default function EmployeeList({ employees, tasks }: EmployeeListProps) {
+export default function EmployeeList({ employees, tasks, brands = [] }: EmployeeListProps) {
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeWithStats | null>(null);
+  const [progressEmployee, setProgressEmployee] = useState<Employee | null>(null);
 
   // This list is meant to show only plain employees — admins and super
   // admins are managed elsewhere and shouldn't clutter this table.
@@ -97,17 +100,31 @@ export default function EmployeeList({ employees, tasks }: EmployeeListProps) {
                       </span>
                     </td>
                     <td>
-                      <button
-                        className={styles.eyeBtn}
-                        onClick={() => setSelectedEmployee(getEmployeeWithStats(emp))}
-                        title="View employee details"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
-                        View
-                      </button>
+                      <div className={styles.actionCell}>
+                        <button
+                          className={styles.eyeBtn}
+                          onClick={() => setSelectedEmployee(getEmployeeWithStats(emp))}
+                          title="View employee details"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                          View
+                        </button>
+                        <button
+                          className={styles.progressBtn}
+                          onClick={() => setProgressEmployee(emp)}
+                          title="View progress report"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 20V10" />
+                            <path d="M12 20V4" />
+                            <path d="M6 20v-6" />
+                          </svg>
+                          Progress
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -127,6 +144,15 @@ export default function EmployeeList({ employees, tasks }: EmployeeListProps) {
         employee={selectedEmployee}
         onClose={() => setSelectedEmployee(null)}
       />
+
+      {progressEmployee && (
+        <AdminEmployeeProgressModal
+          employee={progressEmployee}
+          tasks={tasks}
+          brands={brands}
+          onClose={() => setProgressEmployee(null)}
+        />
+      )}
     </>
   );
 }
