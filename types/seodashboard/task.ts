@@ -19,6 +19,7 @@ export type SeoCategory =
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'blocked' | 'rejected';
 export type Priority = 'low' | 'medium' | 'high' | 'urgent';
+export type AdditionalWorkStatus = 'pending' | 'completed';
 
 export interface CategoryMeta {
   value: SeoCategory;
@@ -205,6 +206,7 @@ export interface AdditionalTask {
   hoursSpent: number | '';
   outcome: string;
   createdAt: string;
+  status: AdditionalWorkStatus;
 }
 
 export interface DashboardStats {

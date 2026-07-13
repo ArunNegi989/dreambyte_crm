@@ -56,6 +56,7 @@ function mapAdditionalTask(item: any): AdditionalTask {
     hoursSpent: item.hoursSpent ?? '',
     outcome: item.outcome || '',
     createdAt: item.createdAt,
+    status: (item.status || 'pending') as AdditionalTask['status'],
   };
 }
 
@@ -64,7 +65,7 @@ export async function getAdditionalTasks(): Promise<AdditionalTask[]> {
   return res.data.map(mapAdditionalTask).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export async function addAdditionalTask(payload: Omit<AdditionalTask, 'id' | 'createdAt'>): Promise<AdditionalTask> {
+export async function addAdditionalTask(payload: Omit<AdditionalTask, 'id' | 'createdAt' | 'status'>): Promise<AdditionalTask> {
   const res = await apiFetch<{ success: boolean; data: any }>(`/additional-work`, {
     method: 'POST',
     body: {
@@ -91,6 +92,17 @@ export async function updateAdditionalTask(id: string, payload: Partial<Addition
 
 export async function deleteAdditionalTask(id: string): Promise<void> {
   await apiFetch(`/additional-work/${id}`, { method: 'DELETE' });
+}
+
+// Marks a logged additional-work entry as done.
+// ⚠️ Same open question as the Meta dashboard: confirm /additional-work/:id
+// PUT actually persists a `status` field on the backend.
+export async function markAdditionalWorkDone(id: string): Promise<AdditionalTask> {
+  const res = await apiFetch<{ success: boolean; data: any }>(`/additional-work/${id}`, {
+    method: 'PUT',
+    body: { status: 'completed' },
+  });
+  return mapAdditionalTask(res.data);
 }
 
 export async function respondToTaskChange(taskId: string, changeId: string, response: string): Promise<Task> {

@@ -66,6 +66,7 @@ export async function fetchMyAdditionalWork(employeeId: string): Promise<Additio
     date: item.date,
     hoursSpent: item.hoursSpent ?? '',
     outcome: item.outcome || '',
+    status: (item.status || 'pending') as AdditionalTask['status'],
   }));
 }
 
@@ -86,4 +87,11 @@ export async function createAdditionalWork(
       outcome: payload.outcome,
     },
   });
+}
+
+// Marks a logged additional-work entry as done.
+// ⚠️ Route/shape assumed — confirm the backend `/additional-work/:id` PUT
+// route exists and accepts { status }, or send me that controller so I can fix this.
+export async function markAdditionalWorkDone(itemId: string): Promise<void> {
+  await apiFetch(`/additional-work/${itemId}`, { method: 'PUT', body: { status: 'completed' } });
 }

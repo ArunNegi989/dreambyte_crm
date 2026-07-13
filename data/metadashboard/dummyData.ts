@@ -15,6 +15,7 @@ export type Category =
 
 export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 export type TaskStatus = 'pending' | 'in-progress' | 'completed' | 'blocked';
+export type AdditionalWorkStatus = 'pending' | 'completed';
 
 export interface CategoryMeta {
   label: string;
@@ -58,6 +59,7 @@ export interface AdditionalTask {
   date: string;
   hoursSpent: number | '';
   outcome: string;
+  status: AdditionalWorkStatus;
 }
 
 export interface PerformanceMetric {
@@ -236,6 +238,7 @@ export const DUMMY_ADDITIONAL_TASKS: AdditionalTask[] = [
     date: todayOffset(-2),
     hoursSpent: 1.5,
     outcome: 'Found 2 new hook formats to test next sprint.',
+    status: 'completed',
   },
   {
     id: 'a2',
@@ -245,6 +248,7 @@ export const DUMMY_ADDITIONAL_TASKS: AdditionalTask[] = [
     date: todayOffset(-4),
     hoursSpent: 0.75,
     outcome: 'Attribution data now accurate for those campaigns.',
+    status: 'completed',
   },
   {
     id: 'a3',
@@ -254,6 +258,7 @@ export const DUMMY_ADDITIONAL_TASKS: AdditionalTask[] = [
     date: todayOffset(-6),
     hoursSpent: 1,
     outcome: 'Client onboarded same day, kickoff call went smoothly.',
+    status: 'pending',
   },
 ];
 

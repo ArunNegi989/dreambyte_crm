@@ -7,7 +7,7 @@ import {
   CATEGORY_META,
   CATEGORY_OPTIONS,
 } from '../../../../data/metadashboard/dummyData';
-import { fetchMyAdditionalWork, createAdditionalWork } from '../../../api/metaApi';
+import { fetchMyAdditionalWork, createAdditionalWork, markAdditionalWorkDone } from '../../../api/metaApi';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -17,6 +17,8 @@ export default function AdditionalTasksPage() {
   const [loadError, setLoadError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [markingId, setMarkingId] = useState<string | null>(null);
+  const [markError, setMarkError] = useState('');
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<string>('other');
@@ -88,6 +90,24 @@ export default function AdditionalTasksPage() {
     }
   };
 
+  // Marks a single entry as done. Optimistically flips the local status so
+  // the button/badge swaps instantly, then re-syncs from the server.
+  const handleMarkDone = async (id: string) => {
+    if (markingId) return;
+    setMarkingId(id);
+    setMarkError('');
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: 'completed' } : it)));
+    try {
+      await markAdditionalWorkDone(id);
+      await loadItems();
+    } catch (err: unknown) {
+      setMarkError(err instanceof Error ? err.message : 'Failed to mark as done');
+      await loadItems(); // roll back the optimistic update to the real state
+    } finally {
+      setMarkingId(null);
+    }
+  };
+
   return (
     <div>
       <header className="md-header">
@@ -108,6 +128,10 @@ export default function AdditionalTasksPage() {
         </div>
       )}
 
+      {!loading && !loadError && markError && (
+        <p style={{ color: 'var(--md-danger)', fontSize: 12.5, fontWeight: 500, marginBottom: 12 }}>{markError}</p>
+      )}
+
       {!loading && !loadError && (
         items.length === 0 ? (
           <div className="md-empty">
@@ -118,6 +142,7 @@ export default function AdditionalTasksPage() {
           <div className="md-list">
             {items.map((item) => {
               const cat = item.category === 'other' ? null : CATEGORY_META[item.category];
+              const isDone = item.status === 'completed';
               return (
                 <div className="md-list-card" key={item.id}>
                   <div className="md-list-card-header">
@@ -127,6 +152,19 @@ export default function AdditionalTasksPage() {
                     >
                       {cat ? cat.label : 'Other'}
                     </span>
+                    {isDone ? (
+                      <span className="md-status completed">Completed</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="md-btn-secondary"
+                        style={{ padding: '4px 10px', fontSize: 12 }}
+                        disabled={markingId === item.id}
+                        onClick={() => handleMarkDone(item.id)}
+                      >
+                        {markingId === item.id ? 'Marking…' : 'Mark as done'}
+                      </button>
+                    )}
                   </div>
                   <p className="md-list-card-title">{item.title}</p>
                   <p className="md-list-card-desc">{item.description}</p>
