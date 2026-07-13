@@ -78,13 +78,27 @@ export const getTasksForEmployee = (tasks: Task[], employeeId: string): Task[] =
 export const countRejectionCycles = (task: Task): number =>
   task.changes.filter((c) => c.note?.startsWith("Rejected by")).length;
 
-// "approved" and "completed" are both terminal, successful states in this
-// workflow — an admin/SA marking a task "approved" means the work is done
-// and signed off, same as "completed". Everywhere progress is measured
-// (top stat card, weekly/monthly charts, score), both statuses count as
-// finished so an approved task doesn't look unfinished in the report.
-const DONE_STATUSES = new Set(["completed", "approved"]);
+// "completed" gets set automatically the moment an employee submits/
+// delivers their own task (see submitTask / deliverTask in the backend) —
+// it is NOT an admin/SA decision, just the employee's own submission.
+// "approved" is the only status an admin/SA explicitly sets after reviewing
+// the work, so it's the only one that should count as genuinely finished
+// for progress-tracking purposes. Until an admin/SA approves it, the task
+// should NOT count toward "Completed" here, even if its raw status says
+// "completed".
+const DONE_STATUSES = new Set(["approved"]);
 export const isDoneStatus = (status: string): boolean => DONE_STATUSES.has(status);
+
+// From the admin/SA's point of view, a task stays "Pending" the whole time
+// it's waiting on their decision — that includes the raw "pending" status
+// AND "completed" (employee has submitted, but nobody has approved it yet),
+// plus "in_progress" / "changes_requested". Only "approved" moves it out of
+// Pending, and "rejected" is tracked separately. This keeps the Pending
+// stat card honest: it doesn't quietly drop a task just because the
+// employee submitted it — it only clears once an admin/SA actually signs
+// off on it.
+export const isPendingStatus = (status: string): boolean =>
+  !isDoneStatus(status) && status !== "rejected";
 
 export const getTimeTakenMinutes = (
   startedAt?: string | null,
@@ -206,7 +220,7 @@ export const computeEmployeeProgressStats = (
   const tasks = getTasksForEmployee(allTasks, employeeId);
 
   const completedTasks = tasks.filter((t) => isDoneStatus(t.status)).length;
-  const pendingTasks = tasks.filter((t) => t.status === "pending").length;
+  const pendingTasks = tasks.filter((t) => isPendingStatus(t.status)).length;
   const approvedTasks = tasks.filter((t) => t.status === "approved").length;
   const rejectedTasks = tasks.filter((t) => t.status === "rejected").length;
   const inProgressTasks = tasks.filter(
@@ -244,11 +258,7 @@ export const computeEmployeeProgressStats = (
 
   const statusCounts: Record<string, number> = {};
   tasks.forEach((t) => {
-    // Merge "approved" into "completed" here too, so the pie chart matches
-    // the top "Completed" stat card instead of showing them as separate,
-    // seemingly-unfinished slices.
-    const key = t.status === "approved" ? "completed" : t.status;
-    statusCounts[key] = (statusCounts[key] ?? 0) + 1;
+    statusCounts[t.status] = (statusCounts[t.status] ?? 0) + 1;
   });
 
   const statusBreakdown = Object.entries(statusCounts).map(([status, value]) => ({
