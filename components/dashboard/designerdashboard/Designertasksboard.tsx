@@ -89,6 +89,7 @@ export default function DesignerTasksBoard({
   const [submitNote, setSubmitNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resubmitting, setResubmitting] = useState<string | null>(null);
+  const [starting, setStarting] = useState<string | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
   const weekStart = new Date();
@@ -157,6 +158,15 @@ export default function DesignerTasksBoard({
       });
     } finally {
       setResubmitting(null);
+    }
+  };
+
+  const handleStart = async (id: string) => {
+    setStarting(id);
+    try {
+      await onStartTask(id);
+    } finally {
+      setStarting(null);
     }
   };
 
@@ -293,7 +303,8 @@ export default function DesignerTasksBoard({
                 const isExpanded = expandedId === task._id;
                 const needsAttentionBanner = task.status === "rejected" || task.status === "changes_requested";
                 const sColor = statusColor(task.status);
-                const timeTaken = getTimeTakenLabel(task.startedAt, task.deliveredAt);
+                const timeTaken = getTimeTakenLabel(task.timeSpentMs, task.currentSessionStartedAt);
+                const isRunning = !!task.currentSessionStartedAt;
                 const open = openChanges(task);
 
                 return (
@@ -337,7 +348,7 @@ export default function DesignerTasksBoard({
                     {timeTaken && (
                       <div style={{ fontSize: 12, color: "#64748b", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
                         ⏱ Time taken: <strong>{timeTaken}</strong>
-                        {!task.deliveredAt && task.status === "in_progress" && " (running)"}
+                        {isRunning && <span style={{ color: "#1d4ed8" }}>(running)</span>}
                       </div>
                     )}
 
@@ -414,20 +425,42 @@ export default function DesignerTasksBoard({
 
                     <div className={styles.cardFooter}>
                       {task.status === "pending" && (
-                        <button className={styles.actionBtn} onClick={() => onStartTask(task._id)}>
-                          Start Task
+                        <button
+                          className={styles.actionBtn}
+                          onClick={() => handleStart(task._id)}
+                          disabled={starting === task._id}
+                        >
+                          {starting === task._id ? "Starting…" : "Start Task"}
                         </button>
                       )}
+
                       {task.status === "in_progress" && (
                         <button className={styles.actionBtn} onClick={() => openSubmitModal(task)}>
                           Submit for Review
                         </button>
                       )}
+
                       {(task.status === "rejected" || task.status === "changes_requested") && (
-                        <span className={styles.waitingTag}>
-                          {open.length > 0 ? "Reply to all notes above to resubmit" : "Ready to resubmit"}
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          {!isRunning && (
+                            <button
+                              className={styles.actionBtn}
+                              onClick={() => handleStart(task._id)}
+                              disabled={starting === task._id}
+                            >
+                              {starting === task._id ? "Resuming…" : "Resume Task"}
+                            </button>
+                          )}
+                          <span className={styles.waitingTag}>
+                            {open.length > 0
+                              ? "Reply to all notes above to resubmit"
+                              : isRunning
+                              ? "Timer running — resubmit when ready"
+                              : "Ready to resubmit"}
+                          </span>
+                        </div>
                       )}
+
                       {task.status === "completed" && (
                         <span className={styles.waitingTag}>Awaiting Super Admin review</span>
                       )}

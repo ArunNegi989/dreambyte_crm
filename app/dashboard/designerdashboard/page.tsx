@@ -151,11 +151,33 @@ export default function DesignerDashboard() {
     setPageMap({});
   }, [tasks.length, additionalWork.length, selectedDate]);
 
+  // ── Live timer refresh ──────────────────────────────────────────────────
+  // Any task whose clock is currently running (currentSessionStartedAt set)
+  // needs its "time taken" label to keep ticking up in the UI even though
+  // nothing changed server-side. A cheap re-render every 30s is enough —
+  // we don't need second-by-second precision for a work timer, and this
+  // avoids hammering the backend with polling.
+  useEffect(() => {
+    const hasRunningTimer = tasks.some((t) => !!t.currentSessionStartedAt);
+    if (!hasRunningTimer) return;
+
+    const interval = setInterval(() => {
+      // Force a re-render by shallow-cloning tasks; getTimeTakenLabel reads
+      // Date.now() at render time so this alone is enough to tick the UI.
+      setTasks((prev) => [...prev]);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [tasks]);
+
   // ── Task actions — each hits the backend then re-syncs from server so
   // the UI always reflects the real source of truth (esp. important since
   // status changes cascade into changes[]/deliveryStatus server-side). ───
+  // Used for BOTH "Start Task" (pending) and "Resume Task" (rejected /
+  // changes_requested) — the backend decides what status transition (if
+  // any) is appropriate, so we don't optimistically guess the new status
+  // here anymore (a resumed rejected task should NOT flash to in_progress).
   const handleStartTask = async (id: string) => {
-    setTasks((prev) => prev.map((t) => (t._id === id ? { ...t, status: "in_progress" } : t)));
     try {
       await startTask(id);
     } finally {

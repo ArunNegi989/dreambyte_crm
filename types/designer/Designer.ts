@@ -45,8 +45,11 @@ export interface DesignTask {
   assignedBy: "admin" | "super_admin";
   deliveryStatus: DeliveryStatus;
   deliveryNote?: string;
-  startedAt?: string | null; // ISO — stamped the moment the employee starts work
+  startedAt?: string | null; // ISO — stamped the moment the employee first starts work (legacy/display)
   deliveredAt?: string | null; // ISO — stamped on every (re)submission
+  // ── Time tracking (pause/resume aware) ──────────────────────────────────
+  timeSpentMs?: number; // cumulative worked time across all start/resume sessions
+  currentSessionStartedAt?: string | null; // ISO — set while the clock is actively running, else null
   rejectRemark?: string;
   changes: ChangeLogEntry[];
   createdAt: string;
@@ -100,25 +103,32 @@ export const getBrandName = (brandId?: string | BrandRef | null) => {
 };
 
 /**
- * Human readable "time taken" between startedAt and deliveredAt.
- * If the task hasn't been delivered yet, measures up to "now" so the
- * clock visibly keeps running while the employee is still working.
+ * Human readable cumulative "time taken", pause/resume aware.
+ *
+ * `timeSpentMs` is the total time already banked across every completed
+ * start/resume session. `currentSessionStartedAt` is set only while the
+ * clock is actively running (after Start/Resume, before the next Submit) —
+ * when present, the live elapsed time since that timestamp is added on top
+ * so the number visibly keeps ticking up while the employee is working.
  */
 export const getTimeTakenLabel = (
-  startedAt?: string | null,
-  deliveredAt?: string | null
+  timeSpentMs?: number | null,
+  currentSessionStartedAt?: string | null
 ): string | null => {
-  if (!startedAt) return null;
-  const start = new Date(startedAt).getTime();
-  const end = deliveredAt ? new Date(deliveredAt).getTime() : Date.now();
-  let diffMs = end - start;
-  if (diffMs < 0) diffMs = 0;
+  const base = timeSpentMs || 0;
+  const live = currentSessionStartedAt
+    ? Math.max(0, Date.now() - new Date(currentSessionStartedAt).getTime())
+    : 0;
+  const totalMs = base + live;
+  if (totalMs <= 0) return null;
 
-  const mins = Math.floor(diffMs / 60000);
-  const hrs = Math.floor(mins / 60);
-  const days = Math.floor(hrs / 24);
+  const totalMinutes = Math.floor(totalMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const days = Math.floor(hours / 24);
+  const minutes = totalMinutes % 60;
 
-  if (days > 0) return `${days}d ${hrs % 24}h`;
-  if (hrs > 0) return `${hrs}h ${mins % 60}m`;
-  return `${mins}m`;
+  if (days > 0) return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return "<1m";
 };

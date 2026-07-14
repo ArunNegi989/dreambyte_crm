@@ -10,17 +10,23 @@ export const fetchMyTasks = async (): Promise<DesignTask[]> => {
   return res.data.data as DesignTask[];
 };
 
-// Employee starts a task: pending -> in_progress
-// (backend stamps `startedAt` automatically the first time this happens —
-// that's what powers the "time taken" calculation later.)
+// Employee clicks "Start Task" (pending) or "Resume Task" (rejected /
+// changes_requested). Hits the dedicated timer endpoint rather than a plain
+// status PUT — the backend decides whether to flip status to in_progress
+// (fresh start) or leave it alone (resume, so the rejection banner /
+// change log stay visible until the employee actually resubmits). Either
+// way it starts (or restarts) `currentSessionStartedAt` so the "time taken"
+// clock keeps ticking.
 export const startTask = async (taskId: string): Promise<DesignTask> => {
-  const res = await api.put(`/tasks/${taskId}`, { status: "in_progress" });
+  const res = await api.post(`/tasks/${taskId}/start`, {});
   return res.data.data as DesignTask;
 };
 
 // Employee submits a task for review (in_progress -> completed).
 // "completed" here means "submitted, waiting on Super Admin" — the Super
 // Admin still has to move it to "approved" (or send it back rejected).
+// The backend stops the running timer here and folds the elapsed session
+// into the task's cumulative timeSpentMs.
 export const submitTaskForReview = async (
   taskId: string,
   deliveryNote: string,
@@ -36,6 +42,7 @@ export const submitTaskForReview = async (
 
 // Employee replies to every open change-log note (from a rejection / change
 // request) in one shot, then resubmits (rejected|changes_requested -> completed).
+// Also stops the timer if it was resumed via startTask() above.
 export const respondToTaskChanges = async (
   taskId: string,
   responses: { id: string; response: string }[],
