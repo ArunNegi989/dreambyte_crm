@@ -23,22 +23,25 @@ export const fetchBrands = async (): Promise<BrandOption[]> => {
   return res.data.data as BrandOption[];
 };
 
-// pending -> in_progress (backend stamps `startedAt` automatically)
+// ── UPDATED: Start / Resume — same generic endpoint the Designer/Employee
+// dashboards use. Handles BOTH:
+//   • pending -> in_progress (fresh start, backend stamps startedAt)
+//   • rejected/changes_requested -> status untouched, just restarts the
+//     timer session (resume) — used by the new "Resume Task" button.
+// Idempotent: calling it again while already running is a no-op.
 export const startTask = async (taskId: string): Promise<RawTask> => {
-  const res = await api.put(`/tasks/${taskId}`, { status: "in_progress" });
+  const res = await api.post(`/tasks/${taskId}/start`, {});
   return res.data.data as RawTask;
 };
 
 // in_progress -> completed ("completed" = submitted, awaiting Super Admin review)
 export const submitTaskForReview = async (
   taskId: string,
-  deliveryNote: string,
-  startedAt?: string | null
+  deliveryNote: string
 ): Promise<RawTask> => {
   const res = await api.post(`/tasks/${taskId}/submit`, {
     deliveryState: "delivered",
     deliveryNote,
-    startedAt: startedAt ?? undefined,
   });
   return res.data.data as RawTask;
 };

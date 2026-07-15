@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   RawTask,
   TaskStatus,
@@ -89,12 +89,24 @@ export default function SMMTasksBoard({
   const [submitNote, setSubmitNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resubmitting, setResubmitting] = useState<string | null>(null);
+  const [starting, setStarting] = useState<string | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   const weekStartStr = weekStart.toISOString().split("T")[0];
   const monthStr = today.slice(0, 7);
+
+  // ── Live timer refresh — any task whose clock is currently running
+  // needs a re-render every 30s so the "time taken" label keeps ticking
+  // up in the UI, even though nothing changed server-side. ────────────
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const hasRunning = tasks.some((t) => !!t.currentSessionStartedAt);
+    if (!hasRunning) return;
+    const id = setInterval(() => forceTick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, [tasks]);
 
   const typeOptions = useMemo(
     () => Array.from(new Set(tasks.map((t) => t.taskType).filter(Boolean))),
@@ -157,6 +169,20 @@ export default function SMMTasksBoard({
       });
     } finally {
       setResubmitting(null);
+    }
+  };
+
+  // Used for BOTH "Start Task" (pending) and "Resume Task" (rejected /
+  // changes_requested) — the backend's /start endpoint decides what
+  // status transition (if any) is appropriate. After this resolves, the
+  // parent refetches, task.currentSessionStartedAt becomes non-null, and
+  // the button disappears on its own (see render logic below).
+  const handleStart = async (id: string) => {
+    setStarting(id);
+    try {
+      await onStartTask(id);
+    } finally {
+      setStarting(null);
     }
   };
 
@@ -293,7 +319,11 @@ export default function SMMTasksBoard({
                 const isExpanded = expandedId === task._id;
                 const needsAttentionBanner = task.status === "rejected" || task.status === "changes_requested";
                 const sColor = statusColor(task.status);
+                // ── UPDATED: total elapsed (startedAt -> deliveredAt), same
+                // number Super Admin panel shows. isRunning still comes from
+                // currentSessionStartedAt (drives Resume button hide + live tick).
                 const timeTaken = getTimeTakenLabel(task.startedAt, task.deliveredAt);
+                const isRunning = !!task.currentSessionStartedAt;
                 const open = openChanges(task);
 
                 return (
@@ -337,7 +367,7 @@ export default function SMMTasksBoard({
                     {timeTaken && (
                       <div style={{ fontSize: 12, color: "#64748b", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
                         ⏱ Time taken: <strong>{timeTaken}</strong>
-                        {!task.deliveredAt && task.status === "in_progress" && " (running)"}
+                        {isRunning && <span style={{ color: "#1d4ed8" }}>(running)</span>}
                       </div>
                     )}
 
@@ -414,20 +444,45 @@ export default function SMMTasksBoard({
 
                     <div className={styles.cardFooter}>
                       {task.status === "pending" && (
-                        <button className={styles.actionBtn} onClick={() => onStartTask(task._id)}>
-                          Start Task
+                        <button
+                          className={styles.actionBtn}
+                          onClick={() => handleStart(task._id)}
+                          disabled={starting === task._id}
+                        >
+                          {starting === task._id ? "Starting…" : "Start Task"}
                         </button>
                       )}
+
                       {task.status === "in_progress" && (
                         <button className={styles.actionBtn} onClick={() => openSubmitModal(task)}>
                           Submit for Review
                         </button>
                       )}
+
+                      {/* ── Resume Task — HIDES once the timer is running (isRunning),
+                          leaving only the status text. Reappears if somehow the
+                          session ends without a submit (shouldn't normally happen). ── */}
                       {(task.status === "rejected" || task.status === "changes_requested") && (
-                        <span className={styles.waitingTag}>
-                          {open.length > 0 ? "Reply to all notes above to resubmit" : "Ready to resubmit"}
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          {!isRunning && (
+                            <button
+                              className={styles.actionBtn}
+                              onClick={() => handleStart(task._id)}
+                              disabled={starting === task._id}
+                            >
+                              {starting === task._id ? "Resuming…" : "Resume Task"}
+                            </button>
+                          )}
+                          <span className={styles.waitingTag}>
+                            {open.length > 0
+                              ? "Reply to all notes above to resubmit"
+                              : isRunning
+                              ? "Timer running — resubmit when ready"
+                              : "Ready to resubmit"}
+                          </span>
+                        </div>
                       )}
+
                       {task.status === "completed" && (
                         <span className={styles.waitingTag}>Awaiting Super Admin review</span>
                       )}

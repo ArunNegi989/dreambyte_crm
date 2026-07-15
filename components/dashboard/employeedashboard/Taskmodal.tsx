@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Task, TaskChangeRequest, DeliveryState } from '../../../types/employee/task';
 import { getTimeTaken, getTotalChangeCount } from '../../../data/employee/taskTimeHelpers';
+import { startTask } from '../../../app/api/employeeApi';
 import StatusBadge from './StatusBadge';
 import DeliveryToggle from './DeliveryToggle';
 import SubtaskManager from '../../../app/dashboard/employeedashboard/SubtaskManager';
@@ -9,23 +10,17 @@ import styles from '../../../assets/styles/employeedashboard/TaskModal.module.cs
 interface TaskModalProps {
   task: Task;
   onClose: () => void;
-  onSubmitTask: (taskId: string, deliveryState: DeliveryState, remarks: string, startedAt: string) => void;
+  onSubmitTask: (taskId: string, deliveryState: DeliveryState, remarks: string) => void;
   onSubmitChangeResponses: (
     taskId: string,
     deliveryState: DeliveryState,
     remarks: string,
     responses: { id: string; response: string }[]
   ) => void;
+  onTimerChanged?: () => void; // called after Start or Resume so parent can refetch
 }
 
-function splitIsoToDateAndTime(iso: string | null): { date: string; time: string } {
-  if (!iso) return { date: '', time: '' };
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return { date: '', time: '' };
-  return { date: d.toISOString().slice(0, 10), time: d.toTimeString().slice(0, 5) };
-}
-
-const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onSubmitTask, onSubmitChangeResponses }) => {
+const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onSubmitTask, onSubmitChangeResponses, onTimerChanged }) => {
   if (!task || typeof task !== 'object') {
     return (
       <div className={styles.overlay} onClick={onClose}>
@@ -42,27 +37,70 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onSubmitTask, onSu
   const resolved = history.filter((c) => c.resolved);
   const hasUnresolved = unresolved.length > 0;
 
-  // Fresh-submission fields are only relevant when there's no open change
-  // request — once something is unresolved, the modal switches entirely
-  // into "reply to admin notes" mode and these are never shown/used.
   const [deliveryState, setDeliveryState] = useState<DeliveryState>(task.deliveryState ?? 'not_delivered');
   const [remarks, setRemarks] = useState(task.remarks ?? '');
-  const initialStarted = splitIsoToDateAndTime(task.startedAt ?? null);
-  const [startedDate, setStartedDate] = useState(initialStarted.date);
-  const [startedTime, setStartedTime] = useState(initialStarted.time);
 
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string[]>>(
     Object.fromEntries(unresolved.map((c) => [c.id, ['']]))
   );
 
+  const [starting, setStarting] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const [timerError, setTimerError] = useState('');
+
+  // Ticks every 30s so a running timer stays live while the modal is open.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!task.currentSessionStartedAt) return;
+    const id = setInterval(() => forceTick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, [task.currentSessionStartedAt]);
+
   const totalChanges = getTotalChangeCount(task);
   const timeTaken = getTimeTaken(task);
+  const isRunning = !!task.currentSessionStartedAt;
 
   const FINAL_STATUSES = ['completed', 'approved'];
   const isEditable = !FINAL_STATUSES.includes(task.status);
-  // Fresh-submission form (delivery/remarks/start time) only renders when
-  // the task is editable AND there is nothing currently unresolved.
-  const showFreshSubmissionForm = isEditable && !hasUnresolved;
+  const isRejectedOrChanges = task.status === 'rejected' || task.status === 'changes_requested';
+  const isNeverStarted = task.status === 'pending' && !task.startedAt;
+
+  // Fresh-submission form (delivery/remarks/submit) only renders once the
+  // task has actually been started AND there is nothing currently unresolved.
+  const showFreshSubmissionForm = isEditable && !hasUnresolved && !isNeverStarted;
+
+  // ── NEW: Start Task — hits the same generic /start endpoint every other
+  // dashboard uses. Stamps startedAt + currentSessionStartedAt on the
+  // backend and flips status pending -> in_progress. Only after this does
+  // the submit form appear — no more manually typing a start date/time.
+  const handleStart = async () => {
+    try {
+      setStarting(true);
+      setTimerError('');
+      await startTask(task.id);
+      onTimerChanged?.();
+      onClose();
+    } catch (err) {
+      setTimerError(err instanceof Error ? err.message : 'Failed to start task');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  // Rejected / changes_requested -> restarts the timer, status left as-is.
+  const handleResume = async () => {
+    try {
+      setResuming(true);
+      setTimerError('');
+      await startTask(task.id);
+      onTimerChanged?.();
+      onClose();
+    } catch (err) {
+      setTimerError(err instanceof Error ? err.message : 'Failed to resume task');
+    } finally {
+      setResuming(false);
+    }
+  };
 
   const handleAddReplyBox = (id: string) => {
     setReplyDrafts((prev) => ({ ...prev, [id]: [...(prev[id] || []), ''] }));
@@ -86,13 +124,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onSubmitTask, onSu
     (c) => (replyDrafts[c.id] || []).filter((r) => r.trim().length > 0).length > 0
   );
 
-  // Submit conditions differ by mode: fresh submission needs the full form
-  // filled in; replying to changes only needs every open note answered.
-  const canSubmitFresh =
-    deliveryState === 'delivered' &&
-    remarks.trim().length > 0 &&
-    startedDate.trim().length > 0 &&
-    startedTime.trim().length > 0;
+  // Submit conditions differ by mode: fresh submission just needs delivery
+  // marked + remarks; replying to changes only needs every open note answered.
+  const canSubmitFresh = deliveryState === 'delivered' && remarks.trim().length > 0;
 
   const submitDisabled = hasUnresolved ? !allUnresolvedHaveReplies : !canSubmitFresh;
 
@@ -102,11 +136,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onSubmitTask, onSu
         id: c.id,
         response: (replyDrafts[c.id] || []).filter((r) => r.trim().length > 0).join('\n'),
       }));
-      // No remarks/delivery/start time are sent on this path — those fields
-      // don't exist in this flow at all.
       onSubmitChangeResponses(task.id, task.deliveryState, '', payload);
     } else {
-      onSubmitTask(task.id, deliveryState, remarks, `${startedDate}T${startedTime}:00`);
+      onSubmitTask(task.id, deliveryState, remarks);
     }
   };
 
@@ -154,13 +186,43 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onSubmitTask, onSu
           {timeTaken && (
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Time taken</span>
-              <span className={styles.metaValue}>{timeTaken}</span>
+              <span className={styles.metaValue}>
+                {timeTaken}{isRunning ? ' (running)' : ''}
+              </span>
             </div>
           )}
         </div>
 
         <div style={{ marginTop: 16 }}>
         <SubtaskManager key={task.id} taskId={task.id} subtasks={task.subtasks} variant="full" />        </div>
+
+        {/* ── NEW: Start Task — shown only before work has ever begun.
+            No date/time inputs anymore; backend stamps startedAt the
+            moment this is clicked, same as every other dashboard. ── */}
+        {isNeverStarted && (
+          <div style={{ marginTop: 16 }}>
+            <button type="button" className={styles.primaryBtn} onClick={handleStart} disabled={starting}>
+              {starting ? 'Starting…' : 'Start Task'}
+            </button>
+            <p className={styles.submitHint}>Clicking this starts the work timer.</p>
+          </div>
+        )}
+
+        {/* ── Resume Task — shown when rejected/changes_requested and the
+            timer isn't already running. Restarts the clock; status stays
+            untouched so the rejection banner + change log below keep
+            showing until the employee actually replies and resubmits. ── */}
+        {isRejectedOrChanges && !isRunning && (
+          <div style={{ marginTop: 16 }}>
+            <button type="button" className={styles.primaryBtn} onClick={handleResume} disabled={resuming}>
+              {resuming ? 'Resuming…' : 'Resume Task'}
+            </button>
+          </div>
+        )}
+
+        {timerError && (
+          <p style={{ color: '#a32d2d', fontSize: 12.5, marginTop: 6 }}>{timerError}</p>
+        )}
 
         {history.length > 0 && (
           <div className={styles.changesSection}>
@@ -203,15 +265,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onSubmitTask, onSu
 
         {showFreshSubmissionForm && (
           <div className={styles.deliverySection}>
-            <h3 className={styles.sectionHeading}>When did you start this task?</h3>
-            <div className={styles.dateTimeRow}>
-              <input type="date" className={styles.dateInput} value={startedDate}
-                onChange={(e) => setStartedDate(e.target.value)} aria-label="Start date" />
-              <input type="time" className={styles.dateInput} value={startedTime}
-                onChange={(e) => setStartedTime(e.target.value)} aria-label="Start time" />
-            </div>
-
-            <h3 className={styles.sectionHeading} style={{ marginTop: 16 }}>Delivery status</h3>
+            <h3 className={styles.sectionHeading}>Delivery status</h3>
             <DeliveryToggle value={deliveryState} onChange={setDeliveryState} />
 
             <h3 className={styles.sectionHeading} style={{ marginTop: 16 }}>Remarks</h3>
@@ -228,7 +282,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ task, onClose, onSubmitTask, onSu
             </button>
             {!canSubmitFresh && (
               <p className={styles.submitHint}>
-                Add a start date and time, mark as delivered, and add remarks to submit.
+                Mark as delivered and add remarks to submit.
               </p>
             )}
           </div>

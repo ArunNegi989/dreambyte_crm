@@ -1,4 +1,4 @@
-export type TaskStatus = 'pending' | 'changes_requested' | 'completed' | 'approved' | 'rejected';
+export type TaskStatus = 'pending' | 'in_progress' | 'changes_requested' | 'completed' | 'approved' | 'rejected';
 
 export type DeliveryState = 'not_delivered' | 'delivered';
 
@@ -8,6 +8,12 @@ export interface TaskChangeRequest {
   employeeResponse: string;
   requestedAt: string;
   resolved: boolean;
+}
+
+export interface Subtask {
+  id: string;
+  title: string;
+  status: 'pending' | 'completed';
 }
 
 export interface Task {
@@ -22,8 +28,7 @@ export interface Task {
   dueDate: string;
   assignedAt: string;
   submittedAt: string | null;
-  // inside Task interface:
-subtasks: Subtask[];
+  subtasks: Subtask[];
   // Employee-entered: when they say they actually started working on the task.
   // Filled in by the employee at submit time (not auto-captured).
   // Never overwritten on reject→fix→resubmit cycles — always original start.
@@ -36,6 +41,9 @@ subtasks: Subtask[];
   // Set separately once the admin/client signs off. Independent of completedAt.
   approvedAt: string | null;
   changeRequests: TaskChangeRequest[];
+  // ── NEW: pause/resume timer (same fields as Designer/SMM/Meta/SEO dashboards) ──
+  timeSpentMs: number;
+  currentSessionStartedAt: string | null;
 }
 
 export interface EmployeeTaskStats {
@@ -58,10 +66,3 @@ export interface DashboardStats {
   thisWeek: PeriodStats;
   thisMonth: PeriodStats;
 }
-
-export interface Subtask {
-  id: string;
-  title: string;
-  status: 'pending' | 'completed';
-}
-

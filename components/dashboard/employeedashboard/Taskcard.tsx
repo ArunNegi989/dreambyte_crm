@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Task } from '../../../types/employee/task';
 import { getTimeTaken, getTotalChangeCount } from '../../../data/employee/taskTimeHelpers';
 import StatusBadge from './StatusBadge';
@@ -12,6 +12,17 @@ interface TaskCardProps {
 const TaskCard: React.FC<TaskCardProps> = ({ task, onOpen }) => {
   const totalChanges = getTotalChangeCount(task);
   const isDelivered = task.deliveryState === 'delivered';
+  const isRunning = !!task.currentSessionStartedAt;
+
+  // Ticks every 30s so a running timer keeps updating on the card even
+  // without opening the modal — same pattern as every other dashboard.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!isRunning) return;
+    const id = setInterval(() => forceTick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, [isRunning]);
+
   const timeTaken = getTimeTaken(task);
 
   return (
@@ -43,6 +54,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onOpen }) => {
                 <path d="M12 7v5l3 3" />
               </svg>
               {timeTaken}
+              {isRunning && <span style={{ marginLeft: 4, color: '#1d4ed8' }}>●</span>}
             </span>
           )}
           <span className={`${styles.deliveryTag} ${isDelivered ? styles.delivered : styles.notDelivered}`}>

@@ -20,6 +20,12 @@ export interface BackendTask {
   startedAt: string | null;
   // deliveredAt: updated on every submit/resubmit — used for time-taken calc
   deliveredAt: string | null;
+  // ── NEW: pause/resume timer fields — same as every other dashboard ─────
+  // timeSpentMs: cumulative worked time banked across every completed
+  // start/resume session. currentSessionStartedAt: set only while the
+  // clock is actively running (after Start/Resume, before next Submit).
+  timeSpentMs?: number;
+  currentSessionStartedAt?: string | null;
   rejectRemark: string;
   changes: {
     _id: string;
@@ -101,7 +107,8 @@ export function normalizeTask(raw: BackendTask): Task {
     // startedAt: map directly from backend — set once on first submission,
     // never overwritten. Was hardcoded null before, that's why time was missing.
     startedAt:   raw.startedAt || null,
-    // deliveredAt: updated on every resubmit — getTimeTaken uses this
+    // deliveredAt: updated on every resubmit — kept for display/history only,
+    // getTimeTaken() below now uses timeSpentMs/currentSessionStartedAt instead.
     deliveredAt: raw.deliveredAt || null,
 
     completedAt: null,
@@ -111,6 +118,10 @@ export function normalizeTask(raw: BackendTask): Task {
         : null,
     changeRequests,
     subtasks,
+
+    // ── NEW: pause/resume timer ──────────────────────────────────────────
+    timeSpentMs: raw.timeSpentMs || 0,
+    currentSessionStartedAt: raw.currentSessionStartedAt || null,
   };
 }
 

@@ -1,17 +1,4 @@
 // ── SMM (Social Media Manager) Dashboard: Types + Helpers ──────────────────
-// No mock data anywhere. Everything comes from the SAME backend Task model
-// your Super Admin dashboard already uses (via app/api/smmApi.ts).
-//
-// The dashboard splits the one Task collection into two views:
-//   1. "General tasks"  → taskType is anything OTHER than post/video/story
-//                          (scripting, ugc, references, pitch_deck, ...)
-//   2. "Posting entries" → taskType is "post" | "video" | "story"
-//                          (shown in the brand-by-brand Posting Tracker)
-//
-// If your department's "Work Type" dropdown (SATasks → departmentTasks.ts)
-// uses different labels for post/video/story content, just update
-// CONTENT_TYPE_KEYS below to match.
-
 export type TaskType = string;
 export type ContentType = "post" | "video" | "story";
 export type Frequency = "weekly" | "monthly" | "one_time";
@@ -19,8 +6,8 @@ export type Frequency = "weekly" | "monthly" | "one_time";
 export type TaskStatus =
   | "pending"
   | "in_progress"
-  | "completed" // employee submitted — awaiting Super Admin review
-  | "approved" // Super Admin approved
+  | "completed"
+  | "approved"
   | "rejected"
   | "changes_requested";
 
@@ -40,7 +27,6 @@ export interface BrandRef {
   name: string;
 }
 
-// One shape for every backend Task document.
 export interface RawTask {
   _id: string;
   title: string;
@@ -48,13 +34,18 @@ export interface RawTask {
   brandId?: string | BrandRef | null;
   taskType: TaskType;
   frequency: Frequency;
-  dueDate: string; // used as "the date" for posting entries too
+  dueDate: string;
   status: TaskStatus;
   assignedBy: "admin" | "super_admin";
   deliveryStatus: DeliveryStatus;
   deliveryNote?: string;
   startedAt?: string | null;
   deliveredAt?: string | null;
+  // Still needed to know whether the timer is currently running (drives
+  // the Resume button's hide/show + the "(running)" live-tick label) —
+  // NOT used for the displayed number anymore, that's back to total elapsed.
+  timeSpentMs?: number;
+  currentSessionStartedAt?: string | null;
   rejectRemark?: string;
   changes: ChangeLogEntry[];
   createdAt: string;
@@ -73,13 +64,11 @@ export interface AdditionalWork {
   updatedAt: string;
 }
 
-// ── Which taskType values route into the Posting Tracker ───────────────────
 export const CONTENT_TYPE_KEYS: ContentType[] = ["post", "video", "story"];
 
 export const isPostingEntry = (t: RawTask) =>
   CONTENT_TYPE_KEYS.includes((t.taskType || "").toLowerCase() as ContentType);
 
-// ── Presentation metadata ──────────────────────────────────────────────────
 export const TASK_TYPE_META: Record<string, { label: string; bg: string; color: string }> = {
   scripting: { label: "Scripting", bg: "#ecfeff", color: "#0e7490" },
   ugc: { label: "UGC", bg: "#fdf4ff", color: "#a21caf" },
@@ -104,7 +93,6 @@ export const FREQUENCY_META: Record<Frequency, { label: string; bg: string; colo
   one_time: { label: "One Time", bg: "#f0fdf4", color: "#15803d" },
 };
 
-// ── Helpers ──────────────────────────────────────────────────────────────
 export const todayStr = () => new Date().toISOString().split("T")[0];
 
 export const getBrandName = (brandId?: string | BrandRef | null) => {
@@ -113,8 +101,6 @@ export const getBrandName = (brandId?: string | BrandRef | null) => {
   return "—";
 };
 
-// Deterministic color per brand name — so any brand the Super Admin creates
-// gets a consistent color without needing a manual color map.
 const PALETTE = ["#f59e0b", "#6366f1", "#ec4899", "#10b981", "#0ea5e9", "#a855f7", "#ef4444", "#14b8a6"];
 export const colorForBrand = (name: string) => {
   let hash = 0;
@@ -122,6 +108,11 @@ export const colorForBrand = (name: string) => {
   return PALETTE[hash % PALETTE.length];
 };
 
+// ── UPDATED: back to TOTAL ELAPSED time (startedAt -> deliveredAt), same
+// number the Super Admin panel shows. If the task hasn't been delivered
+// yet but is currently running, "end" is treated as now, so it keeps
+// ticking live while work is in progress — and freezes the instant
+// Submit is called (deliveredAt gets stamped).
 export const getTimeTakenLabel = (
   startedAt?: string | null,
   deliveredAt?: string | null
@@ -129,14 +120,16 @@ export const getTimeTakenLabel = (
   if (!startedAt) return null;
   const start = new Date(startedAt).getTime();
   const end = deliveredAt ? new Date(deliveredAt).getTime() : Date.now();
-  let diffMs = end - start;
-  if (diffMs < 0) diffMs = 0;
+  const diffMs = end - start;
+  if (diffMs <= 0) return null;
 
-  const mins = Math.floor(diffMs / 60000);
-  const hrs = Math.floor(mins / 60);
-  const days = Math.floor(hrs / 24);
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const days = Math.floor(hours / 24);
+  const minutes = totalMinutes % 60;
 
-  if (days > 0) return `${days}d ${hrs % 24}h`;
-  if (hrs > 0) return `${hrs}h ${mins % 60}m`;
-  return `${mins}m`;
+  if (days > 0) return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return "<1m";
 };

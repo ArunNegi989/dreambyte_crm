@@ -9,12 +9,12 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   return {
     overall: {
       totalAssigned: data.overall.totalAssigned,
-      pending: data.overall.pending,
       // Backend returns key as 'changes_requested', frontend uses 'changesRequested'
       changesRequested: data.overall.changes_requested,
       completed: data.overall.completed,
       approved: data.overall.approved,
       notDelivered: data.overall.notDelivered,
+      pending: data.overall.pending,
     },
     today: data.today,
     thisWeek: data.thisWeek,
@@ -84,13 +84,30 @@ export async function getTaskById(id: string): Promise<Task> {
   return normalizeTask(data.data);
 }
 
+// ── Start / Resume ─────────────────────────────────────────────────────────
+// Route: POST /api/employee/tasks/:id/start
+// pending -> in_progress (fresh start, clicked from "Start Task" button) OR
+// rejected/changes_requested -> status untouched, timer restarts ("Resume
+// Task" button). Same generic /start endpoint every other dashboard uses.
+export async function startTask(taskId: string): Promise<Task> {
+  const data = await apiFetch<{ success: boolean; data: BackendTask }>(
+    `/employee/tasks/${taskId}/start`,
+    { method: 'POST', body: {} }
+  );
+  return normalizeTask(data.data);
+}
+
 // Route: POST /api/employee/tasks/:id/submit
+// ── UPDATED: startedAt no longer sent — the employee never types a start
+// date/time manually anymore. Backend already stamped startedAt on the
+// task the moment "Start Task" was clicked (via startTask() above), so
+// there's nothing left for the frontend to pass here except the delivery
+// state and remarks.
 export async function submitTask(
   taskId: string,
   payload: {
     deliveryState: DeliveryState;
     remarks: string;
-    startedAt: string;
   }
 ): Promise<Task> {
   const data = await apiFetch<{ success: boolean; data: BackendTask }>(
@@ -98,10 +115,8 @@ export async function submitTask(
     {
       method: 'POST',
       body: {
-        // Map frontend names → backend field names
         deliveryState: payload.deliveryState,
-        deliveryNote: payload.remarks,   // backend expects deliveryNote
-        startedAt: payload.startedAt,
+        deliveryNote: payload.remarks,
       },
     }
   );

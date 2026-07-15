@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   RawTask,
   ContentType,
@@ -69,12 +69,19 @@ export default function PostingBoard({
   const [submitNote, setSubmitNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resubmitting, setResubmitting] = useState<string | null>(null);
+  const [starting, setStarting] = useState<string | null>(null);
+
+  // ── Live timer refresh — same pattern as Smmtasksboard ──────────────
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const hasRunning = entries.some((e) => !!e.currentSessionStartedAt);
+    if (!hasRunning) return;
+    const id = setInterval(() => forceTick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, [entries]);
 
   const dayEntries = useMemo(() => entries.filter((e) => e.dueDate === selectedDate), [entries, selectedDate]);
 
-  // Prefer the real brand list from the backend (/brands) so every brand's
-  // coverage shows even with nothing scheduled today. Fall back to whatever
-  // brand names show up in the entries themselves if that fetch is empty.
   const brandList = useMemo(() => {
     if (brands.length > 0) return brands.map((b) => ({ name: b.name, color: colorForBrand(b.name) }));
     const names = Array.from(new Set(entries.map((e) => getBrandName(e.brandId)).filter((n) => n !== "—")));
@@ -117,6 +124,15 @@ export default function PostingBoard({
       });
     } finally {
       setResubmitting(null);
+    }
+  };
+
+  const handleStart = async (id: string) => {
+    setStarting(id);
+    try {
+      await onStartTask(id);
+    } finally {
+      setStarting(null);
     }
   };
 
@@ -182,7 +198,6 @@ export default function PostingBoard({
         </div>
       </div>
 
-      {/* ── Coverage summary strip ── */}
       <div className={styles.summaryStrip}>
         <div className={styles.summaryItem}>
           <span className={styles.summaryValue}>
@@ -199,7 +214,6 @@ export default function PostingBoard({
         </div>
       </div>
 
-      {/* ── Brand coverage grid ── */}
       {brandList.length === 0 ? (
         <div className={styles.summaryStrip} style={{ justifyContent: "center", color: "#64748b" }}>
           No brands found yet — ask your Super Admin to add one.
@@ -235,7 +249,9 @@ export default function PostingBoard({
                     const needsAttention = entry.status === "rejected" || entry.status === "changes_requested";
                     const sColor = statusColor(entry.status);
                     const open = openChanges(entry);
+                    // ── UPDATED: total elapsed (startedAt -> deliveredAt) ──
                     const timeTaken = getTimeTakenLabel(entry.startedAt, entry.deliveredAt);
+                    const isRunning = !!entry.currentSessionStartedAt;
 
                     return (
                       <div
@@ -260,7 +276,7 @@ export default function PostingBoard({
                         {timeTaken && (
                           <div style={{ fontSize: 11, color: "#64748b", margin: "2px 0" }}>
                             ⏱ {timeTaken}
-                            {!entry.deliveredAt && entry.status === "in_progress" && " (running)"}
+                            {isRunning && <span style={{ color: "#1d4ed8" }}> (running)</span>}
                           </div>
                         )}
 
@@ -330,8 +346,12 @@ export default function PostingBoard({
 
                         <div className={styles.slotFooter}>
                           {entry.status === "pending" && (
-                            <button className={styles.actionBtn} onClick={() => onStartTask(entry._id)}>
-                              Start
+                            <button
+                              className={styles.actionBtn}
+                              onClick={() => handleStart(entry._id)}
+                              disabled={starting === entry._id}
+                            >
+                              {starting === entry._id ? "Starting…" : "Start"}
                             </button>
                           )}
                           {entry.status === "in_progress" && (
@@ -339,10 +359,26 @@ export default function PostingBoard({
                               Mark Posted
                             </button>
                           )}
+                          {/* ── Resume — hides once isRunning is true ── */}
                           {(entry.status === "rejected" || entry.status === "changes_requested") && (
-                            <span className={styles.waitingTag}>
-                              {open.length > 0 ? "Reply to resubmit" : "Ready to repost"}
-                            </span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              {!isRunning && (
+                                <button
+                                  className={styles.actionBtn}
+                                  onClick={() => handleStart(entry._id)}
+                                  disabled={starting === entry._id}
+                                >
+                                  {starting === entry._id ? "Resuming…" : "Resume"}
+                                </button>
+                              )}
+                              <span className={styles.waitingTag}>
+                                {open.length > 0
+                                  ? "Reply to resubmit"
+                                  : isRunning
+                                  ? "Timer running — resubmit when ready"
+                                  : "Ready to repost"}
+                              </span>
+                            </div>
                           )}
                           {entry.status === "completed" && (
                             <span className={styles.waitingTag}>Awaiting review</span>
@@ -359,7 +395,6 @@ export default function PostingBoard({
         </div>
       )}
 
-      {/* ── Mark Posted modal ── */}
       {submitModal && (
         <div
           style={{
