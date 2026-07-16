@@ -21,7 +21,8 @@ import {
   mapToEditTask,
   mapToAdditionalWork,
   fetchMyTasks,
-  updateTaskStatus,
+  startOrResumeTask,
+  submitTaskForReview,
   updateEditProgress,
   respondToRejection,
   fetchMyAdditionalWork,
@@ -34,7 +35,6 @@ import { logout } from "@/app/api/authApi";
 
 const PAGE_SIZE = 10;
 
-// ── Date helpers for the Overview date navigator ───────────────────────────
 const shiftDate = (dateStr: string, days: number) => {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
@@ -54,7 +54,6 @@ const overviewDateLabel = (dateStr: string) => {
   });
 };
 
-// ── Pagination helpers (inlined — no shared util file) ──────────────────
 function paginateList<T>(items: T[], page: number, pageSize = PAGE_SIZE) {
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
@@ -118,12 +117,11 @@ function Pagination({
 }
 
 export default function PhotographerDashboard() {
-  useAuthGuard(['employee', 'admin', 'super_admin'], ['photography']); // ⚠️ confirm matches DB value
+  useAuthGuard(['employee', 'admin', 'super_admin'], ['photography']);
   const router = useRouter();
   const [activeSection, setActiveSectionState] = useState<PhotoSection>("overview");
   const [loggingOut, setLoggingOut] = useState(false);
 
-  // ── Persist active tab across refresh ──────────────────────────────────
   const validSections: PhotoSection[] = ["overview", "shoots", "edits", "additional"];
   const setActiveSection = (s: PhotoSection) => {
     setActiveSectionState(s);
@@ -143,11 +141,8 @@ export default function PhotographerDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Overview date filter — lets the photographer browse previous days'
-  // shoots/edits instead of only ever seeing today's. Defaults to today. ──
   const [overviewDate, setOverviewDate] = useState<string>(TODAY);
 
-  // ── Current logged-in photographer's id ────────────────────────────────
   const [employeeId, setEmployeeId] = useState<string>("");
   useEffect(() => {
     try {
@@ -161,7 +156,6 @@ export default function PhotographerDashboard() {
     }
   }, []);
 
-  // ── Logout handler ──────────────────────────────────────────────────────
   const handleLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -172,13 +166,11 @@ export default function PhotographerDashboard() {
     }
   };
 
-  // ── Real backend data ───────────────────────────────────────────────────
   const [rawTasks, setRawTasks] = useState<RawTask[]>([]);
   const [additionalWork, setAdditionalWork] = useState<AdditionalWork[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Pagination state — one page number per list, keyed by list name ────
   const [pageMap, setPageMap] = useState<Record<string, number>>({});
   const getPage = (key: string) => pageMap[key] || 1;
   const setPage = (key: string, p: number) => setPageMap((prev) => ({ ...prev, [key]: p }));
@@ -206,12 +198,24 @@ export default function PhotographerDashboard() {
     loadAll();
   }, [loadAll]);
 
-  // Reset pagination whenever the underlying data (or overview date) changes shape.
   useEffect(() => {
     setPageMap({});
   }, [rawTasks.length, additionalWork.length, overviewDate]);
 
-  // ── Derived view-shapes ──────────────────────────────────────────────────
+  // ── Live timer refresh — any task whose clock is currently running
+  // needs a re-render every 30s so "time taken" keeps ticking up in the
+  // UI even though nothing changed server-side. ───────────────────────
+  useEffect(() => {
+    const hasRunningTimer = rawTasks.some((t) => !!t.currentSessionStartedAt);
+    if (!hasRunningTimer) return;
+
+    const interval = setInterval(() => {
+      setRawTasks((prev) => [...prev]);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [rawTasks]);
+
   const shoots: Shoot[] = useMemo(
     () => rawTasks.filter(isShootTask).map(mapToShoot),
     [rawTasks]
@@ -221,13 +225,26 @@ export default function PhotographerDashboard() {
     [rawTasks]
   );
 
-  // ── Handlers — every action hits the real backend, then refetches ──────
-  const handleShootStatusChange = async (id: string, status: WorkStatus) => {
+  // ── Start / Resume — same generic endpoint used for both a fresh
+  // "Start" (pending -> in_progress) and a rejected task's "Resume Task"
+  // (status untouched, timer just restarts). ──────────────────────────
+  const handleStart = async (id: string) => {
     try {
-      await updateTaskStatus(id, status);
+      await startOrResumeTask(id);
       await loadAll();
     } catch (err) {
-      console.error("Shoot status update failed", err);
+      console.error("Start/resume failed", err);
+    }
+  };
+
+  // ── Submit for review — employee writes a note, backend stops the
+  // clock and flips status to "completed" (awaiting admin review). ───
+  const handleSubmit = async (id: string, note: string) => {
+    try {
+      await submitTaskForReview(id, note);
+      await loadAll();
+    } catch (err) {
+      console.error("Submit for review failed", err);
     }
   };
 
@@ -240,9 +257,6 @@ export default function PhotographerDashboard() {
     }
   };
 
-  // Employee replies to a rejection note and resubmits — closes the open
-  // change entry (marks resolved + attaches the response) and flips the
-  // task back to completed/delivered on the backend.
   const handleResubmit = async (id: string, changeId: string, responseText: string) => {
     try {
       await respondToRejection(id, changeId, responseText);
@@ -270,14 +284,9 @@ export default function PhotographerDashboard() {
     }
   };
 
-  // ── Derived stats — now based on the selected overview date, not just
-  // a hardcoded "today", so switching the date navigator updates
-  // everything on the Overview tab (stats cards + the two boards). ──────
   const overviewShoots = shoots.filter((s) => s.date === overviewDate);
   const overviewEdits = edits.filter((e) => e.date === overviewDate || e.deadline === overviewDate);
 
-  // "approved" counts as done too, same as "completed" — an admin-approved
-  // shoot/edit shouldn't still show up as pending on the overview.
   const isDone = (status: WorkStatus) => status === "completed" || status === "approved";
 
   const overviewShootsCompleted = overviewShoots.filter((s) => isDone(s.status)).length;
@@ -287,7 +296,6 @@ export default function PhotographerDashboard() {
   const pendingEdits = edits.filter((e) => !isDone(e.status)).length;
   const additionalPending = additionalWork.filter((w) => w.status !== "completed").length;
 
-  // ── Paginated slices ─────────────────────────────────────────────────────
   const overviewShootsPage = paginateList(overviewShoots, getPage("overviewShoots"));
   const overviewEditsPage = paginateList(overviewEdits, getPage("overviewEdits"));
   const shootsPage = paginateList(shoots, getPage("shoots"));
@@ -320,8 +328,6 @@ export default function PhotographerDashboard() {
             <p className={styles.pageSub}>{sectionMeta[activeSection].sub}</p>
           </div>
           <div className={styles.topBarRight}>
-            {/* ── Date navigator — only meaningful on the Overview tab, but
-                always visible next to the date chip so it's easy to find. ── */}
             {activeSection === "overview" && (
               <div
                 style={{
@@ -503,7 +509,8 @@ export default function PhotographerDashboard() {
                     <div>
                       <ShootsBoard
                         shoots={overviewShootsPage.pageItems}
-                        onStatusChange={handleShootStatusChange}
+                        onStart={handleStart}
+                        onSubmit={handleSubmit}
                         onResubmit={handleResubmit}
                       />
                       <Pagination
@@ -517,7 +524,9 @@ export default function PhotographerDashboard() {
                     <div>
                       <EditsBoard
                         edits={overviewEditsPage.pageItems}
+                        onStart={handleStart}
                         onProgressChange={handleEditProgressChange}
+                        onSubmit={handleSubmit}
                         onResubmit={handleResubmit}
                       />
                       <Pagination
@@ -534,7 +543,12 @@ export default function PhotographerDashboard() {
 
               {activeSection === "shoots" && (
                 <>
-                  <ShootsBoard shoots={shootsPage.pageItems} onStatusChange={handleShootStatusChange} onResubmit={handleResubmit} />
+                  <ShootsBoard
+                    shoots={shootsPage.pageItems}
+                    onStart={handleStart}
+                    onSubmit={handleSubmit}
+                    onResubmit={handleResubmit}
+                  />
                   <Pagination
                     page={shootsPage.safePage}
                     totalPages={shootsPage.totalPages}
@@ -547,7 +561,13 @@ export default function PhotographerDashboard() {
 
               {activeSection === "edits" && (
                 <>
-                  <EditsBoard edits={editsPage.pageItems} onProgressChange={handleEditProgressChange} onResubmit={handleResubmit} />
+                  <EditsBoard
+                    edits={editsPage.pageItems}
+                    onStart={handleStart}
+                    onProgressChange={handleEditProgressChange}
+                    onSubmit={handleSubmit}
+                    onResubmit={handleResubmit}
+                  />
                   <Pagination
                     page={editsPage.safePage}
                     totalPages={editsPage.totalPages}

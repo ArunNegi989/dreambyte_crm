@@ -1,26 +1,42 @@
 "use client";
 
-import { useState } from "react";
-import { EditTask, WorkStatus } from "@/types/photography/Photo";
+import { useEffect, useState } from "react";
+import { EditTask, WorkStatus, getTimeTakenLabel } from "@/types/photography/Photo";
 import styles from "@/public/assets/styles/dashboard/photographer-dashboard/Editsboard.module.css";
 
 interface EditsBoardProps {
   edits: EditTask[];
+  onStart: (id: string) => Promise<void> | void;
   onProgressChange: (id: string, completedCount: number) => void;
+  onSubmit: (id: string, note: string) => Promise<void> | void;
   onResubmit: (id: string, changeId: string, responseText: string) => void;
 }
 
 const statusLabel = (s: WorkStatus) => {
   if (s === "in_progress") return "In Progress";
   if (s === "approved") return "Approved";
+  if (s === "completed") return "Submitted — In Review";
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
-export default function EditsBoard({ edits, onProgressChange, onResubmit }: EditsBoardProps) {
+export default function EditsBoard({ edits, onStart, onProgressChange, onSubmit, onResubmit }: EditsBoardProps) {
   const [filter, setFilter] = useState<"all" | WorkStatus>("all");
   const [mediaFilter, setMediaFilter] = useState<"all" | "photo" | "video">("all");
   const [resubmitText, setResubmitText] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [starting, setStarting] = useState<string | null>(null);
+  const [submitModal, setSubmitModal] = useState<EditTask | null>(null);
+  const [submitNote, setSubmitNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // ── Live timer refresh ──────────────────────────────────────────────
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const hasRunning = edits.some((e) => !!e.currentSessionStartedAt);
+    if (!hasRunning) return;
+    const id = setInterval(() => forceTick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, [edits]);
 
   const filtered = edits.filter((e) => {
     const statusOk = filter === "all" || e.status === filter;
@@ -44,6 +60,32 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
     if (!text || !task.openChange) return;
     onResubmit(task.id, task.openChange.id, text);
     setResubmitText((prev) => ({ ...prev, [task.id]: "" }));
+  };
+
+  const handleStartClick = async (id: string) => {
+    setStarting(id);
+    try {
+      await onStart(id);
+    } finally {
+      setStarting(null);
+    }
+  };
+
+  const openSubmitModal = (task: EditTask) => {
+    setSubmitModal(task);
+    setSubmitNote("");
+  };
+
+  const confirmSubmit = async () => {
+    if (!submitModal) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(submitModal.id, submitNote.trim());
+      setSubmitModal(null);
+      setSubmitNote("");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const rejectedColors = { background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" };
@@ -95,6 +137,8 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
             const isRejected = task.status === "rejected";
             const isApproved = task.status === "approved";
             const needsCustomColor = isRejected || isApproved;
+            const timeTaken = getTimeTakenLabel(task.startedAt, task.deliveredAt);
+            const isRunning = !!task.currentSessionStartedAt;
 
             return (
               <div
@@ -140,7 +184,6 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
                   <span className={styles.brandName}>{task.brand}</span>
                 </div>
 
-                {/* Progress */}
                 <div className={styles.progressWrap}>
                   <div className={styles.progressBarBg}>
                     <div
@@ -173,7 +216,13 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
                   <span className={styles.assignedBy}>by {task.assignedBy}</span>
                 </div>
 
-                {/* ── Change history (all past rejections + resubmit responses) ── */}
+                {timeTaken && (
+                  <div style={{ fontSize: 12, color: "#64748b", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                    ⏱ Time taken: <strong>{timeTaken}</strong>
+                    {isRunning && <span style={{ color: "#1d4ed8" }}>(running)</span>}
+                  </div>
+                )}
+
                 {task.changes.length > 0 && (
                   <div style={{ marginTop: "10px" }}>
                     <button
@@ -299,12 +348,24 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
                   </div>
                 )}
 
-                {/* Footer: rejected -> hidden (resubmit box above covers it).
-                    approved -> finalized badge, no action needed.
-                    everything else -> normal stepper/mark-done actions. */}
-                {!isRejected && !isApproved && (
+                {/* ── Footer: pending -> Start; in_progress -> stepper +
+                    Submit for Review; rejected -> Resume; approved -> badge. */}
+                {task.status === "pending" && (
                   <div className={styles.cardFooter}>
-                    {task.mediaType === "photo" && task.totalCount > 1 && task.status !== "completed" ? (
+                    <span />
+                    <button
+                      className={styles.markDoneBtn}
+                      onClick={() => handleStartClick(task.id)}
+                      disabled={starting === task.id}
+                    >
+                      {starting === task.id ? "Starting…" : "Start Editing"}
+                    </button>
+                  </div>
+                )}
+
+                {task.status === "in_progress" && (
+                  <div className={styles.cardFooter}>
+                    {task.mediaType === "photo" && task.totalCount > 1 ? (
                       <div className={styles.stepper}>
                         <button className={styles.stepBtn} onClick={() => bump(task, -1)} disabled={task.completedCount === 0}>
                           −
@@ -317,16 +378,37 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
                     ) : (
                       <span />
                     )}
+                    <button className={styles.markDoneBtn} onClick={() => openSubmitModal(task)}>
+                      Submit for Review
+                    </button>
+                  </div>
+                )}
 
-                    {task.status !== "completed" ? (
+                {task.status === "completed" && (
+                  <div className={styles.cardFooter}>
+                    <span className={styles.assignedBy}>by {task.assignedBy}</span>
+                    <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#a16207" }}>
+                      Awaiting Super Admin review
+                    </span>
+                  </div>
+                )}
+
+                {isRejected && (
+                  <div className={styles.cardFooter} style={{ flexWrap: "wrap", gap: 8 }}>
+                    <span className={styles.assignedBy}>by {task.assignedBy}</span>
+                    {!isRunning && (
                       <button
                         className={styles.markDoneBtn}
-                        onClick={() => onProgressChange(task.id, task.totalCount)}
+                        onClick={() => handleStartClick(task.id)}
+                        disabled={starting === task.id}
                       >
-                        Mark All Done
+                        {starting === task.id ? "Resuming…" : "Resume Task"}
                       </button>
-                    ) : (
-                      <span className={styles.doneTag}>✓ Edited</span>
+                    )}
+                    {isRunning && (
+                      <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#1d4ed8" }}>
+                        Timer running — resubmit when ready
+                      </span>
                     )}
                   </div>
                 )}
@@ -342,6 +424,75 @@ export default function EditsBoard({ edits, onProgressChange, onResubmit }: Edit
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Submit for Review modal ── */}
+      {submitModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+          }}
+          onClick={() => !submitting && setSubmitModal(null)}
+        >
+          <div
+            style={{ background: "#fff", borderRadius: 12, padding: 24, width: 420, maxWidth: "90vw" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, marginBottom: 4 }}>Submit for Review</h3>
+            <p style={{ margin: 0, marginBottom: 12, color: "#64748b", fontSize: 13 }}>{submitModal.title}</p>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Note for the reviewer</label>
+            <textarea
+              rows={4}
+              value={submitNote}
+              onChange={(e) => setSubmitNote(e.target.value)}
+              placeholder="Any notes about the edit, links to files, etc…"
+              style={{
+                width: "100%",
+                marginTop: 4,
+                marginBottom: 16,
+                padding: 8,
+                borderRadius: 8,
+                border: "1px solid #e2e8f0",
+                fontFamily: "inherit",
+              }}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                onClick={() => setSubmitModal(null)}
+                disabled={submitting}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid #e2e8f0",
+                  background: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSubmit}
+                disabled={submitting}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#4338ca",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                {submitting ? "Submitting…" : "Submit"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

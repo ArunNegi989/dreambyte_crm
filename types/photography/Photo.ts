@@ -1,19 +1,9 @@
 // ── Photographer Dashboard: Real Backend-Driven Types ──────────────────────
-// Photography tasks are just regular Task documents with `taskType` set to
-// "Shoots", "Photo Edit", or "Video Edit" (see data/departmentTasks.ts).
-
 import api from "@/lib/api";
 
-// ── FIX: "approved" is now its own state, distinct from "completed" ────────
-// "completed" = the photographer submitted/delivered the work.
-// "approved"  = an admin/super admin reviewed it and confirmed it's good.
-// Keeping these separate means the photographer can actually SEE the
-// difference on the card ("✓ Delivered" vs "✓ Approved by Admin") instead
-// of both looking identical.
 export type WorkStatus = "pending" | "in_progress" | "completed" | "approved" | "rejected";
 export type MediaType = "photo" | "video" | "both";
 
-// ── Raw shape as it comes back from the backend (populated Task document) ──
 export interface RawTaskChange {
   _id: string;
   changedBy: string;
@@ -43,6 +33,11 @@ export interface RawTask {
   updatedAt?: string;
   rejectRemark?: string;
   changes?: RawTaskChange[];
+  // ── Time tracking ──────────────────────────────────────────────────────
+  startedAt?: string | null;
+  deliveredAt?: string | null;
+  timeSpentMs?: number;
+  currentSessionStartedAt?: string | null;
 }
 
 export interface RawAdditionalWork {
@@ -79,6 +74,11 @@ export interface Shoot {
   rejectRemark?: string;
   openChange?: TaskChangeNote;
   changes: TaskChangeNote[];
+  // ── Time tracking ──────────────────────────────────────────────────────
+  startedAt: string | null;
+  deliveredAt: string | null;
+  timeSpentMs: number;
+  currentSessionStartedAt: string | null;
 }
 
 export interface EditTask {
@@ -96,6 +96,11 @@ export interface EditTask {
   rejectRemark?: string;
   openChange?: TaskChangeNote;
   changes: TaskChangeNote[];
+  // ── Time tracking ──────────────────────────────────────────────────────
+  startedAt: string | null;
+  deliveredAt: string | null;
+  timeSpentMs: number;
+  currentSessionStartedAt: string | null;
 }
 
 export interface AdditionalWork {
@@ -122,11 +127,6 @@ const getBrandName = (brandId?: string | { _id: string; name: string } | null): 
 const getAssignedByLabel = (assignedBy: "admin" | "super_admin"): string =>
   assignedBy === "super_admin" ? "Super Admin" : "Admin";
 
-// Backend status can be "pending" | "approved" | "in_progress" | "rejected" |
-// "completed" | "changes_requested". "approved" now maps straight through
-// to its own WorkStatus instead of being swallowed into "pending" (the old
-// bug) or merged into "completed" (loses the distinction the photographer
-// actually needs to see).
 const toWorkStatus = (status: string): WorkStatus => {
   if (status === "approved") return "approved";
   if (status === "completed") return "completed";
@@ -182,6 +182,10 @@ export const mapToShoot = (t: RawTask): Shoot => {
     rejectRemark: t.rejectRemark || undefined,
     openChange: getOpenChange(t.changes),
     changes: mapChangeHistory(t.changes),
+    startedAt: t.startedAt || null,
+    deliveredAt: t.deliveredAt || null,
+    timeSpentMs: t.timeSpentMs || 0,
+    currentSessionStartedAt: t.currentSessionStartedAt || null,
   };
 };
 
@@ -202,6 +206,10 @@ export const mapToEditTask = (t: RawTask): EditTask => {
     rejectRemark: t.rejectRemark || undefined,
     openChange: getOpenChange(t.changes),
     changes: mapChangeHistory(t.changes),
+    startedAt: t.startedAt || null,
+    deliveredAt: t.deliveredAt || null,
+    timeSpentMs: t.timeSpentMs || 0,
+    currentSessionStartedAt: t.currentSessionStartedAt || null,
   };
 };
 
@@ -214,16 +222,55 @@ export const mapToAdditionalWork = (w: RawAdditionalWork): AdditionalWork => ({
   loggedBy: w.loggedBy,
 });
 
+// ── Total elapsed time (startedAt -> deliveredAt), same number the Super
+// Admin panel shows. If not delivered yet, counts up to now so it ticks
+// live while the timer is running.
+export const getTimeTakenLabel = (
+  startedAt?: string | null,
+  deliveredAt?: string | null
+): string | null => {
+  if (!startedAt) return null;
+  const start = new Date(startedAt).getTime();
+  const end = deliveredAt ? new Date(deliveredAt).getTime() : Date.now();
+  const diffMs = end - start;
+  if (diffMs < 0) return null;
+
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const days = Math.floor(hours / 24);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return "<1m";
+};
+
 export const fetchMyTasks = async (employeeId: string): Promise<RawTask[]> => {
   const res = await api.get(`/tasks?assignedTo=${employeeId}`);
   return res.data.data;
 };
 
-export const updateTaskStatus = async (taskId: string, status: WorkStatus): Promise<RawTask> => {
-  const res = await api.put(`/tasks/${taskId}`, { status });
+// ── Start / Resume — generic /start endpoint. pending -> in_progress
+// (fresh start, backend stamps startedAt + currentSessionStartedAt).
+// rejected -> status untouched, just restarts the timer session (resume).
+export const startOrResumeTask = async (taskId: string): Promise<RawTask> => {
+  const res = await api.post(`/tasks/${taskId}/start`, {});
   return res.data.data;
 };
 
+// ── Submit for review — employee writes a note, backend stops the clock
+// and flips status to "completed" (awaiting admin review).
+export const submitTaskForReview = async (taskId: string, note: string): Promise<RawTask> => {
+  const res = await api.post(`/tasks/${taskId}/submit`, {
+    deliveryState: "delivered",
+    deliveryNote: note,
+  });
+  return res.data.data;
+};
+
+// Still used by the Edits stepper for partial progress tracking (does NOT
+// finalize the task — finalizing happens via submitTaskForReview above).
 export const updateEditProgress = async (taskId: string, completedCount: number): Promise<RawTask> => {
   const res = await api.put(`/tasks/${taskId}`, { completedCount });
   return res.data.data;
