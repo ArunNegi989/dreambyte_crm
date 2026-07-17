@@ -170,9 +170,10 @@ export default function SMMDashboard() {
     }
   };
 
+// NOTE: startedAt no longer passed — backend stamps it when startTask()
+  // is called (via handleStartTask above).
   const handleSubmitTask = async (id: string, note: string) => {
-    const task = tasks.find((t) => t._id === id);
-    await submitTaskForReview(id, note, task?.startedAt ?? undefined);
+    await submitTaskForReview(id, note);
     await loadAll();
   };
 

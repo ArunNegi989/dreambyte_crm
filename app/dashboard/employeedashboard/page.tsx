@@ -98,9 +98,13 @@ export default function EmployeeDashboardPage() {
     }
   };
 
-  const handleSubmitTask = async (taskId: string, deliveryState: DeliveryState, remarks: string, startedAt: string) => {
+  // NOTE: startedAt is no longer sent to submitTask — backend already
+  // stamps it when startTask() is called (see employeeApi.ts). The
+  // startedAt param is still accepted here since TaskModal still passes
+  // it, but it's now unused for the API call itself.
+  const handleSubmitTask = async (taskId: string, deliveryState: DeliveryState, remarks: string) => {
     try {
-      const updated = await submitTask(taskId, { deliveryState, remarks, startedAt });
+      const updated = await submitTask(taskId, { deliveryState, remarks });
       setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
       setSelectedTask(null);
       fetchData();

@@ -15,6 +15,24 @@ interface TaskTableProps {
   ) => void;
 }
 
+// ── Time-taken helper — identical formula to Super Admin / Designer
+// Dashboard, so the number matches everywhere it's shown. ──────────────────
+const getTimeTakenLabel = (startedAt?: string | null, deliveredAt?: string | null): string => {
+  if (!startedAt) return "—";
+  const start = new Date(startedAt).getTime();
+  const end = deliveredAt ? new Date(deliveredAt).getTime() : Date.now();
+  let diffMs = end - start;
+  if (diffMs < 0) diffMs = 0;
+
+  const mins = Math.floor(diffMs / 60000);
+  const hrs = Math.floor(mins / 60);
+  const days = Math.floor(hrs / 24);
+
+  if (days > 0) return `${days}d ${hrs % 24}h`;
+  if (hrs > 0) return `${hrs}h ${mins % 60}m`;
+  return `${mins}m`;
+};
+
 export default function TaskTable({
   tasks,
   employees,
@@ -25,6 +43,7 @@ export default function TaskTable({
   const [remarkOpen, setRemarkOpen] = useState<Record<string, boolean>>({});
 
   const actorLabel = "Admin";
+  const TOTAL_COLS = 9; // Task, Assigned To, By, Frequency, Due, Delivery, Time Taken, Changes, Review
 
   // Handles both populated object and plain string _id
   const getEmployeeName = (assignedTo: Task["assignedTo"]): string => {
@@ -94,9 +113,11 @@ export default function TaskTable({
             <tr>
               <th>Task</th>
               <th>Assigned To</th>
+              <th>By</th>
               <th>Frequency</th>
               <th>Due Date</th>
               <th>Delivery</th>
+              <th>Time Taken</th>
               <th>Changes</th>
               <th>Review</th>
             </tr>
@@ -106,6 +127,20 @@ export default function TaskTable({
               const isExpanded = expandedTask === task._id;
               const hasChanges = task.changes.length > 0;
 
+              // ── Extra fields (totalCount/completedCount, startedAt,
+              // deliveredAt, subtasks) — same shape as Super Admin's Task,
+              // just not in the shared admin Task type yet, so cast here
+              // the same way SATasks does. ───────────────────────────────
+              const taskAny = task as unknown as {
+                totalCount?: number | null;
+                completedCount?: number;
+                startedAt?: string | null;
+                deliveredAt?: string | null;
+                subtasks?: { _id: string; title: string; status: "pending" | "completed" }[];
+              };
+              const subtaskCount = taskAny.subtasks?.length ?? 0;
+              const subtaskDone = taskAny.subtasks?.filter((s) => s.status === "completed").length ?? 0;
+
               return (
                 <>
                   <tr key={task._id} className={styles.taskRow}>
@@ -113,7 +148,21 @@ export default function TaskTable({
                     <td>
                       <div className={styles.taskCell}>
                         <span className={styles.taskName}>{task.title}</span>
-                        <span className={styles.taskDesc}>{task.description}</span>
+                        <span className={styles.taskDesc}>
+                          {task.description}
+                          {taskAny.totalCount != null && (
+                            <>
+                              {" "}
+                              &middot; {taskAny.completedCount ?? 0}/{taskAny.totalCount} edited
+                            </>
+                          )}
+                          {subtaskCount > 0 && (
+                            <>
+                              {" "}
+                              &middot; {subtaskDone}/{subtaskCount} subtasks
+                            </>
+                          )}
+                        </span>
                       </div>
                     </td>
 
@@ -127,6 +176,30 @@ export default function TaskTable({
                           {getEmployeeName(task.assignedTo)}
                         </span>
                       </div>
+                    </td>
+
+                    {/* Assigned By — same S.Admin / Admin pill as Super Admin's table */}
+                    <td>
+                      <span
+                        className={`${styles.byPill ?? ""} ${
+                          task.assignedBy === "super_admin" ? styles.bySA ?? "" : styles.byAdmin ?? ""
+                        }`}
+                        style={
+                          !styles.byPill
+                            ? {
+                                fontSize: 11,
+                                fontWeight: 600,
+                                padding: "3px 8px",
+                                borderRadius: 999,
+                                background: task.assignedBy === "super_admin" ? "#ede9fe" : "#dbeafe",
+                                color: task.assignedBy === "super_admin" ? "#6d28d9" : "#1d4ed8",
+                                whiteSpace: "nowrap",
+                              }
+                            : undefined
+                        }
+                      >
+                        {task.assignedBy === "super_admin" ? "S.Admin" : "Admin"}
+                      </span>
                     </td>
 
                     {/* Frequency */}
@@ -179,10 +252,31 @@ export default function TaskTable({
                       </div>
                     </td>
 
+                    {/* Time Taken — startedAt → deliveredAt (or now, if still running) */}
+                    <td>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          color: taskAny.startedAt ? "#334155" : "#94a3b8",
+                          whiteSpace: "nowrap",
+                        }}
+                        title={
+                          taskAny.startedAt
+                            ? `Started: ${new Date(taskAny.startedAt).toLocaleString("en-IN")}`
+                            : "Not started yet"
+                        }
+                      >
+                        {getTimeTakenLabel(taskAny.startedAt, taskAny.deliveredAt)}
+                        {taskAny.startedAt && !taskAny.deliveredAt && (
+                          <span style={{ color: "#2563eb" }}> ●</span>
+                        )}
+                      </span>
+                    </td>
+
                     {/* Changes toggle */}
                     <td>
                       <button
-                        className={`${styles.changeToggle} ${hasChanges ? styles.hasChanges : ""}`}
+                        className={`${styles.changeToggle} ${hasChanges || subtaskCount > 0 ? styles.hasChanges : ""}`}
                         onClick={() => toggleExpand(task._id)}
                         title="View Change Log"
                       >
@@ -236,7 +330,7 @@ export default function TaskTable({
                   {task.status === "rejected" &&
                     (remarkOpen[task._id] || !task.rejectRemark) && (
                       <tr key={`${task._id}-remark`} className={styles.changeRow}>
-                        <td colSpan={7}>
+                        <td colSpan={TOTAL_COLS}>
                           <div className={styles.addChange}>
                             <textarea
                               className={styles.changeInput}
@@ -265,7 +359,34 @@ export default function TaskTable({
                       happen on their own dashboard. */}
                   {isExpanded && (
                     <tr key={`${task._id}-changes`} className={styles.changeRow}>
-                      <td colSpan={7}>
+                      <td colSpan={TOTAL_COLS}>
+                        {/* ── Subtasks — read-only view of the employee's own checklist ── */}
+                        {subtaskCount > 0 && (
+                          <div className={styles.changeDropdown} style={{ marginBottom: 12 }}>
+                            <div className={styles.changeHeader}>
+                              Subtasks — <strong>{task.title}</strong>
+                              <span style={{ marginLeft: 8, fontWeight: 400, color: "#64748b" }}>
+                                {subtaskDone}/{subtaskCount} completed
+                              </span>
+                            </div>
+                            <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                              {taskAny.subtasks!.map((s) => (
+                                <li
+                                  key={s._id}
+                                  style={{
+                                    fontSize: 13,
+                                    lineHeight: 1.8,
+                                    color: s.status === "completed" ? "#10b981" : "#334155",
+                                    textDecoration: s.status === "completed" ? "line-through" : "none",
+                                  }}
+                                >
+                                  {s.status === "completed" ? "✓" : "○"} {s.title}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
                         <div className={styles.changeDropdown}>
                           <div className={styles.changeHeader}>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -309,7 +430,7 @@ export default function TaskTable({
 
             {tasks.length === 0 && (
               <tr>
-                <td colSpan={7} className={styles.empty}>No tasks yet.</td>
+                <td colSpan={TOTAL_COLS} className={styles.empty}>No tasks yet.</td>
               </tr>
             )}
           </tbody>

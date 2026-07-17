@@ -2,6 +2,7 @@ import { Task, EmployeeTaskStats, PeriodStats, DashboardStats, TaskStatus } from
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
   pending: 'Pending',
+  in_progress: 'In progress',
   changes_requested: 'Changes requested',
   completed: 'Completed',
   approved: 'Approved',

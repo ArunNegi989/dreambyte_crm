@@ -61,11 +61,11 @@ export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
   const timeTaken = getTimeTakenLabel(task.timeSpentMs, task.currentSessionStartedAt, now);
   const isRunning = task.status === 'in_progress' && !task.deliveredAt;
 
-  const handleSubmitWork = async () => {
+ const handleSubmitWork = async () => {
     try {
       setSaving(true);
       setError('');
-      await submitTaskWork(task.id, note, new Date().toISOString());
+      await submitTaskWork(task.id, note);
       onSaved();
       onClose();
     } catch (err) {

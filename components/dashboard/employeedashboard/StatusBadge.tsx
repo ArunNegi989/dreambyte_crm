@@ -9,6 +9,7 @@ interface StatusBadgeProps {
 
 const STATUS_CLASS: Record<TaskStatus, string> = {
   pending: 'pending',
+  in_progress: 'inProgress',
   changes_requested: 'changes',
   completed: 'completed',
   approved: 'approved',

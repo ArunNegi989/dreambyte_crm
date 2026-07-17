@@ -104,14 +104,16 @@ export default function TaskHistoryPage() {
   const handleOpenTask = (task: Task) => setSelectedTask(task);
   const handleCloseModal = () => setSelectedTask(null);
 
+  // NOTE: startedAt is no longer sent to submitTask — backend stamps it
+  // when startTask() is called. Kept param removed here to match
+  // TaskModal's onSubmitTask signature exactly.
   const handleSubmitTask = async (
     taskId: string,
     deliveryState: DeliveryState,
-    remarks: string,
-    startedAt: string
+    remarks: string
   ) => {
     try {
-      const updated = await submitTask(taskId, { deliveryState, remarks, startedAt });
+      const updated = await submitTask(taskId, { deliveryState, remarks });
       setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
       setSelectedTask(null);
       fetchData();
