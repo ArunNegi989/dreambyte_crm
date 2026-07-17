@@ -89,6 +89,11 @@ export default function SATasks({
   const isAdminOrSA = viewerRole === "super_admin" || viewerRole === "admin";
   const actorLabel = viewerRole === "super_admin" ? "Super Admin" : "Admin";
 
+  // ── Assignable employees only — super_admin (khud ho ya koi doosra
+  // super admin) kabhi bhi "Assign To" dropdown mein nahi aayega. Task
+  // hamesha sirf actual employees ko hi assign ho sakta hai. ──────────────
+  const assignableEmployees = employees.filter((e) => e.role !== "super_admin");
+
   // ── Department-aware "Assign To" ─────────────────────────────────────────
   const selectedEmployeeForForm = employees.find((e) => e._id === form.assignedTo);
   const departmentTasks = getTasksForDepartment(selectedEmployeeForForm?.department);
@@ -201,6 +206,14 @@ export default function SATasks({
 
   const handleSubmit = () => {
     if (!form.title || !form.assignedTo) return;
+
+    // Safety net: even if assignedTo somehow points to a super_admin
+    // (stale state, edit of an old task, etc.), block the submit.
+    const targetEmp = employees.find((e) => e._id === form.assignedTo);
+    if (targetEmp?.role === "super_admin") {
+      alert("Super Admin ko task assign nahi kiya ja sakta.");
+      return;
+    }
 
     const basePayload = {
       title: form.title,
@@ -334,7 +347,8 @@ export default function SATasks({
             </button>
           </div>
           <div className={styles.formGrid}>
-            {/* Assign To — first, so department/work-type can react to it */}
+            {/* Assign To — first, so department/work-type can react to it.
+                Only non-super_admin employees are selectable. */}
             <div className={styles.field}>
               <label>Assign To *</label>
               <select
@@ -343,12 +357,17 @@ export default function SATasks({
                 onChange={(e) => handleAssignedToChange(e.target.value)}
               >
                 <option value="">Select Employee</option>
-                {employees.map((e) => (
+                {assignableEmployees.map((e) => (
                   <option key={e._id} value={e._id}>
                     {e.name} — {e.role}
                   </option>
                 ))}
               </select>
+              {assignableEmployees.length === 0 && (
+                <span style={{ fontSize: 12, color: "#ef4444" }}>
+                  Koi assignable employee nahi mila.
+                </span>
+              )}
             </div>
 
             {/* Department — auto-filled, read-only */}

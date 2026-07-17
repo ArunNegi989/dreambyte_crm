@@ -1,5 +1,5 @@
 import { apiFetch } from './apiClient';
-import { Task, TaskStatus } from '../../types/metadashboard/metaTask';
+import { Task } from '../../types/metadashboard/metaTask';
 import { AdditionalTask } from '../../data/metadashboard/dummyData';
 
 export interface MetaStats {
@@ -27,22 +27,31 @@ export async function fetchDashboardStats(employeeId: string): Promise<MetaStats
   return res.data;
 }
 
-// Generic status tweak — only used for the harmless "start working" transition
-// (pending/approved -> in_progress). Never used for completed/rejected/approved,
-// which either have dedicated endpoints or are terminal states set by admins.
-export async function setTaskInProgress(taskId: string): Promise<void> {
-  await apiFetch(`/tasks/${taskId}`, { method: 'PUT', body: { status: 'in_progress' as TaskStatus } });
+// ── Start / Resume — same generic timer endpoint every other dashboard
+// uses. Handles BOTH:
+//   • pending -> in_progress (fresh start, backend stamps startedAt +
+//     currentSessionStartedAt, clears any stale deliveredAt)
+//   • rejected/changes_requested -> status untouched, timer just restarts
+//     (used by the "Resume Task" button)
+export async function startTask(taskId: string): Promise<Task> {
+  const res = await apiFetch<{ success: boolean; data: Task }>(`/tasks/${taskId}/start`, {
+    method: 'POST',
+    body: {},
+  });
+  return res.data;
 }
 
-// Fresh submission — no open admin notes to reply to yet.
-export async function submitTaskWork(taskId: string, deliveryNote: string, startedAt?: string): Promise<void> {
+// Fresh submission — no open admin notes to reply to yet. Backend stops
+// the clock here (folds current session into timeSpentMs).
+export async function submitTaskWork(taskId: string, deliveryNote: string): Promise<void> {
   await apiFetch(`/tasks/${taskId}/submit`, {
     method: 'POST',
-    body: { deliveryState: 'delivered', deliveryNote, startedAt },
+    body: { deliveryState: 'delivered', deliveryNote },
   });
 }
 
-// Reply to every open admin/SA note, then resubmit.
+// Reply to every open admin/SA note, then resubmit. Backend stops the
+// clock here too (no-op if the task was never resumed).
 export async function respondToTaskChanges(
   taskId: string,
   responses: { id: string; response: string }[],
@@ -89,9 +98,6 @@ export async function createAdditionalWork(
   });
 }
 
-// Marks a logged additional-work entry as done.
-// ⚠️ Route/shape assumed — confirm the backend `/additional-work/:id` PUT
-// route exists and accepts { status }, or send me that controller so I can fix this.
 export async function markAdditionalWorkDone(itemId: string): Promise<void> {
   await apiFetch(`/additional-work/${itemId}`, { method: 'PUT', body: { status: 'completed' } });
 }

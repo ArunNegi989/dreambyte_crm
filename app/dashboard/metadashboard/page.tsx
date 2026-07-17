@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { CATEGORY_META } from '../../../data/metadashboard/dummyData';
 import { Task } from '../../../types/metadashboard/metaTask';
 import TaskModal from '../../../components/dashboard/metadashboard/TaskModal';
-import { fetchMyTasks, fetchDashboardStats, setTaskInProgress, MetaStats } from '../../api/metaApi';
+import { fetchMyTasks, fetchDashboardStats, startTask, MetaStats } from '../../api/metaApi';
 import { logout } from '../../api/authApi';
 
 const STAT_ICONS = {
@@ -100,6 +100,9 @@ function groupByCategory(tasks: Task[]) {
 }
 
 // ── Time-taken helpers (inlined — no shared util file) ──
+// Session-based: only counts time while the timer was actually running
+// (Start/Resume -> Submit). Excludes any gap while waiting on admin
+// review or waiting to click Resume after a rejection.
 function formatDuration(ms: number): string {
   if (ms <= 0) return '0m';
   const totalMinutes = Math.floor(ms / 60000);
@@ -109,19 +112,22 @@ function formatDuration(ms: number): string {
   return `${mins}m`;
 }
 
-function getTimeTakenLabel(startedAt?: string, deliveredAt?: string, now: number = Date.now()): string | null {
-  if (!startedAt) return null;
-  const start = new Date(startedAt).getTime();
-  if (Number.isNaN(start)) return null;
-  const end = deliveredAt ? new Date(deliveredAt).getTime() : now;
-  return formatDuration(Math.max(0, end - start));
+function getTimeTakenLabel(timeSpentMs?: number, currentSessionStartedAt?: string | null, now: number = Date.now()): string | null {
+  const base = timeSpentMs || 0;
+  const live = currentSessionStartedAt ? Math.max(0, now - new Date(currentSessionStartedAt).getTime()) : 0;
+  const total = base + live;
+  if (total <= 0) return null;
+  return formatDuration(total);
 }
 
-// A task can be started directly from the list when it's pending and has
-// no open admin notes waiting on a reply (those still go through the modal).
 function canStartFromList(t: Task) {
-  const hasOpenChanges = t.changes?.some((c) => !c.resolved) ?? false;
-  return t.status === 'pending' && !hasOpenChanges;
+  return t.status === 'pending';
+}
+
+// ── Resume for rejected/changes_requested tasks whose timer isn't
+// currently running.
+function canResumeFromList(t: Task) {
+  return (t.status === 'rejected' || t.status === 'changes_requested') && !t.currentSessionStartedAt;
 }
 
 export default function MetaDashboardPage() {
@@ -136,7 +142,6 @@ export default function MetaDashboardPage() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [startingId, setStartingId] = useState<string | null>(null);
 
-  // Single page number for the whole "Your tasks" list (10 tasks/page overall).
   const [page, setPage] = useState(1);
 
   // Ticks every 30s so any running "time taken" cell stays live.
@@ -184,13 +189,15 @@ export default function MetaDashboardPage() {
     loadAll();
   }, [loadAll]);
 
+  // ── Used for BOTH the inline "Start" (pending) and "Resume Task"
+  // (rejected/changes_requested) buttons — same generic /start endpoint.
   const handleStart = useCallback(
     async (e: React.MouseEvent, taskId: string) => {
-      e.stopPropagation(); // don't also open the row's modal
+      e.stopPropagation();
       if (startingId) return;
       setStartingId(taskId);
       try {
-        await setTaskInProgress(taskId);
+        await startTask(taskId);
         await loadAll();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to start task');
@@ -209,20 +216,16 @@ export default function MetaDashboardPage() {
 
   const totalPages = Math.max(1, Math.ceil(filteredTasks.length / PAGE_SIZE));
 
-  // Reset to page 1 whenever the filtered set changes (filter change, reload, etc.)
   useEffect(() => {
     setPage(1);
   }, [dateFilter, customRange.from, customRange.to, tasks.length]);
 
-  // Clamp in case the current page no longer exists (e.g. filter shrinks the list).
   const safePage = Math.min(page, totalPages);
   const pagedTasks = useMemo(
     () => filteredTasks.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
     [filteredTasks, safePage]
   );
 
-  // Group only the current page's slice — group headers just reflect
-  // whichever categories happen to appear on this page.
   const groups = useMemo(() => groupByCategory(pagedTasks), [pagedTasks]);
   const maxCat = Math.max(1, ...(stats?.categoryBreakdown.map((c) => c.count) ?? [1]));
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -245,8 +248,6 @@ export default function MetaDashboardPage() {
           <p className="md-subtitle">{today}</p>
         </div>
         <div className="md-header-right">
-          {/* ── Date filter — moved up here from the tasks section, same
-              chip treatment as the other dashboards' top-bar date pill. ── */}
           <div className="md-date-filter-chip">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -408,8 +409,8 @@ export default function MetaDashboardPage() {
                           </thead>
                           <tbody>
                             {group.tasks.map((t) => {
-                              const timeTaken = getTimeTakenLabel(t.startedAt, t.deliveredAt, now);
-                              const isRunning = t.status === 'in_progress' && !t.deliveredAt;
+                              const timeTaken = getTimeTakenLabel(t.timeSpentMs, t.currentSessionStartedAt, now);
+                              const isRunning = !!t.currentSessionStartedAt;
                               return (
                                 <tr key={t.id} className="clickable" onClick={() => setSelectedTask(t)}>
                                   <td className="md-task-title">{t.title}</td>
@@ -429,6 +430,17 @@ export default function MetaDashboardPage() {
                                         onClick={(e) => handleStart(e, t.id)}
                                       >
                                         {startingId === t.id ? 'Starting…' : 'Start'}
+                                      </button>
+                                    )}
+                                    {canResumeFromList(t) && (
+                                      <button
+                                        type="button"
+                                        className="md-btn-secondary"
+                                        style={{ padding: '4px 10px', fontSize: 12, background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+                                        disabled={startingId === t.id}
+                                        onClick={(e) => handleStart(e, t.id)}
+                                      >
+                                        {startingId === t.id ? 'Resuming…' : 'Resume Task'}
                                       </button>
                                     )}
                                   </td>

@@ -29,5 +29,10 @@ export interface Task {
   rejectRemark: string;
   startedAt?: string;
   deliveredAt?: string;
+  // ── Pause/resume timer — drives the Resume Task button + session-based
+  // "time taken" calc (freezes on submit, excludes reject-wait gap, resumes
+  // fresh when Resume is clicked) ─────────────────────────────────────────
+  timeSpentMs?: number;
+  currentSessionStartedAt?: string | null;
   changes: TaskChange[];
 }

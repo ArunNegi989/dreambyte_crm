@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { CATEGORY_META } from '../../../data/metadashboard/dummyData';
 import { Task } from '../../../types/metadashboard/metaTask';
-import { submitTaskWork, respondToTaskChanges } from '../../../app/api/metaApi';
+import { submitTaskWork, respondToTaskChanges, startTask } from '../../../app/api/metaApi';
 
 interface TaskModalProps {
   task: Task;
@@ -30,12 +30,12 @@ function formatDuration(ms: number): string {
   return `${mins}m`;
 }
 
-function getTimeTakenLabel(startedAt?: string, deliveredAt?: string, now: number = Date.now()): string | null {
-  if (!startedAt) return null;
-  const start = new Date(startedAt).getTime();
-  if (Number.isNaN(start)) return null;
-  const end = deliveredAt ? new Date(deliveredAt).getTime() : now;
-  return formatDuration(Math.max(0, end - start));
+function getTimeTakenLabel(timeSpentMs?: number, currentSessionStartedAt?: string | null, now: number = Date.now()): string | null {
+  const base = timeSpentMs || 0;
+  const live = currentSessionStartedAt ? Math.max(0, now - new Date(currentSessionStartedAt).getTime()) : 0;
+  const total = base + live;
+  if (total <= 0) return null;
+  return formatDuration(total);
 }
 
 export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
@@ -58,7 +58,7 @@ export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
 
   const isDone = task.status === 'completed' || task.status === 'approved';
 
-  const timeTaken = getTimeTakenLabel(task.startedAt, task.deliveredAt, now);
+  const timeTaken = getTimeTakenLabel(task.timeSpentMs, task.currentSessionStartedAt, now);
   const isRunning = task.status === 'in_progress' && !task.deliveredAt;
 
   const handleSubmitWork = async () => {

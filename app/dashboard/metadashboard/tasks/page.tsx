@@ -8,7 +8,7 @@ import {
 } from '../../../../data/metadashboard/dummyData';
 import { Task } from '../../../../types/metadashboard/metaTask';
 import TaskModal from '../../../../components/dashboard/metadashboard/TaskModal';
-import { fetchMyTasks, setTaskInProgress } from '../../../api/metaApi';
+import { fetchMyTasks, startTask } from '../../../api/metaApi';
 
 const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -58,6 +58,7 @@ function monthRange(now: Date) {
 }
 
 // ── Time-taken helpers (inlined — no shared util file) ──
+// Session-based: only counts time while the timer was actually running.
 function formatDuration(ms: number): string {
   if (ms <= 0) return '0m';
   const totalMinutes = Math.floor(ms / 60000);
@@ -67,17 +68,24 @@ function formatDuration(ms: number): string {
   return `${mins}m`;
 }
 
-function getTimeTakenLabel(startedAt?: string, deliveredAt?: string, now: number = Date.now()): string | null {
-  if (!startedAt) return null;
-  const start = new Date(startedAt).getTime();
-  if (Number.isNaN(start)) return null;
-  const end = deliveredAt ? new Date(deliveredAt).getTime() : now;
-  return formatDuration(Math.max(0, end - start));
+function getTimeTakenLabel(timeSpentMs?: number, currentSessionStartedAt?: string | null, now: number = Date.now()): string | null {
+  const base = timeSpentMs || 0;
+  const live = currentSessionStartedAt ? Math.max(0, now - new Date(currentSessionStartedAt).getTime()) : 0;
+  const total = base + live;
+  if (total <= 0) return null;
+  return formatDuration(total);
 }
 
 function canStartFromList(t: Task) {
-  const hasOpenChanges = t.changes?.some((c) => !c.resolved) ?? false;
-  return t.status === 'pending' && !hasOpenChanges;
+  return t.status === 'pending';
+}
+
+// ── Resume for rejected/changes_requested tasks whose timer isn't
+// currently running. Restarts the clock; status stays untouched so the
+// rejection banner + change log keep showing until the employee actually
+// replies and resubmits via the modal.
+function canResumeFromList(t: Task) {
+  return (t.status === 'rejected' || t.status === 'changes_requested') && !t.currentSessionStartedAt;
 }
 
 export default function TasksPage() {
@@ -89,8 +97,6 @@ export default function TasksPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
 
-  // ── Date filter — Quick Range + specific date, same pattern as the
-  // designer dashboard's tasks board ──
   const [quickRange, setQuickRange] = useState<QuickRange>('all');
   const [specificDate, setSpecificDate] = useState<string>('');
 
@@ -132,13 +138,16 @@ export default function TasksPage() {
     loadTasks();
   }, [loadTasks]);
 
+  // ── Used for BOTH "Start" (pending) and "Resume Task" (rejected/
+  // changes_requested) — same generic /start endpoint, backend decides
+  // what status transition (if any) is appropriate.
   const handleStart = useCallback(
     async (e: React.MouseEvent, taskId: string) => {
       e.stopPropagation();
       if (startingId) return;
       setStartingId(taskId);
       try {
-        await setTaskInProgress(taskId);
+        await startTask(taskId);
         await loadTasks();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to start task');
@@ -213,7 +222,6 @@ export default function TasksPage() {
             ))}
           </div>
 
-          {/* ── Date filter: quick range + specific date ── */}
           <div className="md-filter-row" style={{ alignItems: 'center' }}>
             {(['all', 'today', 'week', 'month'] as QuickRange[]).map((r) => (
               <button
@@ -276,8 +284,8 @@ export default function TasksPage() {
                 <tbody>
                   {filtered.map((t) => {
                     const meta = CATEGORY_META[t.category as keyof typeof CATEGORY_META];
-                    const timeTaken = getTimeTakenLabel(t.startedAt, t.deliveredAt, now);
-                    const isRunning = t.status === 'in_progress' && !t.deliveredAt;
+                    const timeTaken = getTimeTakenLabel(t.timeSpentMs, t.currentSessionStartedAt, now);
+                    const isRunning = !!t.currentSessionStartedAt;
                     return (
                       <tr key={t.id} className="clickable" onClick={() => setSelectedTask(t)}>
                         <td className="md-task-title">{t.title}</td>
@@ -305,6 +313,17 @@ export default function TasksPage() {
                               onClick={(e) => handleStart(e, t.id)}
                             >
                               {startingId === t.id ? 'Starting…' : 'Start'}
+                            </button>
+                          )}
+                          {canResumeFromList(t) && (
+                            <button
+                              type="button"
+                              className="md-btn-secondary"
+                              style={{ padding: '4px 10px', fontSize: 12, background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+                              disabled={startingId === t.id}
+                              onClick={(e) => handleStart(e, t.id)}
+                            >
+                              {startingId === t.id ? 'Resuming…' : 'Resume Task'}
                             </button>
                           )}
                         </td>
