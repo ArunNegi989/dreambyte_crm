@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Task, DeliveryState } from '../../../../types/employee/task';
-import { getTimeTaken, getTotalChangeCount } from '../../../../data/employee/taskTimeHelpers';
+import { getTimeTaken, getTimeTakenMs, getTotalChangeCount } from '../../../../data/employee/taskTimeHelpers';
 import { getMyTasks, submitTask, respondToChanges } from '../../../api/employeeApi';
 import Sidebar from '../../../../components/dashboard/employeedashboard/Sidebar';
 import StatusBadge from '../../../../components/dashboard/employeedashboard/StatusBadge';
@@ -22,12 +22,19 @@ function formatDate(dateStr: string | null): string {
   return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// ── THE FIX: this used to compute a raw task.startedAt -> task.completedAt
+// wall-clock diff for sorting by "time taken". That formula has the same
+// bug as the old getTimeTaken(): it ignores any time spent paused during a
+// reject/changes_requested -> Resume Task cycle and can produce wildly
+// wrong (multi-day/ballooned) values, which then sort completely out of
+// order relative to what the "Time taken" column actually displays.
+//
+// Now delegates to getTimeTakenMs(), the same pause-aware
+// timeSpentMs + currentSessionStartedAt formula the "Time taken" column
+// itself uses (via getTimeTaken()) — so sort order always matches what's
+// on screen.
 function durationMs(task: Task): number {
-  if (!task.startedAt || !task.completedAt) return -1;
-  const start = new Date(task.startedAt).getTime();
-  const end = new Date(task.completedAt).getTime();
-  if (Number.isNaN(start) || Number.isNaN(end)) return -1;
-  return end - start;
+  return getTimeTakenMs(task);
 }
 
 export default function TaskHistoryPage() {
@@ -75,6 +82,18 @@ export default function TaskHistoryPage() {
     const fresh = tasks.find((t) => t.id === selectedTask.id);
     if (fresh) setSelectedTask(fresh);
   }, [tasks]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Live timer refresh — any task in the list whose clock is currently
+  // running needs a re-render every 30s so the "time taken" label (and, if
+  // sorted by time, the sort order) keeps updating even though nothing
+  // changed server-side. Same pattern as every other dashboard. ──────────
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const hasRunning = tasks.some((t) => !!t.currentSessionStartedAt);
+    if (!hasRunning) return;
+    const id = setInterval(() => forceTick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, [tasks]);
 
   const brands = useMemo(() => {
     const set = new Set<string>();
@@ -341,6 +360,9 @@ export default function TaskHistoryPage() {
                                   <path d="M12 7v5l3 3" />
                                 </svg>
                                 {timeTaken}
+                                {!!task.currentSessionStartedAt && (
+                                  <span style={{ marginLeft: 4, color: '#1d4ed8' }}>●</span>
+                                )}
                               </span>
                             ) : (
                               <span className={styles.dash}>—</span>
