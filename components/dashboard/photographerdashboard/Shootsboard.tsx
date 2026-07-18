@@ -167,7 +167,12 @@ export default function ShootsBoard({ shoots, onStart, onSubmit, onResubmit }: S
                 const isRejected = shoot.status === "rejected";
                 const isApproved = shoot.status === "approved";
                 const needsCustomColor = isRejected || isApproved;
-                const timeTaken = getTimeTakenLabel(shoot.startedAt, shoot.deliveredAt);
+                // ── THE FIX: read the pause-aware timeSpentMs +
+                // currentSessionStartedAt (same fields/formula the Super
+                // Admin dashboard uses) instead of a raw startedAt ->
+                // deliveredAt diff, which balloons after a reject -> Resume
+                // Task cycle because deliveredAt is cleared on resume. ────
+                const timeTaken = getTimeTakenLabel(shoot.timeSpentMs, shoot.currentSessionStartedAt);
                 const isRunning = !!shoot.currentSessionStartedAt;
 
                 return (

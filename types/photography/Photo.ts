@@ -222,20 +222,37 @@ export const mapToAdditionalWork = (w: RawAdditionalWork): AdditionalWork => ({
   loggedBy: w.loggedBy,
 });
 
-// ── Total elapsed time (startedAt -> deliveredAt), same number the Super
-// Admin panel shows. If not delivered yet, counts up to now so it ticks
-// live while the timer is running.
+// ── Time-taken helper ────────────────────────────────────────────────────
+// THE FIX: this used to compute a raw startedAt -> deliveredAt wall-clock
+// diff. That formula quietly breaks the moment a task goes through a
+// reject -> Resume Task cycle: startOrResumeTask() intentionally leaves
+// deliveredAt cleared on resume (so the OLD delivered timestamp doesn't
+// get treated as an "end"), which means this diff falls back to
+// (now - startedAt) — the task's ORIGINAL start time, potentially days
+// ago — completely ignoring any time it spent paused while waiting on the
+// rejection. The number balloons and looks like a runaway/broken timer.
+//
+// The backend already tracks the correct, pause-aware total in
+// timeSpentMs (accumulated on every stopTimer() call) plus whatever the
+// currently-running session has added on top (currentSessionStartedAt).
+// This is the exact same formula the Super Admin dashboard (SATasks.tsx)
+// and the Designer Dashboard use, so all sides now always show the
+// identical number, in every state (running, paused on rejection,
+// resumed, delivered).
 export const getTimeTakenLabel = (
-  startedAt?: string | null,
-  deliveredAt?: string | null
+  timeSpentMs?: number | null,
+  currentSessionStartedAt?: string | null
 ): string | null => {
-  if (!startedAt) return null;
-  const start = new Date(startedAt).getTime();
-  const end = deliveredAt ? new Date(deliveredAt).getTime() : Date.now();
-  const diffMs = end - start;
-  if (diffMs < 0) return null;
+  let totalMs = timeSpentMs || 0;
 
-  const totalMinutes = Math.floor(diffMs / 60000);
+  if (currentSessionStartedAt) {
+    const elapsed = Date.now() - new Date(currentSessionStartedAt).getTime();
+    if (elapsed > 0) totalMs += elapsed;
+  }
+
+  if (totalMs <= 0) return null;
+
+  const totalMinutes = Math.floor(totalMs / 60000);
   const hours = Math.floor(totalMinutes / 60);
   const days = Math.floor(hours / 24);
   const minutes = totalMinutes % 60;

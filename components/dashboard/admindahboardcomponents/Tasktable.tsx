@@ -15,16 +15,21 @@ interface TaskTableProps {
   ) => void;
 }
 
-// ── Time-taken helper — identical formula to Super Admin / Designer
-// Dashboard, so the number matches everywhere it's shown. ──────────────────
-const getTimeTakenLabel = (startedAt?: string | null, deliveredAt?: string | null): string => {
-  if (!startedAt) return "—";
-  const start = new Date(startedAt).getTime();
-  const end = deliveredAt ? new Date(deliveredAt).getTime() : Date.now();
-  let diffMs = end - start;
-  if (diffMs < 0) diffMs = 0;
 
-  const mins = Math.floor(diffMs / 60000);
+const getTimeTakenLabel = (
+  timeSpentMs?: number | null,
+  currentSessionStartedAt?: string | null
+): string => {
+  let totalMs = timeSpentMs || 0;
+
+  if (currentSessionStartedAt) {
+    const elapsed = Date.now() - new Date(currentSessionStartedAt).getTime();
+    if (elapsed > 0) totalMs += elapsed;
+  }
+
+  if (totalMs <= 0) return "—";
+
+  const mins = Math.floor(totalMs / 60000);
   const hrs = Math.floor(mins / 60);
   const days = Math.floor(hrs / 24);
 
@@ -128,14 +133,15 @@ export default function TaskTable({
               const hasChanges = task.changes.length > 0;
 
               // ── Extra fields (totalCount/completedCount, startedAt,
-              // deliveredAt, subtasks) — same shape as Super Admin's Task,
-              // just not in the shared admin Task type yet, so cast here
-              // the same way SATasks does. ───────────────────────────────
+              // timeSpentMs, currentSessionStartedAt, subtasks) — same
+              // shape as Super Admin's Task, just not in the shared admin
+              // Task type yet, so cast here the same way SATasks does. ──
               const taskAny = task as unknown as {
                 totalCount?: number | null;
                 completedCount?: number;
                 startedAt?: string | null;
-                deliveredAt?: string | null;
+                timeSpentMs?: number;
+                currentSessionStartedAt?: string | null;
                 subtasks?: { _id: string; title: string; status: "pending" | "completed" }[];
               };
               const subtaskCount = taskAny.subtasks?.length ?? 0;
@@ -252,7 +258,11 @@ export default function TaskTable({
                       </div>
                     </td>
 
-                    {/* Time Taken — startedAt → deliveredAt (or now, if still running) */}
+                    {/* Time Taken — pause-aware accumulated time. Reads the
+                        same timeSpentMs + currentSessionStartedAt fields the
+                        employee's own dashboard uses, so both sides always
+                        agree, including through reject -> resume cycles
+                        (see getTimeTakenLabel's comment above). */}
                     <td>
                       <span
                         style={{
@@ -266,8 +276,8 @@ export default function TaskTable({
                             : "Not started yet"
                         }
                       >
-                        {getTimeTakenLabel(taskAny.startedAt, taskAny.deliveredAt)}
-                        {taskAny.startedAt && !taskAny.deliveredAt && (
+                        {getTimeTakenLabel(taskAny.timeSpentMs, taskAny.currentSessionStartedAt)}
+                        {taskAny.currentSessionStartedAt && (
                           <span style={{ color: "#2563eb" }}> ●</span>
                         )}
                       </span>

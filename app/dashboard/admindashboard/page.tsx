@@ -91,6 +91,23 @@ export default function AdminDashboard() {
     loadAll();
   }, [loadAll]);
 
+ 
+  useEffect(() => {
+    const hasRunningTimer = tasks.some(
+      (t) => !!(t as unknown as { currentSessionStartedAt?: string | null }).currentSessionStartedAt
+    );
+    if (!hasRunningTimer) return;
+
+    const interval = setInterval(() => {
+      // Force a re-render by shallow-cloning tasks; a correct
+      // getTimeTakenLabel reads Date.now() at render time, so this alone
+      // is enough to tick the UI.
+      setTasks((prev) => [...prev]);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [tasks]);
+
   const getAssignedId = (assignedTo: Task["assignedTo"]): string => {
     if (assignedTo && typeof assignedTo === "object") return (assignedTo as { _id: string })._id;
     return assignedTo as string;

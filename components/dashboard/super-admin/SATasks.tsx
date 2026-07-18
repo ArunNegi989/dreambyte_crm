@@ -34,21 +34,74 @@ const emptyTaskForm = {
   totalCount: "",
 };
 
+// ── Multi-task batch-assign draft ────────────────────────────────────────
+// Each drafted task in the batch: pick a Task (work type) first, which
+// reveals the Brand dropdown for that task, then finish its details and
+// push it into the tab strip. Repeat for as many tasks/brands as needed,
+// then submit the whole batch at once for the single selected employee.
+interface TaskDraft {
+  id: string;
+  workType: string;
+  brandId: string;
+  title: string;
+  description: string;
+  frequency: TaskFrequency;
+  dueDate: string;
+  location: string;
+  time: string;
+  mediaType: "" | "photo" | "video" | "both";
+  totalCount: string;
+}
+
+const emptyDraft: Omit<TaskDraft, "id"> = {
+  workType: "",
+  brandId: "",
+  title: "",
+  description: "",
+  frequency: "weekly",
+  dueDate: "",
+  location: "",
+  time: "",
+  mediaType: "",
+  totalCount: "",
+};
+
 // Work types that need the Shoots-specific fields (location/time/media type)
 const SHOOT_WORK_TYPES = ["Shoots"];
 // Work types that need a "how many to edit" count
 const EDIT_COUNT_WORK_TYPES = ["Photo Edit"];
 
-// ── Time-taken helper — same formula the Designer Dashboard uses, so both
-// sides (employee + super admin) always show the identical number. ─────────
-const getTimeTakenLabel = (startedAt?: string | null, deliveredAt?: string | null): string => {
-  if (!startedAt) return "—";
-  const start = new Date(startedAt).getTime();
-  const end = deliveredAt ? new Date(deliveredAt).getTime() : Date.now();
-  let diffMs = end - start;
-  if (diffMs < 0) diffMs = 0;
+// ── Time-taken helper ────────────────────────────────────────────────────
+// THE FIX: this used to compute a raw startedAt -> deliveredAt wall-clock
+// diff. That formula quietly breaks the moment a task goes through a
+// reject -> Resume Task cycle: startTask() intentionally sets deliveredAt
+// to null on resume (so the OLD delivered timestamp doesn't get treated as
+// an "end"), which means this diff falls back to (now - startedAt) — the
+// task's ORIGINAL start time, days ago — completely ignoring any time it
+// spent paused while waiting on the rejection. The number balloons and
+// looks like a runaway timer.
+//
+// The backend already tracks the correct, pause-aware total in
+// timeSpentMs (accumulated on every stopTimer() call) plus whatever the
+// currently-running session has added on top (currentSessionStartedAt).
+// This is the exact same formula the Designer Dashboard uses
+// (types/designer/Designer.ts's getTimeTakenLabel), so both sides now
+// always show the identical number, in every state (running, paused on
+// rejection, resumed, delivered).
+const getTimeTakenLabel = (
+  timeSpentMs?: number | null,
+  currentSessionStartedAt?: string | null
+): string => {
+  let totalMs = timeSpentMs || 0;
 
-  const mins = Math.floor(diffMs / 60000);
+  if (currentSessionStartedAt) {
+    const elapsed = Date.now() - new Date(currentSessionStartedAt).getTime();
+    if (elapsed > 0) totalMs += elapsed;
+  }
+
+  if (totalMs <= 0) return "—";
+
+  const mins = Math.floor(totalMs / 60000);
   const hrs = Math.floor(mins / 60);
   const days = Math.floor(hrs / 24);
 
@@ -81,6 +134,15 @@ export default function SATasks({
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | TaskStatus>("all");
 
+  // ── Batch-assign (multi task/brand) state — only used when adding new
+  // tasks (editTarget === null). Editing a single existing task still uses
+  // the plain `form` state above, untouched. ───────────────────────────────
+  const [batchAssignedTo, setBatchAssignedTo] = useState("");
+  const [taskDrafts, setTaskDrafts] = useState<TaskDraft[]>([]);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Omit<TaskDraft, "id">>(emptyDraft);
+  const [submittingBatch, setSubmittingBatch] = useState(false);
+
   // Deliver modal state
   const [deliverModal, setDeliverModal] = useState<Task | null>(null);
   const [deliverNote, setDeliverNote] = useState("");
@@ -94,12 +156,16 @@ export default function SATasks({
   // hamesha sirf actual employees ko hi assign ho sakta hai. ──────────────
   const assignableEmployees = employees.filter((e) => e.role !== "super_admin");
 
-  // ── Department-aware "Assign To" ─────────────────────────────────────────
+  // ── Department-aware "Assign To" (single-task edit form) ────────────────
   const selectedEmployeeForForm = employees.find((e) => e._id === form.assignedTo);
   const departmentTasks = getTasksForDepartment(selectedEmployeeForForm?.department);
 
   const isShootWork = SHOOT_WORK_TYPES.includes(workType);
   const isEditCountWork = EDIT_COUNT_WORK_TYPES.includes(workType);
+
+  // ── Department-aware batch composer ──────────────────────────────────────
+  const batchEmployee = employees.find((e) => e._id === batchAssignedTo);
+  const batchDepartmentTasks = getTasksForDepartment(batchEmployee?.department);
 
   const visibleTasks =
     viewerRole === "employee" && viewerId
@@ -139,6 +205,11 @@ export default function SATasks({
     setEditTarget(null);
     setForm(emptyTaskForm);
     setWorkType("");
+    // Reset batch composer for a fresh multi-task assignment
+    setBatchAssignedTo("");
+    setTaskDrafts([]);
+    setEditingDraftId(null);
+    setDraft(emptyDraft);
     setShowForm(true);
   };
 
@@ -247,6 +318,112 @@ export default function SATasks({
     setShowForm(false);
   };
 
+  // ── Batch composer handlers ───────────────────────────────────────────
+
+  // Switching employee mid-batch invalidates any drafts — different
+  // department means a different Task/work-type list entirely.
+  const handleBatchEmployeeChange = (empId: string) => {
+    setBatchAssignedTo(empId);
+    setDraft(emptyDraft);
+    setEditingDraftId(null);
+    setTaskDrafts([]);
+  };
+
+  // Picking a Task (work type) is what reveals the Brand dropdown for it.
+  const handleDraftWorkTypeChange = (wt: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      workType: wt,
+      title: wt,
+      brandId: "",
+      location: SHOOT_WORK_TYPES.includes(wt) ? prev.location : "",
+      time: SHOOT_WORK_TYPES.includes(wt) ? prev.time : "",
+      mediaType: SHOOT_WORK_TYPES.includes(wt) ? prev.mediaType : "",
+      totalCount: EDIT_COUNT_WORK_TYPES.includes(wt) ? prev.totalCount : "",
+    }));
+  };
+
+  // Push the current draft into the tab strip (or update it if it's being
+  // re-edited), then clear the composer so the next Task/Brand can be set.
+  const handleSaveDraftToTabs = () => {
+    if (!draft.workType || !draft.brandId) return;
+    if (editingDraftId) {
+      setTaskDrafts((prev) =>
+        prev.map((d) => (d.id === editingDraftId ? { ...draft, id: editingDraftId } : d))
+      );
+    } else {
+      setTaskDrafts((prev) => [...prev, { ...draft, id: `${Date.now()}-${prev.length}` }]);
+    }
+    setDraft(emptyDraft);
+    setEditingDraftId(null);
+  };
+
+  const openDraftTab = (d: TaskDraft) => {
+    setDraft({ ...d });
+    setEditingDraftId(d.id);
+  };
+
+  const removeDraftTab = (id: string) => {
+    setTaskDrafts((prev) => prev.filter((d) => d.id !== id));
+    if (editingDraftId === id) {
+      setDraft(emptyDraft);
+      setEditingDraftId(null);
+    }
+  };
+
+  // Final submit — creates every drafted task (each with its own
+  // Task/Brand pairing) for the single selected employee in one go.
+  const handleAssignBatch = () => {
+    if (!batchAssignedTo) return;
+    const targetEmp = employees.find((e) => e._id === batchAssignedTo);
+    if (targetEmp?.role === "super_admin") {
+      alert("Super Admin ko task assign nahi kiya ja sakta.");
+      return;
+    }
+
+    // Include whatever's sitting in the composer if it's valid but hasn't
+    // been explicitly added as a tab yet (so the user doesn't lose it).
+    const pending: TaskDraft[] =
+      draft.workType && draft.brandId && !editingDraftId
+        ? [...taskDrafts, { ...draft, id: `pending-${Date.now()}` }]
+        : taskDrafts;
+
+    if (pending.length === 0) return;
+
+    setSubmittingBatch(true);
+    pending.forEach((d) => {
+      const isShoot = SHOOT_WORK_TYPES.includes(d.workType);
+      const isEditCount = EDIT_COUNT_WORK_TYPES.includes(d.workType);
+      onAddTask({
+        title: d.title || d.workType,
+        description: d.description,
+        assignedTo: batchAssignedTo,
+        brandId: d.brandId || undefined,
+        frequency: d.frequency,
+        dueDate: d.dueDate,
+        taskType: d.workType || undefined,
+        location: isShoot ? d.location : undefined,
+        time: isShoot ? d.time : undefined,
+        mediaType: isShoot && d.mediaType ? d.mediaType : undefined,
+        totalCount: isEditCount && d.totalCount ? d.totalCount : undefined,
+        assignedBy: viewerRole === "admin" ? "admin" : "super_admin",
+        status: "pending",
+        deliveryStatus: "not_delivered",
+        deliveryNote: "",
+        deliveredAt: undefined,
+        rejectRemark: "",
+        changes: [],
+      } as unknown as Omit<Task, "_id" | "createdAt" | "updatedAt">);
+    });
+
+    setSubmittingBatch(false);
+    setShowForm(false);
+    setTaskDrafts([]);
+    setDraft(emptyDraft);
+    setEditingDraftId(null);
+    setBatchAssignedTo("");
+  };
+
   const handleDeliver = async () => {
     if (!deliverModal) return;
     try {
@@ -337,7 +514,7 @@ export default function SATasks({
         <div className={styles.formCard}>
           <div className={styles.formHeader}>
             <h3 className={styles.formTitle}>
-              {editTarget ? "Edit Task" : "Assign New Task"}
+              {editTarget ? "Edit Task" : "Assign Multiple Tasks"}
             </h3>
             <button
               className={styles.formClose}
@@ -346,176 +523,418 @@ export default function SATasks({
               ✕
             </button>
           </div>
-          <div className={styles.formGrid}>
-            {/* Assign To — first, so department/work-type can react to it.
-                Only non-super_admin employees are selectable. */}
-            <div className={styles.field}>
-              <label>Assign To *</label>
-              <select
-                className={styles.input}
-                value={form.assignedTo}
-                onChange={(e) => handleAssignedToChange(e.target.value)}
-              >
-                <option value="">Select Employee</option>
-                {assignableEmployees.map((e) => (
-                  <option key={e._id} value={e._id}>
-                    {e.name} — {e.role}
-                  </option>
-                ))}
-              </select>
-              {assignableEmployees.length === 0 && (
-                <span style={{ fontSize: 12, color: "#ef4444" }}>
-                  Koi assignable employee nahi mila.
-                </span>
-              )}
-            </div>
 
-            {/* Department — auto-filled, read-only */}
-            {selectedEmployeeForForm && (
+          {/* ═══════════════════ EDIT MODE (single existing task) ═══════════════════ */}
+          {editTarget && (
+            <div className={styles.formGrid}>
+              {/* Assign To — first, so department/work-type can react to it.
+                  Only non-super_admin employees are selectable. */}
               <div className={styles.field}>
-                <label>Department</label>
-                <input
-                  className={styles.input}
-                  value={selectedEmployeeForForm.department}
-                  disabled
-                  readOnly
-                />
-              </div>
-            )}
-
-            {/* Work Type — department-specific dropdown */}
-            {selectedEmployeeForForm && departmentTasks.length > 0 && (
-              <div className={styles.field}>
-                <label>Work Type *</label>
+                <label>Assign To *</label>
                 <select
                   className={styles.input}
-                  value={workType}
-                  onChange={(e) => handleWorkTypeChange(e.target.value)}
+                  value={form.assignedTo}
+                  onChange={(e) => handleAssignedToChange(e.target.value)}
                 >
-                  <option value="">Select work type</option>
-                  {departmentTasks.map((wt) => (
-                    <option key={wt} value={wt}>
-                      {wt}
+                  <option value="">Select Employee</option>
+                  {assignableEmployees.map((e) => (
+                    <option key={e._id} value={e._id}>
+                      {e.name} — {e.role}
+                    </option>
+                  ))}
+                </select>
+                {assignableEmployees.length === 0 && (
+                  <span style={{ fontSize: 12, color: "#ef4444" }}>
+                    Koi assignable employee nahi mila.
+                  </span>
+                )}
+              </div>
+
+              {/* Department — auto-filled, read-only */}
+              {selectedEmployeeForForm && (
+                <div className={styles.field}>
+                  <label>Department</label>
+                  <input
+                    className={styles.input}
+                    value={selectedEmployeeForForm.department}
+                    disabled
+                    readOnly
+                  />
+                </div>
+              )}
+
+              {/* Work Type — department-specific dropdown */}
+              {selectedEmployeeForForm && departmentTasks.length > 0 && (
+                <div className={styles.field}>
+                  <label>Work Type *</label>
+                  <select
+                    className={styles.input}
+                    value={workType}
+                    onChange={(e) => handleWorkTypeChange(e.target.value)}
+                  >
+                    <option value="">Select work type</option>
+                    {departmentTasks.map((wt) => (
+                      <option key={wt} value={wt}>
+                        {wt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* ── Photography: Shoots-specific fields ── */}
+              {isShootWork && (
+                <>
+                  <div className={styles.field}>
+                    <label>Shoot Location</label>
+                    <input
+                      className={styles.input}
+                      placeholder="e.g. Rishikesh Riverside Studio"
+                      value={form.location}
+                      onChange={(e) => setForm({ ...form, location: e.target.value })}
+                    />
+                  </div>
+                  <div className={styles.field}>
+                    <label>Shoot Time</label>
+                    <input
+                      className={styles.input}
+                      placeholder="e.g. 10:30 AM"
+                      value={form.time}
+                      onChange={(e) => setForm({ ...form, time: e.target.value })}
+                    />
+                  </div>
+                  <div className={styles.field}>
+                    <label>Media Type</label>
+                    <select
+                      className={styles.input}
+                      value={form.mediaType}
+                      onChange={(e) =>
+                        setForm({ ...form, mediaType: e.target.value as "" | "photo" | "video" | "both" })
+                      }
+                    >
+                      <option value="">Select type</option>
+                      <option value="photo">Photo</option>
+                      <option value="video">Video</option>
+                      <option value="both">Both</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {/* ── Photography: Edit-count field ── */}
+              {isEditCountWork && (
+                <div className={styles.field}>
+                  <label>Total Photos to Edit *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    className={styles.input}
+                    placeholder="e.g. 40"
+                    value={form.totalCount}
+                    onChange={(e) => setForm({ ...form, totalCount: e.target.value })}
+                  />
+                </div>
+              )}
+
+              <div className={styles.field}>
+                <label>Task Title *</label>
+                <input
+                  className={styles.input}
+                  placeholder="e.g. Build Login Page"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                />
+              </div>
+              <div className={styles.field}>
+                <label>Brand</label>
+                <select
+                  className={styles.input}
+                  value={form.brandId}
+                  onChange={(e) => setForm({ ...form, brandId: e.target.value })}
+                >
+                  <option value="">No Brand</option>
+                  {brands.map((b) => (
+                    <option key={b._id} value={b._id}>
+                      {b.name}
                     </option>
                   ))}
                 </select>
               </div>
-            )}
-
-            {/* ── Photography: Shoots-specific fields ── */}
-            {isShootWork && (
-              <>
-                <div className={styles.field}>
-                  <label>Shoot Location</label>
-                  <input
-                    className={styles.input}
-                    placeholder="e.g. Rishikesh Riverside Studio"
-                    value={form.location}
-                    onChange={(e) => setForm({ ...form, location: e.target.value })}
-                  />
-                </div>
-                <div className={styles.field}>
-                  <label>Shoot Time</label>
-                  <input
-                    className={styles.input}
-                    placeholder="e.g. 10:30 AM"
-                    value={form.time}
-                    onChange={(e) => setForm({ ...form, time: e.target.value })}
-                  />
-                </div>
-                <div className={styles.field}>
-                  <label>Media Type</label>
-                  <select
-                    className={styles.input}
-                    value={form.mediaType}
-                    onChange={(e) =>
-                      setForm({ ...form, mediaType: e.target.value as "" | "photo" | "video" | "both" })
-                    }
-                  >
-                    <option value="">Select type</option>
-                    <option value="photo">Photo</option>
-                    <option value="video">Video</option>
-                    <option value="both">Both</option>
-                  </select>
-                </div>
-              </>
-            )}
-
-            {/* ── Photography: Edit-count field ── */}
-            {isEditCountWork && (
               <div className={styles.field}>
-                <label>Total Photos to Edit *</label>
-                <input
-                  type="number"
-                  min={1}
+                <label>Frequency</label>
+                <select
                   className={styles.input}
-                  placeholder="e.g. 40"
-                  value={form.totalCount}
-                  onChange={(e) => setForm({ ...form, totalCount: e.target.value })}
+                  value={form.frequency}
+                  onChange={(e) =>
+                    setForm({ ...form, frequency: e.target.value as TaskFrequency })
+                  }
+                >
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="one_time">One Time</option>
+                </select>
+              </div>
+              <div className={styles.field}>
+                <label>Due Date</label>
+                <input
+                  type="date"
+                  className={styles.input}
+                  value={form.dueDate}
+                  onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
                 />
               </div>
-            )}
+              <div className={`${styles.field} ${styles.fullSpan}`}>
+                <label>Description {isShootWork ? "/ Notes" : ""}</label>
+                <textarea
+                  className={`${styles.input} ${styles.textarea}`}
+                  placeholder={isShootWork ? "Any notes for the shoot…" : "Describe the task…"}
+                  rows={3}
+                  value={form.description}
+                  onChange={(e) =>
+                    setForm({ ...form, description: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+          )}
 
-            <div className={styles.field}>
-              <label>Task Title *</label>
-              <input
-                className={styles.input}
-                placeholder="e.g. Build Login Page"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-            </div>
-            <div className={styles.field}>
-              <label>Brand</label>
-              <select
-                className={styles.input}
-                value={form.brandId}
-                onChange={(e) => setForm({ ...form, brandId: e.target.value })}
-              >
-                <option value="">No Brand</option>
-                {brands.map((b) => (
-                  <option key={b._id} value={b._id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className={styles.field}>
-              <label>Frequency</label>
-              <select
-                className={styles.input}
-                value={form.frequency}
-                onChange={(e) =>
-                  setForm({ ...form, frequency: e.target.value as TaskFrequency })
-                }
-              >
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="one_time">One Time</option>
-              </select>
-            </div>
-            <div className={styles.field}>
-              <label>Due Date</label>
-              <input
-                type="date"
-                className={styles.input}
-                value={form.dueDate}
-                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-              />
-            </div>
-            <div className={`${styles.field} ${styles.fullSpan}`}>
-              <label>Description {isShootWork ? "/ Notes" : ""}</label>
-              <textarea
-                className={`${styles.input} ${styles.textarea}`}
-                placeholder={isShootWork ? "Any notes for the shoot…" : "Describe the task…"}
-                rows={3}
-                value={form.description}
-                onChange={(e) =>
-                  setForm({ ...form, description: e.target.value })
-                }
-              />
-            </div>
-          </div>
+          {/* ═══════════════════ CREATE MODE (multi task/brand batch) ═══════════════════ */}
+          {!editTarget && (
+            <>
+              <div className={styles.formGrid}>
+                <div className={styles.field}>
+                  <label>Assign To *</label>
+                  <select
+                    className={styles.input}
+                    value={batchAssignedTo}
+                    onChange={(e) => handleBatchEmployeeChange(e.target.value)}
+                  >
+                    <option value="">Select Employee</option>
+                    {assignableEmployees.map((e) => (
+                      <option key={e._id} value={e._id}>
+                        {e.name} — {e.role}
+                      </option>
+                    ))}
+                  </select>
+                  {assignableEmployees.length === 0 && (
+                    <span style={{ fontSize: 12, color: "#ef4444" }}>
+                      Koi assignable employee nahi mila.
+                    </span>
+                  )}
+                </div>
+
+                {batchEmployee && (
+                  <div className={styles.field}>
+                    <label>Department</label>
+                    <input
+                      className={styles.input}
+                      value={batchEmployee.department}
+                      disabled
+                      readOnly
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* ── Tabs — one per drafted task, click to re-open & edit it ── */}
+              {taskDrafts.length > 0 && (
+                <div
+                  className={styles.filterWrap}
+                  style={{ marginBottom: 12, flexWrap: "wrap" }}
+                >
+                  {taskDrafts.map((d, idx) => (
+                    <div
+                      key={d.id}
+                      className={`${styles.filterBtn} ${
+                        editingDraftId === d.id ? styles.filterActive : ""
+                      }`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        cursor: "pointer",
+                      }}
+                      onClick={() => openDraftTab(d)}
+                    >
+                      <span>
+                        {idx + 1}. {d.workType || "Task"} —{" "}
+                        {brands.find((b) => b._id === d.brandId)?.name ?? "Brand"}
+                      </span>
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeDraftTab(d.id);
+                        }}
+                        style={{ color: "#ef4444", fontWeight: 700 }}
+                      >
+                        ✕
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Composer for the current task in the batch ── */}
+              {batchEmployee && (
+                <div className={styles.formGrid}>
+                  {batchDepartmentTasks.length > 0 && (
+                    <div className={styles.field}>
+                      <label>Task (Work Type) *</label>
+                      <select
+                        className={styles.input}
+                        value={draft.workType}
+                        onChange={(e) => handleDraftWorkTypeChange(e.target.value)}
+                      >
+                        <option value="">Select task</option>
+                        {batchDepartmentTasks.map((wt) => (
+                          <option key={wt} value={wt}>
+                            {wt}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Brand dropdown only appears once a Task is picked */}
+                  {draft.workType && (
+                    <div className={styles.field}>
+                      <label>Brand *</label>
+                      <select
+                        className={styles.input}
+                        value={draft.brandId}
+                        onChange={(e) => setDraft({ ...draft, brandId: e.target.value })}
+                      >
+                        <option value="">Select brand</option>
+                        {brands.map((b) => (
+                          <option key={b._id} value={b._id}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {draft.workType && draft.brandId && (
+                    <>
+                      {/* ── Photography: Shoots-specific fields ── */}
+                      {SHOOT_WORK_TYPES.includes(draft.workType) && (
+                        <>
+                          <div className={styles.field}>
+                            <label>Shoot Location</label>
+                            <input
+                              className={styles.input}
+                              placeholder="e.g. Rishikesh Riverside Studio"
+                              value={draft.location}
+                              onChange={(e) =>
+                                setDraft({ ...draft, location: e.target.value })
+                              }
+                            />
+                          </div>
+                          <div className={styles.field}>
+                            <label>Shoot Time</label>
+                            <input
+                              className={styles.input}
+                              placeholder="e.g. 10:30 AM"
+                              value={draft.time}
+                              onChange={(e) => setDraft({ ...draft, time: e.target.value })}
+                            />
+                          </div>
+                          <div className={styles.field}>
+                            <label>Media Type</label>
+                            <select
+                              className={styles.input}
+                              value={draft.mediaType}
+                              onChange={(e) =>
+                                setDraft({
+                                  ...draft,
+                                  mediaType: e.target.value as "" | "photo" | "video" | "both",
+                                })
+                              }
+                            >
+                              <option value="">Select type</option>
+                              <option value="photo">Photo</option>
+                              <option value="video">Video</option>
+                              <option value="both">Both</option>
+                            </select>
+                          </div>
+                        </>
+                      )}
+
+                      {/* ── Photography: Edit-count field ── */}
+                      {EDIT_COUNT_WORK_TYPES.includes(draft.workType) && (
+                        <div className={styles.field}>
+                          <label>Total Photos to Edit *</label>
+                          <input
+                            type="number"
+                            min={1}
+                            className={styles.input}
+                            placeholder="e.g. 40"
+                            value={draft.totalCount}
+                            onChange={(e) =>
+                              setDraft({ ...draft, totalCount: e.target.value })
+                            }
+                          />
+                        </div>
+                      )}
+
+                      <div className={styles.field}>
+                        <label>Frequency</label>
+                        <select
+                          className={styles.input}
+                          value={draft.frequency}
+                          onChange={(e) =>
+                            setDraft({ ...draft, frequency: e.target.value as TaskFrequency })
+                          }
+                        >
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                          <option value="one_time">One Time</option>
+                        </select>
+                      </div>
+                      <div className={styles.field}>
+                        <label>Due Date</label>
+                        <input
+                          type="date"
+                          className={styles.input}
+                          value={draft.dueDate}
+                          onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })}
+                        />
+                      </div>
+                      <div className={`${styles.field} ${styles.fullSpan}`}>
+                        <label>
+                          Description {SHOOT_WORK_TYPES.includes(draft.workType) ? "/ Notes" : ""}
+                        </label>
+                        <textarea
+                          className={`${styles.input} ${styles.textarea}`}
+                          placeholder={
+                            SHOOT_WORK_TYPES.includes(draft.workType)
+                              ? "Any notes for the shoot…"
+                              : "Describe the task…"
+                          }
+                          rows={3}
+                          value={draft.description}
+                          onChange={(e) =>
+                            setDraft({ ...draft, description: e.target.value })
+                          }
+                        />
+                      </div>
+
+                      <div className={styles.field}>
+                        <button
+                          type="button"
+                          className={styles.saveBtn}
+                          onClick={handleSaveDraftToTabs}
+                        >
+                          {editingDraftId ? "Update Task" : "+ Add Task & Continue"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
           <div className={styles.formActions}>
             <button
               className={styles.cancelBtn}
@@ -523,9 +942,27 @@ export default function SATasks({
             >
               Cancel
             </button>
-            <button className={styles.saveBtn} onClick={handleSubmit}>
-              {editTarget ? "Save Changes" : "Assign Task"}
-            </button>
+            {editTarget ? (
+              <button className={styles.saveBtn} onClick={handleSubmit}>
+                Save Changes
+              </button>
+            ) : (
+              <button
+                className={styles.saveBtn}
+                onClick={handleAssignBatch}
+                disabled={
+                  submittingBatch ||
+                  (taskDrafts.length === 0 && !(draft.workType && draft.brandId))
+                }
+              >
+                {submittingBatch
+                  ? "Assigning..."
+                  : `Assign ${
+                      taskDrafts.length +
+                      (draft.workType && draft.brandId && !editingDraftId ? 1 : 0)
+                    } Task(s)`}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -558,6 +995,8 @@ export default function SATasks({
                 taskType?: string;
                 startedAt?: string | null;
                 deliveredAt?: string | null;
+                timeSpentMs?: number;
+                currentSessionStartedAt?: string | null;
                 subtasks?: { _id: string; title: string; status: "pending" | "completed" }[];
               };
               const colSpanFull = isAdminOrSA ? 11 : 10;
@@ -674,10 +1113,12 @@ export default function SATasks({
                       )}
                     </td>
 
-                    {/* Time Taken — how long the employee spent on this task,
-                        computed from startedAt (stamped when they hit "Start
-                        Task" / go in_progress) to deliveredAt (or now, if
-                        still running). Same number shown on their own dashboard. */}
+                    {/* Time Taken — pause-aware accumulated time. Reads the
+                        same timeSpentMs + currentSessionStartedAt fields the
+                        employee's own dashboard uses, so both sides always
+                        agree, including through reject -> resume cycles
+                        (see getTimeTakenLabel's comment above for why the
+                        old startedAt/deliveredAt diff broke on resume). */}
                     <td>
                       <span
                         style={{
@@ -691,8 +1132,8 @@ export default function SATasks({
                             : "Not started yet"
                         }
                       >
-                        {getTimeTakenLabel(taskAny.startedAt, taskAny.deliveredAt)}
-                        {taskAny.startedAt && !taskAny.deliveredAt && (
+                        {getTimeTakenLabel(taskAny.timeSpentMs, taskAny.currentSessionStartedAt)}
+                        {taskAny.currentSessionStartedAt && (
                           <span style={{ color: "#2563eb" }}> ●</span>
                         )}
                       </span>

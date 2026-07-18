@@ -137,7 +137,12 @@ export default function EditsBoard({ edits, onStart, onProgressChange, onSubmit,
             const isRejected = task.status === "rejected";
             const isApproved = task.status === "approved";
             const needsCustomColor = isRejected || isApproved;
-            const timeTaken = getTimeTakenLabel(task.startedAt, task.deliveredAt);
+            // ── THE FIX: read the pause-aware timeSpentMs +
+            // currentSessionStartedAt (same fields/formula the Super Admin
+            // dashboard uses) instead of a raw startedAt -> deliveredAt
+            // diff, which balloons after a reject -> Resume Task cycle
+            // because deliveredAt is cleared on resume. ──────────────────
+            const timeTaken = getTimeTakenLabel(task.timeSpentMs, task.currentSessionStartedAt);
             const isRunning = !!task.currentSessionStartedAt;
 
             return (

@@ -77,6 +77,32 @@ export default function SuperAdminPage() {
     loadAll();
   }, [loadAll]);
 
+  // ── Live timer refresh ──────────────────────────────────────────────────
+  // THE FIX: any task whose clock is currently running
+  // (currentSessionStartedAt set — e.g. an employee resumed a rejected
+  // task) needs its "Time Taken" label in SATasks to keep ticking up even
+  // though nothing has changed server-side yet. Without this, the number
+  // stays frozen until the next full loadAll(), which made a running timer
+  // on this dashboard look stuck (or, before the getTimeTakenLabel fix,
+  // wildly wrong after a reject -> resume cycle). Same approach as the
+  // Designer Dashboard: a cheap re-render every 30s is enough since we
+  // don't need second-by-second precision for a work timer, and this
+  // avoids polling the backend.
+  useEffect(() => {
+    const hasRunningTimer = tasks.some(
+      (t) => !!(t as unknown as { currentSessionStartedAt?: string | null }).currentSessionStartedAt
+    );
+    if (!hasRunningTimer) return;
+
+    const interval = setInterval(() => {
+      // Force a re-render by shallow-cloning tasks; getTimeTakenLabel reads
+      // Date.now() at render time so this alone is enough to tick the UI.
+      setTasks((prev) => [...prev]);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [tasks]);
+
   const sectionTitles: Record<SASection, { title: string; sub: string }> = {
     dashboard: { title: "Super Admin Dashboard", sub: "Full platform overview" },
     brands: { title: "Brands", sub: "Manage all client brands" },

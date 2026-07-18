@@ -64,13 +64,33 @@ const dateLabel = (dateStr: string) => {
   });
 };
 
-const getTimeTakenLabel = (startedAt?: string | null, deliveredAt?: string | null): string | null => {
-  if (!startedAt) return null;
-  const start = new Date(startedAt).getTime();
-  const end = deliveredAt ? new Date(deliveredAt).getTime() : Date.now();
-  let diffMs = end - start;
-  if (diffMs < 0) diffMs = 0;
-  const mins = Math.floor(diffMs / 60000);
+// ── Time-taken helper ────────────────────────────────────────────────────
+// THE FIX: this used to compute a raw startedAt -> deliveredAt wall-clock
+// diff, same as SATasks originally did. That formula breaks the moment a
+// task goes through a reject -> Resume cycle: the backend's startTask()
+// intentionally clears deliveredAt on resume (so the OLD delivered
+// timestamp doesn't get read as an "end" for the timeSpentMs-based
+// formula), which meant this diff fell back to (now - startedAt) — the
+// task's ORIGINAL start time, ignoring any time spent paused waiting on
+// the rejection. The backend already tracks the correct, pause-aware
+// total in timeSpentMs (accumulated on every stopTimer() call) plus
+// whatever the currently-running session has added
+// (currentSessionStartedAt). This is the same formula the Designer
+// Dashboard and Super Admin's SATasks now use, so every dashboard agrees.
+const getTimeTakenLabel = (
+  timeSpentMs?: number | null,
+  currentSessionStartedAt?: string | null
+): string | null => {
+  let totalMs = timeSpentMs || 0;
+
+  if (currentSessionStartedAt) {
+    const elapsed = Date.now() - new Date(currentSessionStartedAt).getTime();
+    if (elapsed > 0) totalMs += elapsed;
+  }
+
+  if (totalMs <= 0) return null;
+
+  const mins = Math.floor(totalMs / 60000);
   const hrs = Math.floor(mins / 60);
   const days = Math.floor(hrs / 24);
   if (days > 0) return `${days}d ${hrs % 24}h`;
@@ -218,7 +238,15 @@ export default function AdminSelfTasksBoard({ tasks, brands, onRefresh }: AdminS
                 const needsAttentionBanner = task.status === "rejected" || task.status === "changes_requested";
                 const sColor = statusColor(task.status);
                 const fMeta = freqMeta[task.frequency] ?? freqMeta.one_time;
-                const timeTaken = getTimeTakenLabel(task.startedAt, task.deliveredAt);
+                // Same fields the Designer Dashboard / SATasks read — see
+                // getTimeTakenLabel's comment above for why startedAt/
+                // deliveredAt alone aren't reliable across a reject/resume.
+                const taskAny = task as unknown as {
+                  timeSpentMs?: number;
+                  currentSessionStartedAt?: string | null;
+                };
+                const timeTaken = getTimeTakenLabel(taskAny.timeSpentMs, taskAny.currentSessionStartedAt);
+                const isRunning = !!taskAny.currentSessionStartedAt;
                 const open = openChanges(task);
                 const isBusy = busyId === task._id;
 
@@ -253,7 +281,7 @@ export default function AdminSelfTasksBoard({ tasks, brands, onRefresh }: AdminS
                     {timeTaken && (
                       <div className={styles.timeRow}>
                         ⏱ Time taken: <strong>{timeTaken}</strong>
-                        {!task.deliveredAt && task.status === "in_progress" && " (running)"}
+                        {isRunning && " (running)"}
                       </div>
                     )}
 

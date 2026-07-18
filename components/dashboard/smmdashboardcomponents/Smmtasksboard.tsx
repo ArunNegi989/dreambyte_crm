@@ -319,10 +319,14 @@ export default function SMMTasksBoard({
                 const isExpanded = expandedId === task._id;
                 const needsAttentionBanner = task.status === "rejected" || task.status === "changes_requested";
                 const sColor = statusColor(task.status);
-                // ── UPDATED: total elapsed (startedAt -> deliveredAt), same
-                // number Super Admin panel shows. isRunning still comes from
-                // currentSessionStartedAt (drives Resume button hide + live tick).
-                const timeTaken = getTimeTakenLabel(task.startedAt, task.deliveredAt);
+                // ── FIX: pause-aware accumulated time. Reads timeSpentMs +
+                // currentSessionStartedAt (the same fields every other
+                // dashboard uses) instead of a raw startedAt -> deliveredAt
+                // diff, which breaks after a reject -> resume cycle since
+                // deliveredAt gets cleared on resume. isRunning still comes
+                // from currentSessionStartedAt (drives Resume button hide +
+                // live tick).
+                const timeTaken = getTimeTakenLabel(task.timeSpentMs, task.currentSessionStartedAt);
                 const isRunning = !!task.currentSessionStartedAt;
                 const open = openChanges(task);
 

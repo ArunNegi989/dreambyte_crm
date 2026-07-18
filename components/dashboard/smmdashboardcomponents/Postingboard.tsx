@@ -249,8 +249,11 @@ export default function PostingBoard({
                     const needsAttention = entry.status === "rejected" || entry.status === "changes_requested";
                     const sColor = statusColor(entry.status);
                     const open = openChanges(entry);
-                    // ── UPDATED: total elapsed (startedAt -> deliveredAt) ──
-                    const timeTaken = getTimeTakenLabel(entry.startedAt, entry.deliveredAt);
+                    // ── FIX: pause-aware accumulated time via timeSpentMs +
+                    // currentSessionStartedAt — see getTimeTakenLabel's
+                    // comment in types/smm/SMM.ts for why the old
+                    // startedAt -> deliveredAt diff broke on reject/resume.
+                    const timeTaken = getTimeTakenLabel(entry.timeSpentMs, entry.currentSessionStartedAt);
                     const isRunning = !!entry.currentSessionStartedAt;
 
                     return (
