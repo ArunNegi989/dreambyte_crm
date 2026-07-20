@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Task, CATEGORY_META, getTimeTakenLabel } from '../../../types/seodashboard/task';
 import StatusBadge from './StatusBadge';
 import PriorityBadge from './PriorityBadge';
@@ -18,6 +18,18 @@ function formatDate(value: string): string {
 export default function TaskTable({ tasks, onOpen, onStartTask }: TaskTableProps) {
   const today = new Date().toISOString().slice(0, 10);
   const [startingId, setStartingId] = useState<string | null>(null);
+
+  // ── Live timer refresh — any task whose clock is currently running
+  // needs a re-render every 30s so "Time taken" keeps ticking up in the
+  // UI, even though nothing changed server-side. Same pattern as every
+  // other dashboard (Designer, SMM, Admin, Super Admin). ─────────────
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const hasRunning = tasks.some((t) => !!t.currentSessionStartedAt);
+    if (!hasRunning) return;
+    const id = setInterval(() => forceTick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, [tasks]);
 
   const handleStartClick = async (e: React.MouseEvent, task: Task) => {
     e.stopPropagation(); // don't also open the task modal
@@ -48,8 +60,12 @@ export default function TaskTable({ tasks, onOpen, onStartTask }: TaskTableProps
         <tbody>
           {tasks.map((task) => {
             const overdue = task.status !== 'completed' && task.dueDate < today;
-            const timeTaken = getTimeTakenLabel(task.startedAt, task.deliveredAt);
-            const isRunning = task.status === 'in_progress' && !task.deliveredAt;
+            // ── FIX: pause-aware accumulated time via timeSpentMs +
+            // currentSessionStartedAt, matching Designer/SMM/Admin/Super
+            // Admin — see getTimeTakenLabel's comment in task.ts for why
+            // a raw startedAt -> deliveredAt diff broke on reject/resume.
+            const timeTaken = getTimeTakenLabel(task.timeSpentMs, task.currentSessionStartedAt);
+            const isRunning = !!task.currentSessionStartedAt;
 
             return (
               <tr key={task.id} className={styles.row} onClick={() => onOpen(task)}>
@@ -110,6 +126,26 @@ export default function TaskTable({ tasks, onOpen, onStartTask }: TaskTableProps
                       }}
                     >
                       {startingId === task.id ? 'Starting…' : 'Start Task'}
+                    </button>
+                  )}
+                  {task.status === 'rejected' && !task.currentSessionStartedAt && onStartTask && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleStartClick(e, task)}
+                      disabled={startingId === task.id}
+                      style={{
+                        background: '#fff',
+                        color: '#4338ca',
+                        border: '1px solid #c7d2fe',
+                        borderRadius: 6,
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.78rem',
+                        cursor: startingId === task.id ? 'not-allowed' : 'pointer',
+                        opacity: startingId === task.id ? 0.6 : 1,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {startingId === task.id ? 'Resuming…' : 'Resume Task'}
                     </button>
                   )}
                 </td>

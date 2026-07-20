@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Task, TaskStatus, CATEGORY_OPTIONS } from '../../../../types/seodashboard/task';
-import { getMyTasks, updateTaskWork } from '../../../api/seoApi';
+import { Task, TaskStatus, TaskDetails, CATEGORY_OPTIONS } from '../../../../types/seodashboard/task';
+import { getMyTasks, startTask, submitTask } from '../../../api/seoApi';
 import TaskTable from '../../../../components/dashboard/seodashboard/TaskTable';
 import TaskModal from '../../../../components/dashboard/seodashboard/TaskModal';
 import styles from '../../../../assets/styles/seodashboard/Tasks.module.css';
@@ -47,8 +47,26 @@ export default function SeoTasksPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks]);
 
-  const handleSaveTask = async (taskId: string, payload: { status: TaskStatus; remarks: string; details: any }) => {
-    await updateTaskWork(taskId, payload);
+  // ── Live timer refresh — same pattern as the dashboard page. ─────────
+  useEffect(() => {
+    const hasRunningTimer = tasks.some((t) => !!t.currentSessionStartedAt);
+    if (!hasRunningTimer) return;
+    const interval = setInterval(() => {
+      setTasks((prev) => [...prev]);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [tasks]);
+
+  // ── Start/Resume — dedicated timer endpoint, not a generic status PUT.
+  const handleStartTask = async (taskId: string) => {
+    await startTask(taskId);
+    fetchData();
+  };
+
+  // ── Submit for Review — stops the timer, saves category detail fields,
+  // backend moves status -> completed.
+  const handleSubmitTask = async (taskId: string, remarks: string, details: TaskDetails) => {
+    await submitTask(taskId, { remarks, details });
     fetchData();
   };
 
@@ -129,13 +147,23 @@ export default function SeoTasksPage() {
               <p className={styles.emptyText}>Try adjusting or clearing your filters.</p>
             </div>
           ) : (
-            <TaskTable tasks={filteredTasks} onOpen={setSelectedTask} />
+            <TaskTable
+              tasks={filteredTasks}
+              onOpen={setSelectedTask}
+              onStartTask={(task) => handleStartTask(task.id)}
+            />
           )}
         </>
       )}
 
       {selectedTask && (
-        <TaskModal task={selectedTask} onClose={() => setSelectedTask(null)} onSave={handleSaveTask} />
+        <TaskModal
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onStart={handleStartTask}
+          onSubmit={handleSubmitTask}
+          onRespond={fetchData}
+        />
       )}
     </div>
   );

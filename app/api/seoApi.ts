@@ -36,9 +36,54 @@ export interface UpdateTaskPayload {
   details?: TaskDetails;
 }
 
+// Generic status/details PUT. Still used for anything that ISN'T a
+// start/submit action (e.g. admin editing a task's category fields
+// directly). Do NOT use this to move a task into "in_progress" or
+// "completed" — those need startTask()/submitTask() below so the backend
+// actually stamps currentSessionStartedAt / stops the timer correctly.
+// A plain status PUT here only flips the status field; it does not touch
+// the pause-aware timer fields, so "time taken" would silently stop
+// accumulating for a task started this way.
 export async function updateTaskWork(taskId: string, payload: UpdateTaskPayload): Promise<Task> {
   const res = await apiFetch<{ success: boolean; data: Task }>(`/seo/tasks/${taskId}`, {
     method: 'PUT',
+    body: payload,
+  });
+  return res.data;
+}
+
+// ── Start / Resume Task ─────────────────────────────────────────────────
+// ASSUMPTION: mirrors the dedicated POST /tasks/:id/start endpoint used by
+// every other dashboard (Designer, SMM, Employee) and the /seo/tasks/:id
+// /respond endpoint already proven to exist for this module. This is what
+// actually stamps currentSessionStartedAt server-side (and clears a stale
+// deliveredAt on resume) — a generic status PUT does NOT do this, which is
+// why "time taken" was inconsistent here. If your backend's seoTaskRoutes
+// doesn't expose this path yet, this call will 404 — let me know and I'll
+// either point it at the right route or add the missing backend handler.
+export async function startTask(taskId: string): Promise<Task> {
+  const res = await apiFetch<{ success: boolean; data: Task }>(`/seo/tasks/${taskId}/start`, {
+    method: 'POST',
+    body: {},
+  });
+  return res.data;
+}
+
+export interface SubmitTaskPayload {
+  remarks?: string;
+  details?: TaskDetails;
+}
+
+// ── Submit for Review ───────────────────────────────────────────────────
+// ASSUMPTION: same caveat as startTask() above — expected to stop the
+// running timer (fold the session into timeSpentMs), stamp deliveredAt,
+// and set status to "completed" server-side, mirroring every other
+// dashboard's submit flow. Category detail fields are sent along so the
+// employee's filled-in data (backlinks/keywords/etc.) is saved in the same
+// call as the submit.
+export async function submitTask(taskId: string, payload: SubmitTaskPayload): Promise<Task> {
+  const res = await apiFetch<{ success: boolean; data: Task }>(`/seo/tasks/${taskId}/submit`, {
+    method: 'POST',
     body: payload,
   });
   return res.data;

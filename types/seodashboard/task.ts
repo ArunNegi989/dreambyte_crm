@@ -193,8 +193,22 @@ export interface Task {
   details?: TaskDetails;
   rejectRemark?: string;
   changes?: TaskChange[];
+  // ── Display-only timestamps — do NOT use these to compute elapsed time.
+  // startedAt is the first-ever start (legacy/display). deliveredAt gets
+  // cleared server-side every time the task is Resumed, so a naive
+  // startedAt -> deliveredAt diff silently breaks across any
+  // reject -> resume cycle. Use timeSpentMs + currentSessionStartedAt via
+  // getTimeTakenLabel() below instead — same fields, same formula, as
+  // every other dashboard (Designer, SMM, Admin, Super Admin).
   startedAt?: string | null;
   deliveredAt?: string | null;
+  // ── Pause/resume timer — the actual source of truth for "time taken".
+  // timeSpentMs: cumulative worked time across all sessions, pause-aware,
+  // accumulated server-side every time a session stops (submit/respond).
+  // currentSessionStartedAt: set while a session is actively running
+  // (Start/Resume), null while paused/completed.
+  timeSpentMs?: number;
+  currentSessionStartedAt?: string | null;
 }
 
 export interface AdditionalTask {
@@ -221,13 +235,33 @@ export interface DashboardStats {
   completionRate: number; // 0-100
 }
 
-export function getTimeTakenLabel(startedAt?: string | null, deliveredAt?: string | null): string | null {
-  if (!startedAt) return null;
-  const start = new Date(startedAt).getTime();
-  const end = deliveredAt ? new Date(deliveredAt).getTime() : Date.now();
-  const diffMs = end - start;
-  if (diffMs < 0) return null;
-  const mins = Math.floor(diffMs / 60000);
+// ── Time-taken helper ────────────────────────────────────────────────────
+// THE FIX: this used to compute a raw startedAt -> deliveredAt wall-clock
+// diff. That formula breaks the moment a task goes through a
+// reject -> Resume cycle: the backend clears deliveredAt on resume (so the
+// OLD delivered timestamp doesn't get read as an "end"), which means the
+// diff falls back to (now - startedAt) — the task's ORIGINAL start time,
+// potentially days ago, ignoring any time spent paused waiting on the
+// rejection. The backend already tracks the correct, pause-aware total in
+// timeSpentMs (accumulated every time a session stops) plus whatever the
+// currently-running session has added on top (currentSessionStartedAt).
+// This is the exact same formula every other dashboard (Super Admin,
+// Admin, Designer, SMM) uses, so all views agree on the same number for
+// the same task.
+export function getTimeTakenLabel(
+  timeSpentMs?: number | null,
+  currentSessionStartedAt?: string | null
+): string | null {
+  let totalMs = timeSpentMs || 0;
+
+  if (currentSessionStartedAt) {
+    const elapsed = Date.now() - new Date(currentSessionStartedAt).getTime();
+    if (elapsed > 0) totalMs += elapsed;
+  }
+
+  if (totalMs <= 0) return null;
+
+  const mins = Math.floor(totalMs / 60000);
   const hrs = Math.floor(mins / 60);
   const remMins = mins % 60;
   return hrs > 0 ? `${hrs}h ${remMins}m` : `${mins}m`;

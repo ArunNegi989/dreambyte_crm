@@ -2,9 +2,9 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Task, DashboardStats, TaskStatus } from '../../../types/seodashboard/task';
+import { Task, DashboardStats, TaskDetails } from '../../../types/seodashboard/task';
 import { groupTasksByDueDate } from '../../../data/seodashboard/taskStats';
-import { getMyTasks, getDashboardStats, updateTaskWork } from '../../api/seoApi';
+import { getMyTasks, getDashboardStats, startTask, submitTask } from '../../api/seoApi';
 import { logout } from '../../api/authApi';
 import StatCard from '../../../components/dashboard/seodashboard/StatCard';
 import CategoryBreakdown from '../../../components/dashboard/seodashboard/CategoryBreakdown';
@@ -84,20 +84,41 @@ export default function SeoDashboardPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleSaveTask = async (taskId: string, payload: { status: TaskStatus; remarks: string; details: any }) => {
-    await updateTaskWork(taskId, payload);
+  // ── Live timer refresh ──────────────────────────────────────────────
+  // Same fix as every other dashboard: any task whose clock is currently
+  // running (currentSessionStartedAt set) needs a re-render every 30s so
+  // "Time taken" keeps ticking up in the UI, even though nothing changed
+  // server-side yet.
+  useEffect(() => {
+    const hasRunningTimer = tasks.some((t) => !!t.currentSessionStartedAt);
+    if (!hasRunningTimer) return;
+    const interval = setInterval(() => {
+      setTasks((prev) => [...prev]);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [tasks]);
+
+  // ── Start Task — hits the dedicated timer endpoint (stamps
+  // currentSessionStartedAt server-side), not a generic status PUT. Used
+  // for both the table's inline "Start Task" button and the modal's
+  // Start/Resume buttons. ──────────────────────────────────────────────
+  const handleStartTask = async (task: Task) => {
+    await startTask(task.id);
     fetchData();
   };
 
-  // ── Start Task: called directly from the table row, not the modal.
-  // Sends a minimal status update; backend stamps startedAt the first
-  // time a task moves into "in_progress". ────────────────────────────
-  const handleStartTask = async (task: Task) => {
-    await updateTaskWork(task.id, {
-      status: 'in_progress',
-      remarks: task.remarks || '',
-      details: task.details || {},
-    });
+  // Modal's onStart only ever has the task id in scope, not the full Task
+  // object — same underlying action as handleStartTask above.
+  const handleStartTaskById = async (taskId: string) => {
+    await startTask(taskId);
+    fetchData();
+  };
+
+  // ── Submit for Review — stops the timer, saves the category detail
+  // fields, and the backend moves status -> completed. Replaces the old
+  // free-form status dropdown entirely.
+  const handleSubmitTask = async (taskId: string, remarks: string, details: TaskDetails) => {
+    await submitTask(taskId, { remarks, details });
     fetchData();
   };
 
@@ -337,7 +358,13 @@ export default function SeoDashboardPage() {
       )}
 
       {selectedTask && (
-        <TaskModal task={selectedTask} onClose={() => setSelectedTask(null)} onSave={handleSaveTask} onRespond={fetchData} />
+        <TaskModal
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onStart={handleStartTaskById}
+          onSubmit={handleSubmitTask}
+          onRespond={fetchData}
+        />
       )}
     </div>
   );

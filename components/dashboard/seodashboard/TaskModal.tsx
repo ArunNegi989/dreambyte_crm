@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
-import { Task, TaskStatus, CATEGORY_META } from '../../../types/seodashboard/task';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Task, TaskStatus, CATEGORY_META, TaskDetails, getTimeTakenLabel } from '../../../types/seodashboard/task';
 import { CATEGORY_FIELD_CONFIG, FieldDef } from './taskFieldConfig';
 import DynamicField from './DynamicField';
 import StatusBadge from './StatusBadge';
@@ -13,16 +13,16 @@ import styles from '../../../assets/styles/seodashboard/TaskModal.module.css';
 interface TaskModalProps {
   task: Task;
   onClose: () => void;
-  onSave: (taskId: string, payload: { status: TaskStatus; remarks: string; details: any }) => Promise<void> | void;
+  // Starts (or resumes) the work timer. Backend flips pending -> in_progress
+  // on a fresh start, and leaves status as-is on a resume from rejected (so
+  // the feedback/reply section below keeps showing until actually
+  // resubmitted). Parent refetches after this resolves.
+  onStart: (taskId: string) => Promise<void> | void;
+  // Submits the task for review: saves whatever category detail fields were
+  // filled in, stops the timer, and moves status -> completed.
+  onSubmit: (taskId: string, remarks: string, details: TaskDetails) => Promise<void> | void;
   onRespond?: () => void; // optional: lets the parent page refetch after a reply is sent
 }
-
-const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'in_progress', label: 'In progress' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'blocked', label: 'Blocked' },
-];
 
 function emptyRow(fields: FieldDef[]): Record<string, any> {
   const row: Record<string, any> = { id: `row_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` };
@@ -46,13 +46,14 @@ function isAdminAuthor(changedBy: string): boolean {
   return changedBy.toLowerCase().includes('admin');
 }
 
-export default function TaskModal({ task, onClose, onSave, onRespond }: TaskModalProps) {
+export default function TaskModal({ task, onClose, onStart, onSubmit, onRespond }: TaskModalProps) {
   const config = CATEGORY_FIELD_CONFIG[task.category];
   const meta = CATEGORY_META[task.category];
 
-  const [status, setStatus] = useState<TaskStatus>(task.status);
   const [remarks, setRemarks] = useState(task.remarks || '');
-  const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [timerError, setTimerError] = useState('');
 
   const initialDetail = (task.details as any)?.[task.category];
   const [singleDetail, setSingleDetail] = useState<Record<string, any>>(
@@ -61,6 +62,27 @@ export default function TaskModal({ task, onClose, onSave, onRespond }: TaskModa
   const [rows, setRows] = useState<Record<string, any>[]>(
     config.isList ? (Array.isArray(initialDetail) ? initialDetail : []) : []
   );
+
+  // Ticks every 30s so a running timer's label stays live while the modal
+  // is open — same pattern as every other dashboard's task modal.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!task.currentSessionStartedAt) return;
+    const id = setInterval(() => forceTick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, [task.currentSessionStartedAt]);
+
+  // ── Pause-aware time taken — see getTimeTakenLabel's comment in task.ts
+  // for why this reads timeSpentMs + currentSessionStartedAt instead of
+  // startedAt/deliveredAt directly.
+  const timeTaken = getTimeTakenLabel(task.timeSpentMs, task.currentSessionStartedAt);
+  const isRunning = !!task.currentSessionStartedAt;
+
+  const FINAL_STATUSES: TaskStatus[] = ['completed'];
+  const isEditable = !FINAL_STATUSES.includes(task.status);
+  const isNeverStarted = task.status === 'pending' && !task.currentSessionStartedAt && !task.timeSpentMs;
+  const isRejected = task.status === 'rejected';
+  const isBlocked = task.status === 'blocked';
 
   // ── Admin feedback ──────────────────────────────────────────────────────
   const adminFeedback = useMemo(() => {
@@ -119,14 +141,34 @@ export default function TaskModal({ task, onClose, onSave, onRespond }: TaskModa
   const addRow = () => setRows((prev) => [...prev, emptyRow(config.fields)]);
   const removeRow = (rowId: string) => setRows((prev) => prev.filter((r) => r.id !== rowId));
 
-  const handleSave = async () => {
-    setSaving(true);
+  // ── Start Task — hits the dedicated timer endpoint (via parent's onStart)
+  // rather than a plain status update, so currentSessionStartedAt actually
+  // gets stamped server-side. Used for both a fresh start (pending) and a
+  // resume (rejected, timer not already running).
+  const handleStart = async () => {
     try {
-      const details = { [task.category]: config.isList ? rows : singleDetail };
-      await onSave(task.id, { status, remarks, details });
+      setStarting(true);
+      setTimerError('');
+      await onStart(task.id);
+      onClose();
+    } catch (err) {
+      setTimerError(err instanceof Error ? err.message : 'Failed to start task');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  // ── Submit for Review — stops the timer, saves the category fields, and
+  // moves status -> completed. This replaces the old free-form status
+  // dropdown entirely: submitting always means "done, sent for review."
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const details: TaskDetails = { [task.category]: config.isList ? rows : singleDetail } as TaskDetails;
+      await onSubmit(task.id, remarks, details);
       onClose();
     } finally {
-      setSaving(false);
+      setSubmitting(false);
     }
   };
 
@@ -202,7 +244,7 @@ export default function TaskModal({ task, onClose, onSave, onRespond }: TaskModa
                             value={replyDrafts[c.id] || ''}
                             onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [c.id as string]: e.target.value }))}
                           />
-                          <button
+                          {/* <button
                             type="button"
                             onClick={() => handleReply(c.id as string)}
                             disabled={replying === c.id}
@@ -218,11 +260,11 @@ export default function TaskModal({ task, onClose, onSave, onRespond }: TaskModa
                             }}
                           >
                             {replying === c.id ? 'Sending…' : 'Reply'}
-                          </button>
+                          </button> */}
                         </div>
                       ) : (
                         <p style={{ fontSize: '0.72rem', color: '#9ca3af', fontStyle: 'italic', margin: '0.35rem 0 0' }}>
-                          Recorded before reply support — update the status below to resolve.
+                          Recorded before reply support — resume and resubmit below to resolve.
                         </p>
                       )}
                     </div>
@@ -255,7 +297,43 @@ export default function TaskModal({ task, onClose, onSave, onRespond }: TaskModa
               <span className={styles.metaLabel}>Current status</span>
               <StatusBadge status={task.status} />
             </div>
+            {timeTaken && (
+              <div className={styles.metaItem}>
+                <span className={styles.metaLabel}>Time taken</span>
+                <span className={styles.metaValue}>
+                  {timeTaken}{isRunning ? ' (running)' : ''}
+                </span>
+              </div>
+            )}
           </div>
+
+          {/* ── Start Task — shown only before work has ever begun. No
+              status dropdown anymore: the backend stamps everything the
+              moment this is clicked, same as every other dashboard. ── */}
+          {isNeverStarted && (
+            <div style={{ margin: '16px 0' }}>
+              <button type="button" className={styles.saveBtn} onClick={handleStart} disabled={starting}>
+                {starting ? 'Starting…' : 'Start Task'}
+              </button>
+              <p style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Clicking this starts the work timer.</p>
+            </div>
+          )}
+
+          {/* ── Resume Task — shown when rejected and the timer isn't
+              already running. Restarts the clock; status stays untouched
+              so the feedback above keeps showing until actually
+              resubmitted via the reply boxes or the Submit button. ── */}
+          {isRejected && !isRunning && (
+            <div style={{ margin: '16px 0' }}>
+              <button type="button" className={styles.saveBtn} onClick={handleStart} disabled={starting}>
+                {starting ? 'Resuming…' : 'Resume Task'}
+              </button>
+            </div>
+          )}
+
+          {timerError && (
+            <p style={{ color: '#a32d2d', fontSize: 12.5, marginTop: 6 }}>{timerError}</p>
+          )}
 
           <hr className={styles.divider} />
 
@@ -272,9 +350,11 @@ export default function TaskModal({ task, onClose, onSave, onRespond }: TaskModa
                     {task.category === 'website_ranking' && (
                       <RankChip previousRank={row.previousRank} currentRank={row.currentRank} />
                     )}
-                    <button type="button" className={styles.removeRowBtn} onClick={() => removeRow(row.id)}>
-                      Remove
-                    </button>
+                    {isEditable && (
+                      <button type="button" className={styles.removeRowBtn} onClick={() => removeRow(row.id)}>
+                        Remove
+                      </button>
+                    )}
                   </div>
                   <div className={styles.fieldGrid}>
                     {config.fields.map((field) => (
@@ -291,9 +371,11 @@ export default function TaskModal({ task, onClose, onSave, onRespond }: TaskModa
                 </div>
               ))}
 
-              <button type="button" className={styles.addRowBtn} onClick={addRow}>
-                + {config.addLabel}
-              </button>
+              {isEditable && (
+                <button type="button" className={styles.addRowBtn} onClick={addRow}>
+                  + {config.addLabel}
+                </button>
+              )}
             </div>
           ) : (
             <div className={styles.fieldGrid}>
@@ -310,34 +392,40 @@ export default function TaskModal({ task, onClose, onSave, onRespond }: TaskModa
             </div>
           )}
 
-          <hr className={styles.divider} />
+          {isEditable && (
+            <>
+              <hr className={styles.divider} />
+              <div className={styles.field}>
+                <label className={styles.fieldLabel}>Remarks (optional)</label>
+                <textarea
+                  className={styles.textarea}
+                  rows={2}
+                  placeholder="Anything blocking you, or context for whoever reviews this next…"
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                />
+              </div>
+            </>
+          )}
 
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>Update status</label>
-            <select className={styles.select} value={status} onChange={(e) => setStatus(e.target.value as TaskStatus)}>
-              {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>Remarks (optional)</label>
-            <textarea
-              className={styles.textarea}
-              rows={2}
-              placeholder="Anything blocking you, or context for whoever reviews this next…"
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-            />
-          </div>
+          {isBlocked && (
+            <p style={{ fontSize: 12.5, color: '#92400e', background: '#fffbeb', borderRadius: 8, padding: '8px 12px', marginTop: 12 }}>
+              This task is marked blocked. Contact your admin to have it reopened.
+            </p>
+          )}
         </div>
 
         <div className={styles.footer}>
           <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancel</button>
-          <button type="button" className={styles.saveBtn} onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save update'}
-          </button>
+          {/* Submit only makes sense once work has actually started — for a
+              never-started task the Start Task button above is the only
+              action. For rejected, Submit is available alongside Resume so
+              a task that's still mid-session can be resubmitted directly. */}
+          {isEditable && !isNeverStarted && (
+            <button type="button" className={styles.saveBtn} onClick={handleSubmit} disabled={submitting}>
+              {submitting ? 'Submitting…' : 'Submit for review'}
+            </button>
+          )}
         </div>
       </div>
     </div>
