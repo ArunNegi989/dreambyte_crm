@@ -24,10 +24,18 @@ export default function SAStatsCards({ employees, tasks, brands }: SAStatsCardsP
     totalBrands: brands.length,
   };
 
-  // Handles both populated object and plain string id
-  const getEmpName = (assignedTo: string | { _id: string; name: string }) => {
+  // NOTE: `typeof null === "object"` is true in JS, so every check below
+  // explicitly guards for null/undefined BEFORE checking typeof === "object".
+  // Handles both populated object and plain string id (or null/undefined).
+  const getEmpName = (assignedTo?: string | { _id: string; name: string } | null) => {
+    if (!assignedTo) return "—";
     if (typeof assignedTo === "object") return assignedTo.name;
     return employees.find((e) => e._id === assignedTo)?.name ?? "—";
+  };
+
+  const getEmpId = (assignedTo?: string | { _id: string; name: string } | null) => {
+    if (!assignedTo) return null;
+    return typeof assignedTo === "object" ? assignedTo._id : assignedTo;
   };
 
   const getBrandName = (brandId?: string | { _id: string; name: string } | null) => {
@@ -94,12 +102,7 @@ export default function SAStatsCards({ employees, tasks, brands }: SAStatsCardsP
                 </thead>
                 <tbody>
                   {employees.map((emp) => {
-                    const empTasks = tasks.filter((t) => {
-                      const id = typeof t.assignedTo === "object"
-                        ? (t.assignedTo as { _id: string })._id
-                        : t.assignedTo;
-                      return id === emp._id;
-                    });
+                    const empTasks = tasks.filter((t) => getEmpId(t.assignedTo) === emp._id);
                     return (
                       <tr key={emp._id}>
                         <td><span className={styles.empIdPill}>{emp.employeeId}</span></td>
